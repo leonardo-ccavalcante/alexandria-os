@@ -66,6 +66,7 @@ export const inventoryItems = mysqlTable("inventory_items", {
   ]).notNull(),
   conditionNotes: text("conditionNotes"),
   locationCode: varchar("locationCode", { length: 3 }),
+  salesChannels: text("salesChannels"),
   listingPrice: decimal("listingPrice", { precision: 6, scale: 2 }),
   costOfGoods: decimal("costOfGoods", { precision: 6, scale: 2 }).default("0.00"),
   soldAt: timestamp("soldAt"),

@@ -282,3 +282,20 @@
 - [x] Verify filter logic correctly handles locations array
 - [x] Test filter combinations (author + location filter, publisher + location filter, etc.)
 - [x] Ensure filters work correctly in both table and card views
+
+## Sales Channel Multi-Select Implementation
+- [x] Add salesChannels field to inventory_items table (JSON array)
+- [x] Create sales channel enum/constants: Wallapop, Vinted, Todo Colección, Sitio web, Iberlibro, Amazon, Ebay, Casa del Libro, Fnac
+- [x] Update backend getGroupedByIsbn to include sales channels in response
+- [x] Add backend procedure to update sales channels for an inventory item
+- [x] Build multi-select dropdown component for sales channels
+- [ ] Integrate multi-select into inventory table inline editing (see SALES_CHANNEL_IMPLEMENTATION_GUIDE.md)
+- [ ] Add sales channel badges/tags display in table and card views (see SALES_CHANNEL_IMPLEMENTATION_GUIDE.md)
+- [ ] Implement filter by sales channel (show books listed on specific channels) (see SALES_CHANNEL_IMPLEMENTATION_GUIDE.md)
+- [ ] Write unit tests for sales channel backend procedures
+- [ ] Write unit tests for sales channel filtering logic
+- [ ] Test multi-select UI with various combinations
+- [ ] Verify sales channels persist correctly in database
+- [ ] Test filter by channel works with other filters
+- [ ] Conduct full QA and code review
+- [x] Document sales channel feature in implementation guide

@@ -455,7 +455,8 @@ export const appRouter = router({
             COUNT(ii.uuid) as totalQuantity,
             SUM(CASE WHEN ii.status = 'AVAILABLE' THEN 1 ELSE 0 END) as availableQuantity,
             GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' AND ii.locationCode IS NOT NULL AND ii.locationCode != '' THEN ii.locationCode END ORDER BY ii.locationCode SEPARATOR ',') as locations,
-            GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' THEN ii.uuid END SEPARATOR ',') as availableItemUuids
+            GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' THEN ii.uuid END SEPARATOR ',') as availableItemUuids,
+            GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' AND ii.salesChannels IS NOT NULL THEN ii.salesChannels END SEPARATOR '|') as salesChannelsRaw
           FROM catalog_masters cm
           LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
           WHERE ${whereClause}
@@ -493,13 +494,31 @@ export const appRouter = router({
         const rawItems = rawRows as any[];
         const totalCount = countRows && (countRows as any[]).length > 0 ? Number((countRows as any[])[0].count) : 0;
 
-        const items = rawItems.map((row: any) => ({
-          ...row,
-          totalQuantity: Number(row.totalQuantity),
-          availableQuantity: Number(row.availableQuantity),
-          locations: row.locations ? row.locations.split(',') : [],
-          items: row.availableItemUuids ? row.availableItemUuids.split(',').map((uuid: string) => ({ uuid, status: 'AVAILABLE' })) : []
-        }));
+        const items = rawItems.map((row: any) => {
+          // Parse sales channels from concatenated JSON arrays
+          let salesChannels: string[] = [];
+          if (row.salesChannelsRaw) {
+            const channelArrays = row.salesChannelsRaw.split('|');
+            const allChannels = channelArrays.flatMap((jsonStr: string) => {
+              try {
+                return JSON.parse(jsonStr);
+              } catch {
+                return [];
+              }
+            });
+            // Remove duplicates
+            salesChannels = Array.from(new Set(allChannels));
+          }
+          
+          return {
+            ...row,
+            totalQuantity: Number(row.totalQuantity),
+            availableQuantity: Number(row.availableQuantity),
+            locations: row.locations ? row.locations.split(',') : [],
+            salesChannels,
+            items: row.availableItemUuids ? row.availableItemUuids.split(',').map((uuid: string) => ({ uuid, status: 'AVAILABLE' })) : []
+          };
+        });
 
         return {
           items,
@@ -666,6 +685,29 @@ export const appRouter = router({
         });
         
         return { success: true };
+      }),
+    
+    // Update sales channels for an inventory item
+    updateSalesChannels: protectedProcedure
+      .input(z.object({
+        uuid: z.string(),
+        salesChannels: z.array(z.enum([
+          'Wallapop',
+          'Vinted',
+          'Todo Colección',
+          'Sitio web',
+          'Iberlibro',
+          'Amazon',
+          'Ebay',
+          'Casa del Libro',
+          'Fnac',
+        ])),
+      }))
+      .mutation(async ({ input }) => {
+        const item = await updateInventoryItem(input.uuid, {
+          salesChannels: JSON.stringify(input.salesChannels),
+        });
+        return { success: true, item };
       }),
   }),
 

@@ -372,7 +372,7 @@ export default function InventoryFinal() {
                               value={newLocation}
                               onChange={(e) => setNewLocation(e.target.value)}
                               onBlur={() => {
-                                if (newLocation !== editingLocation.oldLocation) {
+                                if (editingLocation && newLocation !== editingLocation.oldLocation) {
                                   const availableUuids = book.items
                                     .filter((item: any) => item.status === 'AVAILABLE')
                                     .map((item: any) => item.uuid);
@@ -516,14 +516,14 @@ export default function InventoryFinal() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleIncreaseQuantity(book.isbn13)}
+                        onClick={() => increaseQty.mutate({ isbn13: book.isbn13 })}
                       >
                         +
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDecreaseQuantity(book.isbn13)}
+                        onClick={() => decreaseQty.mutate({ isbn13: book.isbn13 })}
                         disabled={book.availableQuantity === 0}
                       >
                         −
