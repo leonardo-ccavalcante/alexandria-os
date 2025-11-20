@@ -500,3 +500,276 @@ export async function getTopPerformingBooks(limit: number = 10) {
     totalProfit: Number(r.totalProfit),
   }));
 }
+
+// ============================================================================
+// ADVANCED ANALYTICS
+// ============================================================================
+
+export async function getInventoryVelocity(params: {
+  dateFrom?: Date;
+  dateTo?: Date;
+  groupBy?: 'day' | 'week' | 'month';
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const { dateFrom, dateTo, groupBy = 'day' } = params;
+  
+  // Date format based on grouping
+  const dateFormat = groupBy === 'day' ? '%Y-%m-%d' : 
+                     groupBy === 'week' ? '%Y-%U' : 
+                     '%Y-%m';
+  
+  // Build WHERE clause for date filtering
+  let whereClause = '1=1';
+  const whereParams: any[] = [];
+  
+  if (dateFrom) {
+    whereClause += ' AND createdAt >= ?';
+    whereParams.push(dateFrom);
+  }
+  if (dateTo) {
+    whereClause += ' AND createdAt <= ?';
+    whereParams.push(dateTo);
+  }
+  
+  // Query for items added (inventory_items.createdAt)
+  const addedQuery = `
+    SELECT 
+      DATE_FORMAT(createdAt, '${dateFormat}') as period,
+      COUNT(*) as count
+    FROM inventory_items
+    WHERE ${whereClause}
+    GROUP BY period
+    ORDER BY period
+  `;
+  
+  // Query for items sold (sales_transactions.saleDate)
+  const soldQuery = `
+    SELECT 
+      DATE_FORMAT(saleDate, '${dateFormat}') as period,
+      COUNT(*) as count
+    FROM sales_transactions
+    WHERE ${whereClause.replace('createdAt', 'saleDate')}
+    GROUP BY period
+    ORDER BY period
+  `;
+  
+  const addedResults = await db.execute(sql.raw(addedQuery)) as any;
+  const soldResults = await db.execute(sql.raw(soldQuery)) as any;
+  
+  // Merge results
+  const periodsMap = new Map<string, { period: string; added: number; sold: number }>();
+  
+  addedResults.forEach((row: any) => {
+    periodsMap.set(row.period, { period: row.period, added: Number(row.count), sold: 0 });
+  });
+  
+  soldResults.forEach((row: any) => {
+    const existing = periodsMap.get(row.period);
+    if (existing) {
+      existing.sold = Number(row.count);
+    } else {
+      periodsMap.set(row.period, { period: row.period, added: 0, sold: Number(row.count) });
+    }
+  });
+  
+  return Array.from(periodsMap.values()).sort((a, b) => a.period.localeCompare(b.period));
+}
+
+export async function getAnalyticsByAuthor(params: {
+  dateFrom?: Date;
+  dateTo?: Date;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const { dateFrom, dateTo, limit = 20 } = params;
+  
+  let whereClause = '1=1';
+  const whereParams: any[] = [];
+  
+  if (dateFrom) {
+    whereClause += ' AND ii.createdAt >= ?';
+    whereParams.push(dateFrom);
+  }
+  if (dateTo) {
+    whereClause += ' AND ii.createdAt <= ?';
+    whereParams.push(dateTo);
+  }
+  
+  const query = `
+    SELECT 
+      cm.author,
+      COUNT(DISTINCT ii.uuid) as totalItems,
+      COUNT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' THEN ii.uuid END) as availableItems,
+      COUNT(DISTINCT CASE WHEN ii.status = 'SOLD' THEN ii.uuid END) as soldItems,
+      COALESCE(SUM(CASE WHEN ii.status IN ('AVAILABLE', 'LISTED') THEN CAST(ii.listingPrice AS DECIMAL(10,2)) END), 0) as inventoryValue,
+      COALESCE(SUM(st.finalSalePrice), 0) as totalRevenue,
+      COALESCE(SUM(st.netProfit), 0) as totalProfit,
+      COALESCE(AVG(CAST(ii.listingPrice AS DECIMAL(10,2))), 0) as avgPrice
+    FROM catalog_masters cm
+    LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+    LEFT JOIN sales_transactions st ON ii.uuid = st.uuid
+    WHERE ${whereClause} AND cm.author IS NOT NULL AND cm.author != ''
+    GROUP BY cm.author
+    ORDER BY totalItems DESC
+    LIMIT ${limit}
+  `;
+  
+  const results = await db.execute(sql.raw(query)) as any;
+  
+  return (results as any[]).map((r: any) => ({
+    author: r.author,
+    totalItems: Number(r.totalItems),
+    availableItems: Number(r.availableItems),
+    soldItems: Number(r.soldItems),
+    inventoryValue: Number(r.inventoryValue),
+    totalRevenue: Number(r.totalRevenue),
+    totalProfit: Number(r.totalProfit),
+    avgPrice: Number(r.avgPrice),
+  }));
+}
+
+export async function getAnalyticsByPublisher(params: {
+  dateFrom?: Date;
+  dateTo?: Date;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const { dateFrom, dateTo, limit = 20 } = params;
+  
+  let whereClause = '1=1';
+  const whereParams: any[] = [];
+  
+  if (dateFrom) {
+    whereClause += ' AND ii.createdAt >= ?';
+    whereParams.push(dateFrom);
+  }
+  if (dateTo) {
+    whereClause += ' AND ii.createdAt <= ?';
+    whereParams.push(dateTo);
+  }
+  
+  const query = `
+    SELECT 
+      cm.publisher,
+      COUNT(DISTINCT ii.uuid) as totalItems,
+      COUNT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' THEN ii.uuid END) as availableItems,
+      COUNT(DISTINCT CASE WHEN ii.status = 'SOLD' THEN ii.uuid END) as soldItems,
+      COALESCE(SUM(CASE WHEN ii.status IN ('AVAILABLE', 'LISTED') THEN CAST(ii.listingPrice AS DECIMAL(10,2)) END), 0) as inventoryValue,
+      COALESCE(SUM(st.finalSalePrice), 0) as totalRevenue,
+      COALESCE(SUM(st.netProfit), 0) as totalProfit,
+      COALESCE(AVG(CAST(ii.listingPrice AS DECIMAL(10,2))), 0) as avgPrice
+    FROM catalog_masters cm
+    LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+    LEFT JOIN sales_transactions st ON ii.uuid = st.uuid
+    WHERE ${whereClause} AND cm.publisher IS NOT NULL AND cm.publisher != ''
+    GROUP BY cm.publisher
+    ORDER BY totalItems DESC
+    LIMIT ${limit}
+  `;
+  
+  const results = await db.execute(sql.raw(query)) as any;
+  
+  return (results as any[]).map((r: any) => ({
+    publisher: r.publisher,
+    totalItems: Number(r.totalItems),
+    availableItems: Number(r.availableItems),
+    soldItems: Number(r.soldItems),
+    inventoryValue: Number(r.inventoryValue),
+    totalRevenue: Number(r.totalRevenue),
+    totalProfit: Number(r.totalProfit),
+    avgPrice: Number(r.avgPrice),
+  }));
+}
+
+export async function getAnalyticsByCategory(params: {
+  dateFrom?: Date;
+  dateTo?: Date;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const { dateFrom, dateTo } = params;
+  
+  let whereClause = '1=1';
+  const whereParams: any[] = [];
+  
+  if (dateFrom) {
+    whereClause += ' AND ii.createdAt >= ?';
+    whereParams.push(dateFrom);
+  }
+  if (dateTo) {
+    whereClause += ' AND ii.createdAt <= ?';
+    whereParams.push(dateTo);
+  }
+  
+  const query = `
+    SELECT 
+      COALESCE(cm.categoryLevel1, 'Uncategorized') as category,
+      COUNT(DISTINCT ii.uuid) as totalItems,
+      COUNT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' THEN ii.uuid END) as availableItems,
+      COUNT(DISTINCT CASE WHEN ii.status = 'SOLD' THEN ii.uuid END) as soldItems,
+      COALESCE(SUM(CASE WHEN ii.status IN ('AVAILABLE', 'LISTED') THEN CAST(ii.listingPrice AS DECIMAL(10,2)) END), 0) as inventoryValue,
+      COALESCE(SUM(st.finalSalePrice), 0) as totalRevenue,
+      COALESCE(SUM(st.netProfit), 0) as totalProfit
+    FROM catalog_masters cm
+    LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+    LEFT JOIN sales_transactions st ON ii.uuid = st.uuid
+    WHERE ${whereClause}
+    GROUP BY category
+    ORDER BY totalItems DESC
+  `;
+  
+  const results = await db.execute(sql.raw(query)) as any;
+  
+  return (results as any[]).map((r: any) => ({
+    category: r.category,
+    totalItems: Number(r.totalItems),
+    availableItems: Number(r.availableItems),
+    soldItems: Number(r.soldItems),
+    inventoryValue: Number(r.inventoryValue),
+    totalRevenue: Number(r.totalRevenue),
+    totalProfit: Number(r.totalProfit),
+  }));
+}
+
+export async function getAnalyticsByLocation(params: {
+  dateFrom?: Date;
+  dateTo?: Date;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Note: Date filtering temporarily disabled due to SQL template complexity
+  // Will be re-enabled after refactoring to use Drizzle query builder
+  const query = sql`
+    SELECT 
+      COALESCE(locationCode, 'No Location') as location,
+      COUNT(*) as totalItems,
+      COUNT(CASE WHEN status = 'AVAILABLE' THEN 1 END) as availableItems,
+      COUNT(CASE WHEN status = 'LISTED' THEN 1 END) as listedItems,
+      COUNT(CASE WHEN status = 'SOLD' THEN 1 END) as soldItems,
+      COALESCE(SUM(CASE WHEN status IN ('AVAILABLE', 'LISTED') THEN CAST(listingPrice AS DECIMAL(10,2)) END), 0) as inventoryValue,
+      COALESCE(AVG(CAST(listingPrice AS DECIMAL(10,2))), 0) as avgPrice
+    FROM inventory_items
+    GROUP BY location
+    ORDER BY totalItems DESC
+  `;
+  
+  const results = await db.execute(query) as any;  
+  return (results as any[]).map((r: any) => ({
+    location: r.location,
+    totalItems: Number(r.totalItems),
+    availableItems: Number(r.availableItems),
+    listedItems: Number(r.listedItems),
+    soldItems: Number(r.soldItems),
+    inventoryValue: Number(r.inventoryValue),
+    avgPrice: Number(r.avgPrice),
+    utilization: Number(r.totalItems) > 0 ? (Number(r.availableItems) + Number(r.listedItems)) / Number(r.totalItems) * 100 : 0,
+  }));
+}

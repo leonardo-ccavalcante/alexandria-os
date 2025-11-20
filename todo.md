@@ -57,14 +57,19 @@
 ## Phase 7: Dashboard & Analytics
 - [x] Build main KPI cards (total inventory, available, listed, sold)
 - [x] Add revenue metrics (total revenue, average profit, profit margin)
-- [ ] Implement inventory velocity chart (items in/out over time)
+- [x] Implement inventory velocity chart (items in/out over time)
 - [x] Build sales by channel breakdown
 - [x] Add top performing books table
-- [ ] Implement analytics by author (top authors, revenue)
-- [ ] Implement analytics by publisher (top publishers, revenue)
-- [ ] Implement analytics by category (distribution, revenue)
-- [ ] Implement analytics by location (utilization, density)
-- [ ] Add date range filters for all analytics
+- [x] Implement analytics by author (top authors, revenue)
+- [x] Implement analytics by publisher (top publishers, revenue)
+- [x] Implement analytics by category (distribution, revenue)
+- [x] Implement analytics by location (utilization, density)
+- [x] Add date range filters for all analytics
+- [x] Create comprehensive dashboard UI with recharts visualizations
+- [x] Add tabbed interface for analytics (Por Autor, Por Editorial, Por Categoría, Por Ubicación)
+- [x] Implement bar charts, pie charts, and line charts for all analytics
+- [x] Add detailed tables with metrics (total, available, sold, revenue, profit, avg price)
+- [ ] Complete unit tests for analytics procedures (6/21 passing, SQL parameter issues to resolve)
 
 ## Phase 8: UX Polish & Guidelines
 - [ ] Implement responsive design (mobile-first)
@@ -386,3 +391,21 @@
 - [x] Add sales channel data to demonstrate multi-select feature
 - [x] Run script to populate database
 - [x] Verify inventory page displays all data correctly
+
+## Phase 7: Dashboard & Analytics (Current Task)
+- [ ] Design backend analytics procedures for all metrics
+- [ ] Implement inventory velocity chart (items added/sold over time with date grouping)
+- [ ] Implement analytics by author (top authors by quantity, revenue, average price)
+- [ ] Implement analytics by publisher (top publishers by quantity, revenue, average price)
+- [ ] Implement analytics by category (distribution pie chart, revenue by category)
+- [ ] Implement analytics by location (utilization percentage, items per location, density heatmap)
+- [ ] Add date range filters for all analytics (last 7 days, 30 days, 90 days, year, all time, custom)
+- [ ] Build interactive charts using recharts library (bar, line, pie, area charts)
+- [ ] Add data export functionality for analytics (CSV, Excel)
+- [ ] Implement real-time data refresh for dashboard
+- [ ] Add loading states and error handling for all analytics
+- [ ] Write unit tests for inventory velocity calculations
+- [ ] Write unit tests for author/publisher/category/location analytics
+- [ ] Test date range filters with various time periods
+- [ ] Verify charts render correctly with sample data
+- [ ] Test dashboard performance with large datasets

@@ -23,6 +23,11 @@ import {
   getDashboardKPIs,
   getSalesByChannel,
   getTopPerformingBooks,
+  getInventoryVelocity,
+  getAnalyticsByAuthor,
+  getAnalyticsByPublisher,
+  getAnalyticsByCategory,
+  getAnalyticsByLocation,
 } from "./db";
 
 export const appRouter = router({
@@ -953,6 +958,59 @@ export const appRouter = router({
       }))
       .query(async ({ input }) => {
         return await getSalesTransactions(input);
+      }),
+    
+    // Get inventory velocity (items added/sold over time)
+    getInventoryVelocity: protectedProcedure
+      .input(z.object({
+        dateFrom: z.date().optional(),
+        dateTo: z.date().optional(),
+        groupBy: z.enum(['day', 'week', 'month']).default('day'),
+      }))
+      .query(async ({ input }) => {
+        return await getInventoryVelocity(input);
+      }),
+    
+    // Get analytics by author
+    getAnalyticsByAuthor: protectedProcedure
+      .input(z.object({
+        dateFrom: z.date().optional(),
+        dateTo: z.date().optional(),
+        limit: z.number().default(20),
+      }))
+      .query(async ({ input }) => {
+        return await getAnalyticsByAuthor(input);
+      }),
+    
+    // Get analytics by publisher
+    getAnalyticsByPublisher: protectedProcedure
+      .input(z.object({
+        dateFrom: z.date().optional(),
+        dateTo: z.date().optional(),
+        limit: z.number().default(20),
+      }))
+      .query(async ({ input }) => {
+        return await getAnalyticsByPublisher(input);
+      }),
+    
+    // Get analytics by category
+    getAnalyticsByCategory: protectedProcedure
+      .input(z.object({
+        dateFrom: z.date().optional(),
+        dateTo: z.date().optional(),
+      }))
+      .query(async ({ input }) => {
+        return await getAnalyticsByCategory(input);
+      }),
+    
+    // Get analytics by location
+    getAnalyticsByLocation: protectedProcedure
+      .input(z.object({
+        dateFrom: z.date().optional(),
+        dateTo: z.date().optional(),
+      }))
+      .query(async ({ input }) => {
+        return await getAnalyticsByLocation(input);
       }),
   }),
 
