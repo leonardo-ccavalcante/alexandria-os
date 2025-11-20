@@ -1,0 +1,14 @@
+{
+  "query": "SELECT \n  (SELECT COUNT(*) FROM catalog_masters) as catalog_count,\n  (SELECT COUNT(*) FROM inventory_items) as inventory_count;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xbcpjkj7urB6FV.123b8c0ef218 --database JSmQWHzFMNuBrpEm7nuLv4 --execute SELECT \n  (SELECT COUNT(*) FROM catalog_masters) as catalog_count,\n  (SELECT COUNT(*) FROM inventory_items) as inventory_count;",
+  "rows": [
+    {
+      "catalog_count": "0",
+      "inventory_count": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "catalog_count\tinventory_count\n0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}

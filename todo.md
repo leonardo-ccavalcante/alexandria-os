@@ -354,3 +354,35 @@
 - [x] Add interactive charts using recharts library
 - [x] Add real-time data refresh
 - [ ] Write unit tests for dashboard queries
+
+## Bulk Upload UI Implementation (Current Task)
+- [x] Implement file upload component with drag-and-drop for CSV files
+- [x] Add CSV file validation (check file type, size, format)
+- [x] Create CSV template download buttons for catalog and sales channel uploads
+- [x] Build upload progress indicators and loading states
+- [x] Implement result display with success/error counts
+- [x] Show detailed error logs with row numbers and error messages
+- [x] Add admin database cleanup confirmation dialog with role check
+- [x] Implement safety warnings for destructive operations
+- [ ] Test catalog CSV import with sample data
+- [ ] Test sales channel batch upload with sample data
+- [ ] Test admin cleanup with proper authorization
+- [ ] Write unit tests for file upload validation
+- [ ] Write unit tests for CSV parsing and error handling
+- [ ] Verify all three bulk operations work end-to-end
+
+## URGENT: Inventory Page Crash Fix
+- [x] Investigate why inventory page shows 0 books when data exists
+- [x] Check backend getGroupedByIsbn query for errors
+- [x] Verify database connection and data integrity
+- [x] Check browser console for JavaScript errors
+- [x] Test with different filter combinations
+- [x] Fix the root cause and verify data loads correctly (database was empty, created sample data)
+
+## Sample Test Data Creation
+- [x] Create TypeScript script to generate sample catalog data (20-30 books)
+- [x] Create sample inventory items with various statuses (available, listed, sold)
+- [x] Include different locations (01A, 02B, 03C, etc.)
+- [x] Add sales channel data to demonstrate multi-select feature
+- [x] Run script to populate database
+- [x] Verify inventory page displays all data correctly

@@ -14,21 +14,33 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Upload, Download, Trash2, FileSpreadsheet, AlertCircle } from "lucide-react";
+import { Upload, Download, Trash2, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+
+type UploadResult = {
+  imported?: number;
+  updated?: number;
+  skipped: number;
+  errors: string[];
+};
 
 export default function CargaMasiva() {
   const { user } = useAuth();
   const [catalogFile, setCatalogFile] = useState<File | null>(null);
   const [channelsFile, setChannelsFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [catalogResult, setCatalogResult] = useState<UploadResult | null>(null);
+  const [channelsResult, setChannelsResult] = useState<UploadResult | null>(null);
+  const [dragActive, setDragActive] = useState<'catalog' | 'channels' | null>(null);
 
   const isAdmin = user?.role === "admin";
 
   const cleanupDatabase = trpc.batch.cleanupDatabase.useMutation({
     onSuccess: () => {
       toast.success('Base de datos limpiada correctamente');
+      setCatalogResult(null);
+      setChannelsResult(null);
     },
     onError: (error: any) => {
       toast.error(`Error: ${error.message}`);
@@ -37,10 +49,8 @@ export default function CargaMasiva() {
   
   const importCatalog = trpc.batch.importCatalogFromCsv.useMutation({
     onSuccess: (result: { imported: number; skipped: number; errors: string[] }) => {
-      toast.success(`Importación completada: ${result.imported} libros importados, ${result.skipped} omitidos`);
-      if (result.errors.length > 0) {
-        console.error('Errores de importación:', result.errors);
-      }
+      setCatalogResult(result);
+      toast.success(`Importación completada: ${result.imported} libros importados`);
       setCatalogFile(null);
       setIsUploading(false);
     },
@@ -52,10 +62,8 @@ export default function CargaMasiva() {
   
   const importChannels = trpc.batch.importSalesChannelsFromCsv.useMutation({
     onSuccess: (result: { updated: number; skipped: number; errors: string[] }) => {
-      toast.success(`Canales actualizados: ${result.updated} libros, ${result.skipped} omitidos`);
-      if (result.errors.length > 0) {
-        console.error('Errores de actualización:', result.errors);
-      }
+      setChannelsResult(result);
+      toast.success(`Canales actualizados: ${result.updated} libros`);
       setChannelsFile(null);
       setIsUploading(false);
     },
@@ -72,6 +80,7 @@ export default function CargaMasiva() {
     }
 
     setIsUploading(true);
+    setCatalogResult(null);
     const reader = new FileReader();
     reader.onload = (e) => {
       const csvData = e.target?.result as string;
@@ -91,6 +100,7 @@ export default function CargaMasiva() {
     }
 
     setIsUploading(true);
+    setChannelsResult(null);
     const reader = new FileReader();
     reader.onload = (e) => {
       const csvData = e.target?.result as string;
@@ -103,23 +113,55 @@ export default function CargaMasiva() {
     reader.readAsText(channelsFile);
   };
 
+  const handleDrag = (e: React.DragEvent, type: 'catalog' | 'channels') => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(type);
+    } else if (e.type === "dragleave") {
+      setDragActive(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, type: 'catalog' | 'channels') => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(null);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+        if (type === 'catalog') {
+          setCatalogFile(file);
+        } else {
+          setChannelsFile(file);
+        }
+      } else {
+        toast.error('Por favor selecciona un archivo CSV');
+      }
+    }
+  };
+
   const downloadCatalogTemplate = () => {
     const headers = [
-      "isbn13",
-      "title",
-      "author",
-      "publisher",
-      "publicationYear",
-      "categoryLevel1",
-      "categoryLevel2",
-      "categoryLevel3",
-      "synopsis",
-      "coverImageUrl",
-      "marketMinPrice",
-      "marketMaxPrice",
-      "marketMedianPrice",
+      "ISBN",
+      "Título",
+      "Autor",
+      "Editorial",
+      "Año",
+      "Categoría",
+      "Sinopsis",
     ];
-    const csv = headers.join(",") + "\\n";
+    const example = [
+      "9780061120084",
+      "To Kill a Mockingbird",
+      "Harper Lee",
+      "Harper Perennial",
+      "1960",
+      "Fiction",
+      "A classic novel about racial injustice",
+    ];
+    const csv = [headers.join(","), example.join(",")].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -130,12 +172,12 @@ export default function CargaMasiva() {
   };
 
   const downloadChannelsTemplate = () => {
-    const headers = ["isbn13", "salesChannels"];
+    const headers = ["UUID", "Canales"];
     const example = [
-      "9780000000001",
-      '"[\\"Wallapop\\",\\"Vinted\\",\\"Amazon\\"]"',
+      "550e8400-e29b-41d4-a716-446655440000",
+      "Wallapop;Vinted;Amazon",
     ];
-    const csv = [headers.join(","), example.join(",")].join("\\n");
+    const csv = [headers.join(","), example.join(",")].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -143,6 +185,52 @@ export default function CargaMasiva() {
     a.download = "plantilla_canales.csv";
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const ResultDisplay = ({ result, type }: { result: UploadResult; type: 'catalog' | 'channels' }) => {
+    const successCount = result.imported || result.updated || 0;
+    const hasErrors = result.errors.length > 0;
+    
+    return (
+      <div className="mt-4 space-y-3">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-green-600">
+            <CheckCircle2 className="h-5 w-5" />
+            <span className="font-medium">
+              {type === 'catalog' ? 'Importados' : 'Actualizados'}: {successCount}
+            </span>
+          </div>
+          {result.skipped > 0 && (
+            <div className="flex items-center gap-2 text-yellow-600">
+              <AlertCircle className="h-5 w-5" />
+              <span className="font-medium">Omitidos: {result.skipped}</span>
+            </div>
+          )}
+          {hasErrors && (
+            <div className="flex items-center gap-2 text-red-600">
+              <XCircle className="h-5 w-5" />
+              <span className="font-medium">Errores: {result.errors.length}</span>
+            </div>
+          )}
+        </div>
+        
+        {hasErrors && (
+          <div className="border border-red-200 rounded-lg p-4 bg-red-50 max-h-60 overflow-y-auto">
+            <h4 className="font-medium text-red-900 mb-2">Detalles de errores:</h4>
+            <ul className="space-y-1 text-sm text-red-800">
+              {result.errors.slice(0, 10).map((error, idx) => (
+                <li key={idx} className="font-mono">{error}</li>
+              ))}
+              {result.errors.length > 10 && (
+                <li className="text-red-600 font-medium">
+                  ... y {result.errors.length - 10} errores más
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -170,9 +258,18 @@ export default function CargaMasiva() {
             <CardContent>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Limpiar Base de Datos
+                  <Button variant="destructive" disabled={cleanupDatabase.isPending}>
+                    {cleanupDatabase.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Limpiando...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Limpiar Base de Datos
+                      </>
+                    )}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -213,7 +310,7 @@ export default function CargaMasiva() {
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                El archivo CSV debe contener las columnas: isbn13, title, author, publisher, publicationYear, etc.
+                El archivo CSV debe contener: ISBN, Título, Autor, Editorial, Año, Categoría, Sinopsis
               </AlertDescription>
             </Alert>
 
@@ -227,19 +324,37 @@ export default function CargaMasiva() {
               </Button>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm font-medium">
-                Seleccionar archivo CSV
+            {/* Drag and Drop Zone */}
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                dragActive === 'catalog'
+                  ? 'border-blue-500 bg-blue-50'
+                  : 'border-gray-300 bg-white hover:border-gray-400'
+              }`}
+              onDragEnter={(e) => handleDrag(e, 'catalog')}
+              onDragLeave={(e) => handleDrag(e, 'catalog')}
+              onDragOver={(e) => handleDrag(e, 'catalog')}
+              onDrop={(e) => handleDrop(e, 'catalog')}
+            >
+              <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <p className="text-lg font-medium text-gray-700 mb-2">
+                Arrastra tu archivo CSV aquí
+              </p>
+              <p className="text-sm text-gray-500 mb-4">o</p>
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                  Seleccionar archivo
+                </span>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setCatalogFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
               </label>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => setCatalogFile(e.target.files?.[0] || null)}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-              />
               {catalogFile && (
-                <p className="text-sm text-gray-600">
-                  Archivo seleccionado: {catalogFile.name}
+                <p className="mt-4 text-sm text-green-600 font-medium">
+                  ✓ Archivo seleccionado: {catalogFile.name}
                 </p>
               )}
             </div>
@@ -247,10 +362,22 @@ export default function CargaMasiva() {
             <Button
               onClick={handleCatalogUpload}
               disabled={!catalogFile || isUploading}
+              className="w-full"
             >
-              <Upload className="mr-2 h-4 w-4" />
-              {isUploading ? "Cargando..." : "Cargar Catálogo"}
+              {isUploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Cargando...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Cargar Catálogo
+                </>
+              )}
             </Button>
+
+            {catalogResult && <ResultDisplay result={catalogResult} type="catalog" />}
           </CardContent>
         </Card>
 
@@ -269,7 +396,7 @@ export default function CargaMasiva() {
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                El archivo CSV debe contener: isbn13, salesChannels (array JSON de canales)
+                El archivo CSV debe contener: UUID, Canales (separados por punto y coma)
               </AlertDescription>
             </Alert>
 
@@ -283,19 +410,37 @@ export default function CargaMasiva() {
               </Button>
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm font-medium">
-                Seleccionar archivo CSV
+            {/* Drag and Drop Zone */}
+            <div
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                dragActive === 'channels'
+                  ? 'border-purple-500 bg-purple-50'
+                  : 'border-gray-300 bg-white hover:border-gray-400'
+              }`}
+              onDragEnter={(e) => handleDrag(e, 'channels')}
+              onDragLeave={(e) => handleDrag(e, 'channels')}
+              onDragOver={(e) => handleDrag(e, 'channels')}
+              onDrop={(e) => handleDrop(e, 'channels')}
+            >
+              <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <p className="text-lg font-medium text-gray-700 mb-2">
+                Arrastra tu archivo CSV aquí
+              </p>
+              <p className="text-sm text-gray-500 mb-4">o</p>
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                  Seleccionar archivo
+                </span>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => setChannelsFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
               </label>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => setChannelsFile(e.target.files?.[0] || null)}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
-              />
               {channelsFile && (
-                <p className="text-sm text-gray-600">
-                  Archivo seleccionado: {channelsFile.name}
+                <p className="mt-4 text-sm text-green-600 font-medium">
+                  ✓ Archivo seleccionado: {channelsFile.name}
                 </p>
               )}
             </div>
@@ -303,10 +448,22 @@ export default function CargaMasiva() {
             <Button
               onClick={handleChannelsUpload}
               disabled={!channelsFile || isUploading}
+              className="w-full"
             >
-              <Upload className="mr-2 h-4 w-4" />
-              {isUploading ? "Cargando..." : "Actualizar Canales"}
+              {isUploading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Cargando...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Actualizar Canales
+                </>
+              )}
             </Button>
+
+            {channelsResult && <ResultDisplay result={channelsResult} type="channels" />}
           </CardContent>
         </Card>
       </div>
