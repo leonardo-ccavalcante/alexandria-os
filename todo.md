@@ -229,3 +229,13 @@
 - [x] Make filters toggleable with checkbox or button
 - [x] Update UI to show active filters (filtered count display)
 - [x] Persist filter state during pagination
+
+## Bug Fix - Sorting Not Working Across Pages
+- [x] Move sorting logic from frontend to backend (sort before pagination)
+- [x] Update getGroupedByIsbn procedure to accept sortField and sortDirection parameters
+- [x] Implement sorting using Drizzle ORM query builder
+- [x] Update frontend to send sort parameters to backend query
+- [x] Remove client-side sorting logic (sortedData useMemo)
+- [x] Test sorting by UBICACIÓN, TÍTULO, AUTOR, ISBN, DISPONIBLE, TOTAL
+- [x] Verify books from location 01A/01E appear on page 1 when sorted by UBICACIÓN
+- [x] Rewrite query to fetch all data and sort in application code for consistency

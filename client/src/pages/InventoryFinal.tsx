@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import Select from "react-select";
 
-type SortField = "title" | "author" | "publisher" | "isbn" | "location" | "available" | "total";
+type SortField = "title" | "author" | "isbn" | "location" | "available" | "total";
 type SortDirection = "asc" | "desc";
 
 export default function InventoryFinal() {
@@ -51,6 +51,8 @@ export default function InventoryFinal() {
     yearFrom: yearFrom ? parseInt(yearFrom) : undefined,
     yearTo: yearTo ? parseInt(yearTo) : undefined,
     includeZeroInventory: showZeroInventory,
+    sortField,
+    sortDirection,
     limit: pageSize,
     offset: (currentPage - 1) * pageSize,
   });
@@ -109,11 +111,11 @@ export default function InventoryFinal() {
     },
   });
 
-   // Sort and filter data
-  const sortedData = useMemo(() => {
+  // Filter data (sorting is now done on backend)
+  const filteredData = useMemo(() => {
     if (!inventoryData) return [];
     
-    // Apply filters
+    // Apply client-side filters only
     let filtered = [...inventoryData];
     
     if (hideWithoutLocation) {
@@ -128,51 +130,8 @@ export default function InventoryFinal() {
       filtered = filtered.filter(book => book.availableQuantity > 0);
     }
     
-    const sorted = filtered.sort((a, b) => {
-      let aVal: any, bVal: any;
-      
-      switch (sortField) {
-        case "title":
-          aVal = a.title?.toLowerCase() || "";
-          bVal = b.title?.toLowerCase() || "";
-          break;
-        case "author":
-          aVal = a.author?.toLowerCase() || "";
-          bVal = b.author?.toLowerCase() || "";
-          break;
-        case "publisher":
-          aVal = a.publisher?.toLowerCase() || "";
-          bVal = b.publisher?.toLowerCase() || "";
-          break;
-        case "isbn":
-          aVal = a.isbn13 || "";
-          bVal = b.isbn13 || "";
-          break;
-        case "location":
-          aVal = a.locations || "";
-          bVal = b.locations || "";
-          break;
-        case "available":
-          aVal = a.availableQuantity;
-          bVal = b.availableQuantity;
-          break;
-        case "total":
-          aVal = a.totalQuantity;
-          bVal = b.totalQuantity;
-          break;
-        default:
-          return 0;
-      }
-      
-      if (sortDirection === "asc") {
-        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-      } else {
-        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
-      }
-    });
-    
-    return sorted;
-  }, [inventoryData, sortField, sortDirection, hideWithoutLocation, hideWithoutQuantity]);
+    return filtered;
+  }, [inventoryData, hideWithoutLocation, hideWithoutQuantity]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -406,7 +365,7 @@ export default function InventoryFinal() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {sortedData.map((book) => (
+                {filteredData.map((book) => (
                   <tr key={book.isbn13} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="text-sm font-medium text-gray-900">{book.title}</div>
@@ -497,7 +456,7 @@ export default function InventoryFinal() {
               </tbody>
             </table>
             
-            {sortedData.length === 0 && (
+            {filteredData.length === 0 && (
               <div className="text-center py-12 text-gray-500">
                 No se encontraron libros
               </div>
@@ -509,7 +468,7 @@ export default function InventoryFinal() {
         <div className="mt-6 flex items-center justify-between border-t pt-4">
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-700">
-              Mostrando {sortedData.length > 0 ? ((currentPage - 1) * pageSize) + 1 : 0}-{Math.min(currentPage * pageSize, sortedData.length)} de {sortedData.length} libros
+              Mostrando {filteredData.length > 0 ? ((currentPage - 1) * pageSize) + 1 : 0}-{Math.min(currentPage * pageSize, filteredData.length)} de {filteredData.length} libros
               {(hideWithoutLocation || hideWithoutQuantity) && (
                 <span className="text-xs text-gray-500 ml-2">(filtrados de {totalCount} total)</span>
               )}
