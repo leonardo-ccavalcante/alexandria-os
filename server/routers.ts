@@ -3,7 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
-import { eq, and, or, like, gte, lte, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { catalogMasters, inventoryItems } from "../drizzle/schema";
 import { getDb } from "./db";
 import {
@@ -379,8 +379,6 @@ export const appRouter = router({
         yearFrom: z.number().optional(),
         yearTo: z.number().optional(),
         includeZeroInventory: z.boolean().default(false),
-        sortField: z.enum(['title', 'author', 'isbn', 'location', 'available', 'total']).default('title'),
-        sortDirection: z.enum(['asc', 'desc']).default('asc'),
         limit: z.number().default(50),
         offset: z.number().default(0),
       }))
@@ -388,36 +386,29 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new Error('Database not available');
         
-        // Build WHERE conditions using Drizzle
+        // Build filter conditions
         const conditions = [];
-        
         if (input.searchText) {
           const search = `%${input.searchText}%`;
           conditions.push(
-            or(
-              like(catalogMasters.title, search),
-              like(catalogMasters.author, search),
-              like(catalogMasters.isbn13, search)
-            )
+            sql`${catalogMasters.title} LIKE ${search} OR ${catalogMasters.author} LIKE ${search} OR ${catalogMasters.isbn13} LIKE ${search}`
           );
         }
         if (input.categoryLevel1) {
           conditions.push(eq(catalogMasters.categoryLevel1, input.categoryLevel1));
         }
         if (input.publisher) {
-          conditions.push(like(catalogMasters.publisher, `%${input.publisher}%`));
+          conditions.push(sql`${catalogMasters.publisher} LIKE ${`%${input.publisher}%`}`);
         }
         if (input.yearFrom) {
-          conditions.push(gte(catalogMasters.publicationYear, input.yearFrom));
+          conditions.push(sql`${catalogMasters.publicationYear} >= ${input.yearFrom}`);
         }
         if (input.yearTo) {
-          conditions.push(lte(catalogMasters.publicationYear, input.yearTo));
+          conditions.push(sql`${catalogMasters.publicationYear} <= ${input.yearTo}`);
         }
         
-        const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-        
-        // Get all matching ISBNs first (we'll do pagination and sorting in app code for location)
-        const allBooks = await db
+        // Execute query with filters
+        const baseQuery = db
           .select({
             isbn13: catalogMasters.isbn13,
             title: catalogMasters.title,
@@ -430,91 +421,55 @@ export const appRouter = router({
             synopsis: catalogMasters.synopsis,
             coverImageUrl: catalogMasters.coverImageUrl,
           })
-          .from(catalogMasters)
-          .where(whereClause);
+          .from(catalogMasters);
         
-        // Get inventory counts for each book
-        const books = await Promise.all(allBooks.map(async (book) => {
+        const books = conditions.length > 0
+          ? await baseQuery.where(and(...conditions)).limit(input.limit).offset(input.offset)
+          : await baseQuery.limit(input.limit).offset(input.offset);
+        
+        // For each book, get inventory count and locations
+        const results = await Promise.all(books.map(async (book) => {
           const items = await db
-            .select()
+            .select({
+              uuid: inventoryItems.uuid,
+              status: inventoryItems.status,
+              conditionGrade: inventoryItems.conditionGrade,
+              locationCode: inventoryItems.locationCode,
+              listingPrice: inventoryItems.listingPrice,
+            })
             .from(inventoryItems)
             .where(eq(inventoryItems.isbn13, book.isbn13));
           
           const availableItems = items.filter(i => i.status === 'AVAILABLE');
-          const totalQuantity = items.length;
-          const availableQuantity = availableItems.length;
-          
-          // Skip books with zero inventory if requested
-          if (!input.includeZeroInventory && totalQuantity === 0) {
-            return null;
-          }
-          
           const locations = Array.from(new Set(availableItems.map(i => i.locationCode).filter(Boolean)));
-          const minLocation = locations.length > 0 ? locations.sort()[0] : null;
           
           return {
             ...book,
-            totalQuantity,
-            availableQuantity,
-            locations,
-            minLocation,
-            items,
+            totalQuantity: items.length,
+            availableQuantity: availableItems.length,
+            locations: locations,
+            items: items,
           };
         }));
         
-        // Filter out null entries (books with zero inventory when includeZeroInventory is false)
-        const filteredBooks = books.filter(b => b !== null) as any[];
+        // Filter by zero inventory if needed
+        const filteredResults = !input.includeZeroInventory
+          ? results.filter(r => r.totalQuantity > 0)
+          : results;
         
-        // Sort books
-        filteredBooks.sort((a, b) => {
-          let aVal: any, bVal: any;
-          
-          switch (input.sortField) {
-            case 'title':
-              aVal = a.title?.toLowerCase() || '';
-              bVal = b.title?.toLowerCase() || '';
-              break;
-            case 'author':
-              aVal = a.author?.toLowerCase() || '';
-              bVal = b.author?.toLowerCase() || '';
-              break;
-            case 'isbn':
-              aVal = a.isbn13 || '';
-              bVal = b.isbn13 || '';
-              break;
-            case 'location':
-              aVal = a.minLocation || 'ZZZZ';
-              bVal = b.minLocation || 'ZZZZ';
-              break;
-            case 'available':
-              aVal = a.availableQuantity;
-              bVal = b.availableQuantity;
-              break;
-            case 'total':
-              aVal = a.totalQuantity;
-              bVal = b.totalQuantity;
-              break;
-            default:
-              return 0;
-          }
-          
-          if (input.sortDirection === 'asc') {
-            return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-          } else {
-            return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
-          }
-        });
+        // Get total count for pagination
+        const totalQuery = conditions.length > 0
+          ? await db.select({ count: sql<number>`count(*)` }).from(catalogMasters).where(and(...conditions))
+          : await db.select({ count: sql<number>`count(*)` }).from(catalogMasters);
         
-        // Apply pagination
-        const totalCount = filteredBooks.length;
-        const results = filteredBooks.slice(input.offset, input.offset + input.limit);
+        const totalCount = totalQuery[0]?.count || 0;
         
         return {
-          items: results,
-          total: Number(totalCount),
+          items: filteredResults,
+          total: totalCount,
           page: Math.floor(input.offset / input.limit) + 1,
           pageSize: input.limit,
-          totalPages: Math.ceil(Number(totalCount) / input.limit),
+          totalPages: Math.ceil(totalCount / input.limit),
         };
       }),
     
