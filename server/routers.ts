@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { eq, and, sql } from "drizzle-orm";
+import mysql from 'mysql2/promise';
 import { catalogMasters, inventoryItems } from "../drizzle/schema";
 import { getDb } from "./db";
 import {
@@ -369,7 +370,7 @@ export const appRouter = router({
         return { success: true, item };
       }),
     
-    // Get inventory grouped by ISBN with counts and locations
+    // ✅ OPTIMIZED: Single SQL query with GROUP BY, sorting support for all fields
     getGroupedByIsbn: protectedProcedure
       .input(z.object({
         searchText: z.string().optional(),
@@ -381,91 +382,111 @@ export const appRouter = router({
         includeZeroInventory: z.boolean().default(false),
         limit: z.number().default(50),
         offset: z.number().default(0),
+        // NEW: Sort Parameters
+        sortField: z.enum(['title', 'author', 'publisher', 'isbn13', 'publicationYear', 'total', 'available', 'location']).default('title'),
+        sortDirection: z.enum(['asc', 'desc']).default('asc'),
       }))
       .query(async ({ input }) => {
         const db = await getDb();
         if (!db) throw new Error('Database not available');
         
-        // Build filter conditions
-        const conditions = [];
+        // Build WHERE conditions as raw SQL strings to avoid alias mismatch
+        const whereConditions = ['1=1'];
+        const whereParams: any[] = [];
+        
         if (input.searchText) {
           const search = `%${input.searchText}%`;
-          conditions.push(
-            sql`${catalogMasters.title} LIKE ${search} OR ${catalogMasters.author} LIKE ${search} OR ${catalogMasters.isbn13} LIKE ${search}`
-          );
+          whereConditions.push('(cm.title LIKE ? OR cm.author LIKE ? OR cm.isbn13 LIKE ?)');
+          whereParams.push(search, search, search);
         }
         if (input.categoryLevel1) {
-          conditions.push(eq(catalogMasters.categoryLevel1, input.categoryLevel1));
+          whereConditions.push('cm.categoryLevel1 = ?');
+          whereParams.push(input.categoryLevel1);
         }
         if (input.publisher) {
-          conditions.push(sql`${catalogMasters.publisher} LIKE ${`%${input.publisher}%`}`);
+          whereConditions.push('cm.publisher LIKE ?');
+          whereParams.push(`%${input.publisher}%`);
         }
         if (input.yearFrom) {
-          conditions.push(sql`${catalogMasters.publicationYear} >= ${input.yearFrom}`);
+          whereConditions.push('cm.publicationYear >= ?');
+          whereParams.push(input.yearFrom);
         }
         if (input.yearTo) {
-          conditions.push(sql`${catalogMasters.publicationYear} <= ${input.yearTo}`);
+          whereConditions.push('cm.publicationYear <= ?');
+          whereParams.push(input.yearTo);
         }
+
+        const whereClause = whereConditions.join(' AND ');
+
+        // Dynamic Sort Clause
+        const dir = input.sortDirection === 'asc' ? 'ASC' : 'DESC';
+        let orderByClause;
+        switch (input.sortField) {
+            case 'title': orderByClause = `cm.title ${dir}`; break;
+            case 'author': orderByClause = `cm.author ${dir}`; break;
+            case 'publisher': orderByClause = `cm.publisher ${dir}`; break;
+            case 'isbn13': orderByClause = `cm.isbn13 ${dir}`; break;
+            case 'publicationYear': orderByClause = `cm.publicationYear ${dir}`; break;
+            case 'total': orderByClause = `totalQuantity ${dir}`; break;
+            case 'available': orderByClause = `availableQuantity ${dir}`; break;
+            case 'location': orderByClause = `locations ${dir}`; break;
+            default: orderByClause = `cm.title ${dir}`;
+        }
+
+        const havingClause = !input.includeZeroInventory ? 'HAVING totalQuantity > 0' : '';
         
-        // Execute query with filters
-        const baseQuery = db
-          .select({
-            isbn13: catalogMasters.isbn13,
-            title: catalogMasters.title,
-            author: catalogMasters.author,
-            publisher: catalogMasters.publisher,
-            publicationYear: catalogMasters.publicationYear,
-            categoryLevel1: catalogMasters.categoryLevel1,
-            categoryLevel2: catalogMasters.categoryLevel2,
-            categoryLevel3: catalogMasters.categoryLevel3,
-            synopsis: catalogMasters.synopsis,
-            coverImageUrl: catalogMasters.coverImageUrl,
-          })
-          .from(catalogMasters);
+        const dataQuery = `
+          SELECT 
+            cm.isbn13, cm.title, cm.author, cm.publisher, cm.publicationYear, 
+            cm.categoryLevel1, cm.categoryLevel2, cm.categoryLevel3, cm.synopsis, cm.coverImageUrl,
+            COUNT(ii.uuid) as totalQuantity,
+            SUM(CASE WHEN ii.status = 'AVAILABLE' THEN 1 ELSE 0 END) as availableQuantity,
+            GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' AND ii.locationCode IS NOT NULL AND ii.locationCode != '' THEN ii.locationCode END ORDER BY ii.locationCode SEPARATOR ',') as locations,
+            GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' THEN ii.uuid END SEPARATOR ',') as availableItemUuids
+          FROM catalog_masters cm
+          LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+          WHERE ${whereClause}
+          GROUP BY cm.isbn13, cm.title, cm.author, cm.publisher, cm.publicationYear, cm.categoryLevel1, cm.categoryLevel2, cm.categoryLevel3, cm.synopsis, cm.coverImageUrl
+          ${havingClause}
+          ORDER BY ${orderByClause}
+          LIMIT ${input.limit} OFFSET ${input.offset}
+        `;
+
+        // Count query must also respect the HAVING logic for consistency
+        let countQuerySql;
+        if (input.includeZeroInventory) {
+           countQuerySql = `SELECT COUNT(*) as count FROM catalog_masters cm WHERE ${whereClause}`;
+        } else {
+           countQuerySql = `
+             SELECT COUNT(DISTINCT cm.isbn13) as count
+             FROM catalog_masters cm
+             INNER JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+             WHERE ${whereClause}
+           `;
+        }
+
+        // Use mysql2 pool directly for parameterized queries
+        const pool = mysql.createPool(process.env.DATABASE_URL!);
+        const [[rawRows], [countRows]] = await Promise.all([
+          pool.execute(dataQuery, whereParams),
+          pool.execute(countQuerySql, whereParams)
+        ]);
+        await pool.end();
         
-        const books = conditions.length > 0
-          ? await baseQuery.where(and(...conditions)).limit(input.limit).offset(input.offset)
-          : await baseQuery.limit(input.limit).offset(input.offset);
-        
-        // For each book, get inventory count and locations
-        const results = await Promise.all(books.map(async (book) => {
-          const items = await db
-            .select({
-              uuid: inventoryItems.uuid,
-              status: inventoryItems.status,
-              conditionGrade: inventoryItems.conditionGrade,
-              locationCode: inventoryItems.locationCode,
-              listingPrice: inventoryItems.listingPrice,
-            })
-            .from(inventoryItems)
-            .where(eq(inventoryItems.isbn13, book.isbn13));
-          
-          const availableItems = items.filter(i => i.status === 'AVAILABLE');
-          const locations = Array.from(new Set(availableItems.map(i => i.locationCode).filter(Boolean)));
-          
-          return {
-            ...book,
-            totalQuantity: items.length,
-            availableQuantity: availableItems.length,
-            locations: locations,
-            items: items,
-          };
+        // Extract data from RowDataPacket format
+        const rawItems = rawRows as any[];
+        const totalCount = countRows && (countRows as any[]).length > 0 ? Number((countRows as any[])[0].count) : 0;
+
+        const items = rawItems.map((row: any) => ({
+          ...row,
+          totalQuantity: Number(row.totalQuantity),
+          availableQuantity: Number(row.availableQuantity),
+          locations: row.locations ? row.locations.split(',') : [],
+          items: row.availableItemUuids ? row.availableItemUuids.split(',').map((uuid: string) => ({ uuid, status: 'AVAILABLE' })) : []
         }));
-        
-        // Filter by zero inventory if needed
-        const filteredResults = !input.includeZeroInventory
-          ? results.filter(r => r.totalQuantity > 0)
-          : results;
-        
-        // Get total count for pagination
-        const totalQuery = conditions.length > 0
-          ? await db.select({ count: sql<number>`count(*)` }).from(catalogMasters).where(and(...conditions))
-          : await db.select({ count: sql<number>`count(*)` }).from(catalogMasters);
-        
-        const totalCount = totalQuery[0]?.count || 0;
-        
+
         return {
-          items: filteredResults,
+          items,
           total: totalCount,
           page: Math.floor(input.offset / input.limit) + 1,
           pageSize: input.limit,

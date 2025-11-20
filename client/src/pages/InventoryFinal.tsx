@@ -2,14 +2,16 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download, Plus, Minus, Edit, ChevronUp, ChevronDown } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Download, Plus, Minus, Edit, ChevronUp, ChevronDown, MoreHorizontal, Tag } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import Select from "react-select";
 
-type SortField = "title" | "author" | "publisher" | "isbn" | "location" | "available" | "total";
+// Updated to match Backend Enum
+type SortField = "title" | "author" | "publisher" | "isbn13" | "publicationYear" | "location" | "available" | "total";
 type SortDirection = "asc" | "desc";
 
 export default function InventoryFinal() {
@@ -20,6 +22,8 @@ export default function InventoryFinal() {
   const [yearTo, setYearTo] = useState("");
   const [showZeroInventory, setShowZeroInventory] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "card">("table");
+  
+  // Sorting State
   const [sortField, setSortField] = useState<SortField>("title");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   
@@ -43,8 +47,8 @@ export default function InventoryFinal() {
   const { data: publishers = [] } = trpc.catalog.getPublishers.useQuery({ search: publisher });
   const { data: authors = [] } = trpc.catalog.getAuthors.useQuery({ search: author });
 
-  // Inventory query
-  const { data: inventoryResponse, refetch } = trpc.inventory.getGroupedByIsbn.useQuery({
+  // ✅ PASSING SORT PARAMS TO BACKEND
+  const { data: inventoryResponse, refetch, isLoading } = trpc.inventory.getGroupedByIsbn.useQuery({
     searchText,
     publisher,
     author,
@@ -53,6 +57,8 @@ export default function InventoryFinal() {
     includeZeroInventory: showZeroInventory,
     limit: pageSize,
     offset: (currentPage - 1) * pageSize,
+    sortField,
+    sortDirection,
   });
   
   const inventoryData = inventoryResponse?.items || [];
@@ -109,18 +115,17 @@ export default function InventoryFinal() {
     },
   });
 
-   // Sort and filter data
-  const sortedData = useMemo(() => {
+  // ✅ REMOVED CLIENT-SIDE SORTING - Only filtering happens here now
+  const filteredData = useMemo(() => {
     if (!inventoryData) return [];
     
-    // Apply filters
     let filtered = [...inventoryData];
     
     if (hideWithoutLocation) {
       filtered = filtered.filter(book => 
         book.locations && 
         book.locations.length > 0 && 
-        book.locations.some(loc => loc !== null && loc !== "" && loc !== "-")
+        book.locations.some((loc: string) => loc !== null && loc !== "" && loc !== "-")
       );
     }
     
@@ -128,51 +133,8 @@ export default function InventoryFinal() {
       filtered = filtered.filter(book => book.availableQuantity > 0);
     }
     
-    const sorted = filtered.sort((a, b) => {
-      let aVal: any, bVal: any;
-      
-      switch (sortField) {
-        case "title":
-          aVal = a.title?.toLowerCase() || "";
-          bVal = b.title?.toLowerCase() || "";
-          break;
-        case "author":
-          aVal = a.author?.toLowerCase() || "";
-          bVal = b.author?.toLowerCase() || "";
-          break;
-        case "publisher":
-          aVal = a.publisher?.toLowerCase() || "";
-          bVal = b.publisher?.toLowerCase() || "";
-          break;
-        case "isbn":
-          aVal = a.isbn13 || "";
-          bVal = b.isbn13 || "";
-          break;
-        case "location":
-          aVal = a.locations || "";
-          bVal = b.locations || "";
-          break;
-        case "available":
-          aVal = a.availableQuantity;
-          bVal = b.availableQuantity;
-          break;
-        case "total":
-          aVal = a.totalQuantity;
-          bVal = b.totalQuantity;
-          break;
-        default:
-          return 0;
-      }
-      
-      if (sortDirection === "asc") {
-        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
-      } else {
-        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
-      }
-    });
-    
-    return sorted;
-  }, [inventoryData, sortField, sortDirection, hideWithoutLocation, hideWithoutQuantity]);
+    return filtered;
+  }, [inventoryData, hideWithoutLocation, hideWithoutQuantity]); // Removed sort dependencies
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -181,6 +143,7 @@ export default function InventoryFinal() {
       setSortField(field);
       setSortDirection("asc");
     }
+    setCurrentPage(1); // ✅ RESET PAGE ON SORT
   };
 
   const SortIcon = ({ field }: { field: SortField }) => {
@@ -247,30 +210,24 @@ export default function InventoryFinal() {
               className="col-span-2"
             />
             
-            <div>
-              <Select
-                options={publishers.map(p => ({ value: p, label: p }))}
-                onChange={(option) => setPublisher(option?.value || "")}
-                onInputChange={(value) => setPublisher(value)}
-                placeholder="Editorial"
-                isClearable
-                className="text-sm"
-              />
-            </div>
+            <Select
+              options={publishers.map(p => ({ value: p, label: p }))}
+              onChange={(option) => setPublisher(option?.value || "")}
+              placeholder="Editorial"
+              isClearable
+              className="text-sm"
+            />
             
-            <div>
-              <Select
-                options={authors.map(a => ({ value: a, label: a }))}
-                onChange={(option) => setAuthor(option?.value || "")}
-                onInputChange={(value) => setAuthor(value)}
-                placeholder="Autor"
-                isClearable
-                className="text-sm"
-              />
-            </div>
+            <Select
+              options={authors.map(a => ({ value: a, label: a }))}
+              onChange={(option) => setAuthor(option?.value || "")}
+              placeholder="Autor"
+              isClearable
+              className="text-sm"
+            />
           </div>
-
-          <div className="flex items-center justify-between">
+          
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4">
               <Input
                 type="number"
@@ -286,31 +243,31 @@ export default function InventoryFinal() {
                 onChange={(e) => setYearTo(e.target.value)}
                 className="w-32"
               />
-              <div className="flex flex-col gap-2">
-                <label className="flex items-center gap-2 text-sm">
+              
+              <div className="flex flex-col gap-1">
+                <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"
                     checked={showZeroInventory}
                     onChange={(e) => setShowZeroInventory(e.target.checked)}
-                    className="rounded"
                   />
                   Mostrar libros sin inventario (solo catálogo)
                 </label>
-                <label className="flex items-center gap-2 text-sm">
+                
+                <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"
                     checked={hideWithoutLocation}
                     onChange={(e) => setHideWithoutLocation(e.target.checked)}
-                    className="rounded"
                   />
                   Ocultar libros sin ubicación
                 </label>
-                <label className="flex items-center gap-2 text-sm">
+                
+                <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"
                     checked={hideWithoutQuantity}
                     onChange={(e) => setHideWithoutQuantity(e.target.checked)}
-                    className="rounded"
                   />
                   Ocultar libros sin cantidad disponible
                 </label>
@@ -319,22 +276,18 @@ export default function InventoryFinal() {
             
             <div className="flex gap-2">
               <Button
-                variant={viewMode === "card" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("card")}
-              >
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                </svg>
-              </Button>
-              <Button
                 variant={viewMode === "table" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode("table")}
               >
-                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                </svg>
+                Tabla
+              </Button>
+              <Button
+                variant={viewMode === "card" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("card")}
+              >
+                Tarjetas
               </Button>
             </div>
           </div>
@@ -343,351 +296,299 @@ export default function InventoryFinal() {
         {/* Table View */}
         {viewMode === "table" && (
           <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-3 text-left">
-                    <button 
-                      onClick={() => handleSort("title")}
-                      className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
-                    >
-                      TÍTULO
-                      <SortIcon field="title" />
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left">
-                    <button 
-                      onClick={() => handleSort("author")}
-                      className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
-                    >
-                      AUTOR
-                      <SortIcon field="author" />
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left">
-                    <button 
-                      onClick={() => handleSort("isbn")}
-                      className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
-                    >
-                      ISBN
-                      <SortIcon field="isbn" />
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-left">
-                    <button 
-                      onClick={() => handleSort("location")}
-                      className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
-                    >
-                      UBICACIÓN
-                      <SortIcon field="location" />
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-center">
-                    <button 
-                      onClick={() => handleSort("available")}
-                      className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
-                    >
-                      DISPONIBLE
-                      <SortIcon field="available" />
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-center">
-                    <button 
-                      onClick={() => handleSort("total")}
-                      className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
-                    >
-                      TOTAL
-                      <SortIcon field="total" />
-                    </button>
-                  </th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    ACCIONES
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {sortedData.map((book) => (
-                  <tr key={book.isbn13} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{book.title}</div>
-                      <div className="text-sm text-gray-500">{book.publisher}</div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{book.author}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{book.isbn13}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {editingLocation?.isbn === book.isbn13 ? (
-                        <Input
-                          value={newLocation}
-                          onChange={(e) => setNewLocation(e.target.value)}
-                          onBlur={() => {
-                            if (newLocation.trim() && editingLocation) {
-                              // Get all AVAILABLE items for this ISBN and update their locations
-                              const availableItems = book.items?.filter((item: any) => item.status === 'AVAILABLE') || [];
-                              if (availableItems.length > 0) {
-                                updateLocationsMutation.mutate({
-                                  updates: availableItems.map((item: any) => ({
-                                    uuid: item.uuid,
-                                    locationCode: newLocation.trim(),
-                                  })),
-                                });
-                              }
-                            } else {
-                              setEditingLocation(null);
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.currentTarget.blur();
-                            } else if (e.key === 'Escape') {
-                              setEditingLocation(null);
-                            }
-                          }}
-                          autoFocus
-                          className="w-24 h-8"
-                          placeholder="ej: 16D"
-                        />
-                      ) : (
-                        <button
-                          onClick={() => {
-                            setEditingLocation({ isbn: book.isbn13, oldLocation: book.locations?.[0] || "" });
-                            setNewLocation(book.locations?.[0] || "");
-                          }}
-                          className="text-left hover:bg-gray-100 px-2 py-1 rounded w-full"
-                        >
-                          {book.locations && book.locations.length > 0 ? book.locations.join(", ") : "-"}
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${
-                        book.availableQuantity > 0 ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                      }`}>
-                        {book.availableQuantity}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-center text-sm text-gray-900">{book.totalQuantity}</td>
-                    <td className="px-6 py-4 text-center">
-                      <div className="flex items-center justify-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleEditBook(book)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => increaseQty.mutate({ isbn13: book.isbn13 })}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => decreaseQty.mutate({ isbn13: book.isbn13 })}
-                          disabled={book.availableQuantity === 0}
-                        >
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            
-            {sortedData.length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                No se encontraron libros
+            {isLoading ? (
+              <div className="p-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Cargando inventario...</p>
               </div>
+            ) : (
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-6 py-3 text-left">
+                      <button
+                        onClick={() => handleSort("title")}
+                        className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                      >
+                        TÍTULO
+                        <SortIcon field="title" />
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left">
+                      <button
+                        onClick={() => handleSort("author")}
+                        className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                      >
+                        AUTOR
+                        <SortIcon field="author" />
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left">
+                      <button
+                        onClick={() => handleSort("isbn13")}
+                        className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                      >
+                        ISBN
+                        <SortIcon field="isbn13" />
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-left">
+                      <button
+                        onClick={() => handleSort("location")}
+                        className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                      >
+                        UBICACIÓN
+                        <SortIcon field="location" />
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-center">
+                      <button
+                        onClick={() => handleSort("available")}
+                        className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                      >
+                        DISPONIBLE
+                        <SortIcon field="available" />
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-center">
+                      <button
+                        onClick={() => handleSort("total")}
+                        className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                      >
+                        TOTAL
+                        <SortIcon field="total" />
+                      </button>
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      ACCIONES
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredData.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                        No se encontraron libros con los filtros seleccionados
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredData.map((book) => (
+                      <tr key={book.isbn13} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-medium text-gray-900 line-clamp-2" title={book.title}>
+                            {book.title}
+                          </div>
+                          <div className="text-xs text-gray-500">{book.publisher}</div>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-900">{book.author}</td>
+                        <td className="px-6 py-4 text-sm text-gray-900 font-mono">{book.isbn13}</td>
+                        <td className="px-6 py-4 text-sm text-gray-900">
+                          {editingLocation?.isbn === book.isbn13 ? (
+                            <Input
+                              value={newLocation}
+                              onChange={(e) => setNewLocation(e.target.value)}
+                              onBlur={() => {
+                                if (newLocation !== editingLocation.oldLocation) {
+                                  const availableUuids = book.items
+                                    .filter((item: any) => item.status === 'AVAILABLE')
+                                    .map((item: any) => item.uuid);
+                                  
+                                  if (availableUuids.length > 0) {
+                                    updateLocationsMutation.mutate({
+                                      updates: availableUuids.map((uuid: string) => ({
+                                        uuid,
+                                        locationCode: newLocation,
+                                      })),
+                                    });
+                                  }
+                                } else {
+                                  setEditingLocation(null);
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.currentTarget.blur();
+                                } else if (e.key === 'Escape') {
+                                  setEditingLocation(null);
+                                }
+                              }}
+                              autoFocus
+                              className="w-20 h-8 text-sm"
+                            />
+                          ) : (
+                            <span
+                              onClick={() => {
+                                const firstLocation = book.locations && book.locations.length > 0 ? book.locations[0] : "";
+                                setEditingLocation({ isbn: book.isbn13, oldLocation: firstLocation });
+                                setNewLocation(firstLocation);
+                              }}
+                              className="cursor-pointer hover:bg-gray-100 px-2 py-1 rounded"
+                            >
+                              {book.locations && book.locations.length > 0 ? book.locations.join(", ") : "-"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <Badge variant={book.availableQuantity > 0 ? "default" : "secondary"} className="bg-green-100 text-green-800">
+                            {book.availableQuantity}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <Badge variant="outline">{book.totalQuantity}</Badge>
+                        </td>
+                        <td className="px-6 py-4 text-right text-sm font-medium">
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditBook(book)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => increaseQty.mutate({ isbn13: book.isbn13 })}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => decreaseQty.mutate({ isbn13: book.isbn13 })}
+                              disabled={book.availableQuantity === 0}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             )}
           </div>
         )}
 
-        {/* Pagination Controls */}
-        <div className="mt-6 flex items-center justify-between border-t pt-4">
+        {/* Pagination */}
+        <div className="mt-6 flex items-center justify-between">
+          <div className="text-sm text-gray-700">
+            Mostrando {filteredData.length > 0 ? ((currentPage - 1) * pageSize + 1) : 0}-
+            {Math.min(currentPage * pageSize, filteredData.length)} de {totalCount} libros
+            {(hideWithoutLocation || hideWithoutQuantity) && ` (filtrados de ${totalCount} total)`}
+          </div>
+          
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-700">
-              Mostrando {sortedData.length > 0 ? ((currentPage - 1) * pageSize) + 1 : 0}-{Math.min(currentPage * pageSize, sortedData.length)} de {sortedData.length} libros
-              {(hideWithoutLocation || hideWithoutQuantity) && (
-                <span className="text-xs text-gray-500 ml-2">(filtrados de {totalCount} total)</span>
-              )}
-            </span>
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600">Mostrar:</label>
+              <span className="text-sm text-gray-700">Mostrar:</span>
               <select
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                className="border rounded px-2 py-1 text-sm"
+                className="border border-gray-300 rounded-md px-3 py-1 text-sm"
               >
                 <option value={10}>10</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
               </select>
-              <span className="text-sm text-gray-600">por página</span>
+              <span className="text-sm text-gray-700">por página</span>
             </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-            >
-              Anterior
-            </Button>
             
-            <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum;
-                if (totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNum = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                } else {
-                  pageNum = currentPage - 2 + i;
-                }
-                
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+              >
+                Anterior
+              </Button>
+              
+              {[...Array(Math.min(5, totalPages))].map((_, i) => {
+                const pageNum = i + 1;
                 return (
                   <Button
                     key={pageNum}
                     variant={currentPage === pageNum ? "default" : "outline"}
                     size="sm"
                     onClick={() => setCurrentPage(pageNum)}
-                    className="w-10"
                   >
                     {pageNum}
                   </Button>
                 );
               })}
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+              </Button>
             </div>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-            >
-              Siguiente
-            </Button>
           </div>
         </div>
-      </div>
 
-      {/* Edit Book Modal */}
-      <Dialog open={!!editingBook} onOpenChange={() => setEditingBook(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Editar Libro</DialogTitle>
-          </DialogHeader>
-          
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
+        {/* Edit Book Dialog */}
+        <Dialog open={!!editingBook} onOpenChange={(open) => !open && setEditingBook(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Editar Libro</DialogTitle>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-4">
               <div>
-                <Label>ISBN-13</Label>
-                <Input value={editForm.isbn13 || ""} disabled className="bg-gray-50" />
+                <Label>Título</Label>
+                <Input
+                  value={editForm.title}
+                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Autor</Label>
+                <Input
+                  value={editForm.author}
+                  onChange={(e) => setEditForm({ ...editForm, author: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Editorial</Label>
+                <Input
+                  value={editForm.publisher}
+                  onChange={(e) => setEditForm({ ...editForm, publisher: e.target.value })}
+                />
               </div>
               <div>
                 <Label>Año de Publicación</Label>
                 <Input
                   type="number"
-                  value={editForm.publicationYear || ""}
+                  value={editForm.publicationYear}
                   onChange={(e) => setEditForm({ ...editForm, publicationYear: e.target.value })}
                 />
               </div>
-            </div>
-
-            <div>
-              <Label>Título</Label>
-              <Input
-                value={editForm.title || ""}
-                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label>Autor</Label>
-              <Input
-                value={editForm.author || ""}
-                onChange={(e) => setEditForm({ ...editForm, author: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label>Editorial</Label>
-              <Input
-                value={editForm.publisher || ""}
-                onChange={(e) => setEditForm({ ...editForm, publisher: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label>Idioma</Label>
-              <Input
-                value={editForm.language || ""}
-                onChange={(e) => setEditForm({ ...editForm, language: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Categoría Nivel 1</Label>
-                <Input
-                  value={editForm.categoryLevel1 || ""}
-                  onChange={(e) => setEditForm({ ...editForm, categoryLevel1: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>Categoría Nivel 2</Label>
-                <Input
-                  value={editForm.categoryLevel2 || ""}
-                  onChange={(e) => setEditForm({ ...editForm, categoryLevel2: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>Categoría Nivel 3</Label>
-                <Input
-                  value={editForm.categoryLevel3 || ""}
-                  onChange={(e) => setEditForm({ ...editForm, categoryLevel3: e.target.value })}
+              <div className="col-span-2">
+                <Label>Sinopsis</Label>
+                <Textarea
+                  value={editForm.synopsis}
+                  onChange={(e) => setEditForm({ ...editForm, synopsis: e.target.value })}
+                  rows={4}
                 />
               </div>
             </div>
-
-            <div>
-              <Label>Materia</Label>
-              <Input
-                value={editForm.materia || ""}
-                onChange={(e) => setEditForm({ ...editForm, materia: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <Label>Sinopsis</Label>
-              <Textarea
-                value={editForm.synopsis || ""}
-                onChange={(e) => setEditForm({ ...editForm, synopsis: e.target.value })}
-                rows={4}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingBook(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveEdit} disabled={updateBookMutation.isPending}>
-              {updateBookMutation.isPending ? "Guardando..." : "Guardar Cambios"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditingBook(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleSaveEdit}>
+                Guardar Cambios
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }

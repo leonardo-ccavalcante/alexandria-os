@@ -256,3 +256,12 @@
 - [ ] Create checkpoint with optimized version
 
 **Note**: Current version works correctly with all features (pagination, filters, inline editing, sorting) but has slow performance with large datasets. See PERFORMANCE_OPTIMIZATION_PLAN.md for detailed implementation guide.
+
+## Sorting Fix Implementation
+- [x] Update backend getGroupedByIsbn to accept sortField and sortDirection parameters
+- [x] Implement dynamic ORDER BY clause in SQL query supporting all fields (title, author, publisher, isbn13, publicationYear, total, available, location)
+- [x] Update frontend to pass sort parameters to backend query
+- [x] Remove client-side sorting logic (keep filters only)
+- [x] Reset to page 1 when sort changes
+- [x] Test all column sorting (TÍTULO, AUTOR, ISBN, UBICACIÓN, DISPONIBLE, TOTAL)
+- [x] Verify sorting persists across pagination
