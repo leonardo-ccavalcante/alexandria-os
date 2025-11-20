@@ -1,20 +1,80 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
+import { Route, Switch, Link } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
+import Triage from "./pages/Triage";
+import Catalog from "./pages/Catalog";
+import Inventory from "./pages/Inventory";
+import Dashboard from "./pages/Dashboard";
+import BatchOperations from "./pages/BatchOperations";
+import Settings from "./pages/Settings";
+import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon } from "lucide-react";
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
   return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
+    <div className="min-h-screen">
+      {/* Navigation */}
+      <nav className="bg-white shadow-sm border-b">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <Link href="/">
+              <a className="text-2xl font-bold text-blue-600 flex items-center gap-2">
+                <BookOpen className="h-8 w-8" />
+                Alexandria OS
+              </a>
+            </Link>
+            <div className="flex gap-4">
+              <Link href="/triage">
+                <a className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                  <BookOpen className="h-5 w-5" />
+                  Triage
+                </a>
+              </Link>
+              <Link href="/inventory">
+                <a className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                  <Package className="h-5 w-5" />
+                  Inventario
+                </a>
+              </Link>
+              <Link href="/dashboard">
+                <a className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                  <BarChart3 className="h-5 w-5" />
+                  Dashboard
+                </a>
+              </Link>
+              <Link href="/batch">
+                <a className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                  <Upload className="h-5 w-5" />
+                  Lotes
+                </a>
+              </Link>
+              <Link href="/settings">
+                <a className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                  <SettingsIcon className="h-5 w-5" />
+                  Config
+                </a>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      {/* Routes */}
+      <Switch>
+        <Route path="/" component={Home} />
+        <Route path="/triage" component={Triage} />
+        <Route path="/catalog" component={Catalog} />
+        <Route path="/inventory" component={Inventory} />
+        <Route path="/dashboard" component={Dashboard} />
+        <Route path="/batch" component={BatchOperations} />
+        <Route path="/settings" component={Settings} />
+        <Route path="/404" component={NotFound} />
+        <Route component={NotFound} />
+      </Switch>
+    </div>
   );
 }
 
