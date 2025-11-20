@@ -122,11 +122,12 @@ export default function InventoryFinal() {
     let filtered = [...inventoryData];
     
     if (hideWithoutLocation) {
-      filtered = filtered.filter(book => 
-        book.locations && 
-        book.locations.length > 0 && 
-        book.locations.some((loc: any) => loc !== null && loc !== "" && loc !== "-")
-      );
+      filtered = filtered.filter(book => {
+        if (!book.locations || !Array.isArray(book.locations)) return false;
+        // Filter out empty/null locations and check if any valid ones remain
+        const validLocations = book.locations.filter((loc: string) => loc && loc.trim() !== "" && loc !== "-");
+        return validLocations.length > 0;
+      });
     }
     
     if (hideWithoutQuantity) {
@@ -467,6 +468,87 @@ export default function InventoryFinal() {
                   )}
                 </tbody>
               </table>
+            )}
+          </div>
+        )}
+
+        {/* Card View */}
+        {viewMode === "card" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {isLoading ? (
+              <div className="col-span-full p-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Cargando inventario...</p>
+              </div>
+            ) : filteredData.length === 0 ? (
+              <div className="col-span-full text-center py-12 text-gray-500">
+                No se encontraron libros con los filtros seleccionados
+              </div>
+            ) : (
+              filteredData.map((book) => (
+                <div key={book.isbn13} className="bg-white rounded-lg shadow-sm p-4 hover:shadow-md transition-shadow">
+                  <div className="flex flex-col h-full">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{book.title}</h3>
+                      {book.publisher && (
+                        <p className="text-xs text-gray-500 mb-2">{book.publisher}</p>
+                      )}
+                      <p className="text-sm text-gray-700 mb-1">{book.author}</p>
+                      <p className="text-xs text-gray-500 mb-2">ISBN: {book.isbn13}</p>
+                      {book.publicationYear && (
+                        <p className="text-xs text-gray-500 mb-2">Año: {book.publicationYear}</p>
+                      )}
+                    </div>
+                    
+                    <div className="border-t pt-3 mt-3 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Ubicación:</span>
+                        <span className="font-medium">
+                          {book.locations && book.locations.length > 0 
+                            ? book.locations.filter((loc: string) => loc && loc.trim() !== "" && loc !== "-").join(", ") || "-"
+                            : "-"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Disponible:</span>
+                        <span className="inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          {book.availableQuantity}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Total:</span>
+                        <span className="font-medium">{book.totalQuantity}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-2 mt-3 pt-3 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setEditingBook(book)}
+                      >
+                        Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleIncreaseQuantity(book.isbn13)}
+                      >
+                        +
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDecreaseQuantity(book.isbn13)}
+                        disabled={book.availableQuantity === 0}
+                      >
+                        −
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
             )}
           </div>
         )}

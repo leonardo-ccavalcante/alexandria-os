@@ -269,3 +269,9 @@
 ## Navigation Fix
 - [x] Add /inventory route to App.tsx to fix 404 error when clicking Inventario from home page
 - [x] Verify all navigation links work correctly
+
+## Inventory Display Fixes
+- [x] Fix filter logic - locations field is a string, not an array, causing all books to be hidden
+- [x] Fix card view not displaying any books
+- [x] Test filters work correctly with both table and card views
+- [x] Verify "Ocultar libros sin ubicación" and "Ocultar libros sin cantidad disponible" filters work as expected
