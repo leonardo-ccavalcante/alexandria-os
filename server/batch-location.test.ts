@@ -271,7 +271,7 @@ describe("Batch Location Update", () => {
       searchText: testIsbn,
     });
 
-    const book = groupedResult.find((b) => b.isbn13 === testIsbn);
+    const book = groupedResult.items.find((b) => b.isbn13 === testIsbn);
     expect(book).toBeDefined();
     expect(book?.locations).toContain("30F");
     expect(book?.locations).toHaveLength(1); // All AVAILABLE items have same location

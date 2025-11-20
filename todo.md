@@ -229,3 +229,30 @@
 - [x] Make filters toggleable with checkbox or button
 - [x] Update UI to show active filters (filtered count display)
 - [x] Persist filter state during pagination
+
+## Claude Code Optimization Implementation (Production-Ready)
+- [ ] Push database schema changes with new indexes (pnpm db:push)
+- [ ] Replace getGroupedByIsbn with optimized single SQL query
+- [ ] Remove duplicate inventory components (Inventory.tsx, InventoryNew.tsx, InventoryEnhanced.tsx)
+- [ ] Rename InventoryFinal.tsx to Inventory.tsx
+- [ ] Update App.tsx routing to use new Inventory.tsx
+- [ ] Test optimized query with full 2,297 book dataset
+- [ ] Verify performance improvement (target: <1 second load time)
+- [ ] Write unit tests for optimized query
+- [ ] Save checkpoint with all optimizations
+
+## Performance Optimization (Documented for Future Implementation)
+- [x] Identify N+1 query problem in getGroupedByIsbn procedure
+- [x] Document root cause and performance impact (10-30 second load times)
+- [x] Design optimized SQL query using JOIN + GROUP_CONCAT
+- [x] Add database indexes for performance (title, author, publisher, status, locationCode)
+- [x] Document implementation challenges with Drizzle ORM
+- [x] Create comprehensive optimization plan with 3 implementation options
+- [x] Write PERFORMANCE_OPTIMIZATION_PLAN.md with migration strategy
+- [ ] Apply database indexes (run pnpm db:push)
+- [ ] Implement optimized query (choose: database view, sql template, or raw connection)
+- [ ] Write unit tests for optimized query
+- [ ] Verify <1 second load time with 2,297+ books
+- [ ] Create checkpoint with optimized version
+
+**Note**: Current version works correctly with all features (pagination, filters, inline editing, sorting) but has slow performance with large datasets. See PERFORMANCE_OPTIMIZATION_PLAN.md for detailed implementation guide.
