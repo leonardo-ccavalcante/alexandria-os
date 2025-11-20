@@ -31,7 +31,7 @@ function Router() {
                 <BookOpen className="h-5 w-5" />
                 Triage
               </Link>
-              <Link href="/inventory" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+              <Link href="/inventario" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
                 <Package className="h-5 w-5" />
                 Inventario
               </Link>

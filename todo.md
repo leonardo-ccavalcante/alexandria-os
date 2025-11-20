@@ -188,3 +188,6 @@
 - [ ] Implement Z-A sorting for text columns
 - [ ] Implement ascending/descending for numeric columns
 - [ ] Maintain sort state across page interactions
+
+## Bug Fix - Route Mismatch
+- [x] Fix inventory route mismatch (navigation uses /inventory but route is /inventario)
