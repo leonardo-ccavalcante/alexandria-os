@@ -265,3 +265,7 @@
 - [x] Reset to page 1 when sort changes
 - [x] Test all column sorting (TÍTULO, AUTOR, ISBN, UBICACIÓN, DISPONIBLE, TOTAL)
 - [x] Verify sorting persists across pagination
+
+## Navigation Fix
+- [x] Add /inventory route to App.tsx to fix 404 error when clicking Inventario from home page
+- [x] Verify all navigation links work correctly

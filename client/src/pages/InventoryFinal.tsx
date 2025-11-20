@@ -125,7 +125,7 @@ export default function InventoryFinal() {
       filtered = filtered.filter(book => 
         book.locations && 
         book.locations.length > 0 && 
-        book.locations.some((loc: string) => loc !== null && loc !== "" && loc !== "-")
+        book.locations.some((loc: any) => loc !== null && loc !== "" && loc !== "-")
       );
     }
     

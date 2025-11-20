@@ -45,7 +45,7 @@ export default function Home() {
           </Link>
 
           {/* Inventory */}
-          <Link href="/inventory">
+          <Link href="/inventario">
             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
