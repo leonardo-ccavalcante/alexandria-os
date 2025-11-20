@@ -26,12 +26,44 @@ export default function CargaMasiva() {
 
   const isAdmin = user?.role === "admin";
 
-  // TODO: Implement database cleanup mutation
-  const cleanupDatabase = {
-    mutate: () => {
-      toast.info("Función de limpieza de base de datos en desarrollo");
+  const cleanupDatabase = trpc.batch.cleanupDatabase.useMutation({
+    onSuccess: () => {
+      toast.success('Base de datos limpiada correctamente');
     },
-  };
+    onError: (error: any) => {
+      toast.error(`Error: ${error.message}`);
+    },
+  });
+  
+  const importCatalog = trpc.batch.importCatalogFromCsv.useMutation({
+    onSuccess: (result: { imported: number; skipped: number; errors: string[] }) => {
+      toast.success(`Importación completada: ${result.imported} libros importados, ${result.skipped} omitidos`);
+      if (result.errors.length > 0) {
+        console.error('Errores de importación:', result.errors);
+      }
+      setCatalogFile(null);
+      setIsUploading(false);
+    },
+    onError: (error: any) => {
+      toast.error(`Error al importar catálogo: ${error.message}`);
+      setIsUploading(false);
+    },
+  });
+  
+  const importChannels = trpc.batch.importSalesChannelsFromCsv.useMutation({
+    onSuccess: (result: { updated: number; skipped: number; errors: string[] }) => {
+      toast.success(`Canales actualizados: ${result.updated} libros, ${result.skipped} omitidos`);
+      if (result.errors.length > 0) {
+        console.error('Errores de actualización:', result.errors);
+      }
+      setChannelsFile(null);
+      setIsUploading(false);
+    },
+    onError: (error: any) => {
+      toast.error(`Error al importar canales: ${error.message}`);
+      setIsUploading(false);
+    },
+  });
 
   const handleCatalogUpload = async () => {
     if (!catalogFile) {
@@ -40,16 +72,16 @@ export default function CargaMasiva() {
     }
 
     setIsUploading(true);
-    try {
-      // TODO: Implement catalog bulk upload
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      toast.success("Catálogo cargado correctamente");
-      setCatalogFile(null);
-    } catch (error) {
-      toast.error("Error al cargar el catálogo");
-    } finally {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const csvData = e.target?.result as string;
+      importCatalog.mutate({ csvData });
+    };
+    reader.onerror = () => {
+      toast.error('Error al leer el archivo');
       setIsUploading(false);
-    }
+    };
+    reader.readAsText(catalogFile);
   };
 
   const handleChannelsUpload = async () => {
@@ -59,16 +91,16 @@ export default function CargaMasiva() {
     }
 
     setIsUploading(true);
-    try {
-      // TODO: Implement sales channels bulk upload
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      toast.success("Canales de venta actualizados correctamente");
-      setChannelsFile(null);
-    } catch (error) {
-      toast.error("Error al actualizar canales");
-    } finally {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const csvData = e.target?.result as string;
+      importChannels.mutate({ csvData });
+    };
+    reader.onerror = () => {
+      toast.error('Error al leer el archivo');
       setIsUploading(false);
-    }
+    };
+    reader.readAsText(channelsFile);
   };
 
   const downloadCatalogTemplate = () => {

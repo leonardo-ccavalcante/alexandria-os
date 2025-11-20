@@ -123,25 +123,26 @@ export async function upsertCatalogMaster(data: InsertCatalogMaster): Promise<vo
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // Build update set with only defined fields
+  const updateSet: Record<string, any> = { updatedAt: new Date() };
+  if (data.title !== undefined) updateSet.title = data.title;
+  if (data.author !== undefined) updateSet.author = data.author;
+  if (data.publisher !== undefined) updateSet.publisher = data.publisher;
+  if (data.publicationYear !== undefined) updateSet.publicationYear = data.publicationYear;
+  if (data.language !== undefined) updateSet.language = data.language;
+  if (data.synopsis !== undefined) updateSet.synopsis = data.synopsis;
+  if (data.categoryLevel1 !== undefined) updateSet.categoryLevel1 = data.categoryLevel1;
+  if (data.categoryLevel2 !== undefined) updateSet.categoryLevel2 = data.categoryLevel2;
+  if (data.categoryLevel3 !== undefined) updateSet.categoryLevel3 = data.categoryLevel3;
+  if (data.materia !== undefined) updateSet.materia = data.materia;
+  if (data.bisacCode !== undefined) updateSet.bisacCode = data.bisacCode;
+  if (data.coverImageUrl !== undefined) updateSet.coverImageUrl = data.coverImageUrl;
+  if (data.marketMinPrice !== undefined) updateSet.marketMinPrice = data.marketMinPrice;
+  if (data.marketMedianPrice !== undefined) updateSet.marketMedianPrice = data.marketMedianPrice;
+  if (data.lastPriceCheck !== undefined) updateSet.lastPriceCheck = data.lastPriceCheck;
+  
   await db.insert(catalogMasters).values(data).onDuplicateKeyUpdate({
-    set: {
-      title: data.title,
-      author: data.author,
-      publisher: data.publisher,
-      publicationYear: data.publicationYear,
-      language: data.language,
-      synopsis: data.synopsis,
-      categoryLevel1: data.categoryLevel1,
-      categoryLevel2: data.categoryLevel2,
-      categoryLevel3: data.categoryLevel3,
-      materia: data.materia,
-      bisacCode: data.bisacCode,
-      coverImageUrl: data.coverImageUrl,
-      marketMinPrice: data.marketMinPrice,
-      marketMedianPrice: data.marketMedianPrice,
-      lastPriceCheck: data.lastPriceCheck,
-      updatedAt: new Date(),
-    }
+    set: updateSet
   });
 }
 
@@ -420,6 +421,22 @@ export async function getDashboardKPIs() {
     })
     .from(salesTransactions);
   
+  // Calculate total inventory value (sum of listing prices for available/listed items)
+  const [inventoryValue] = await db
+    .select({
+      totalValue: sql<number>`COALESCE(SUM(CAST(${inventoryItems.listingPrice} AS DECIMAL(10,2))), 0)`,
+    })
+    .from(inventoryItems)
+    .where(sql`${inventoryItems.status} IN ('AVAILABLE', 'LISTED')`);
+  
+  // Calculate estimated profit (listing price - cost of goods for available/listed items)
+  const [profitEstimate] = await db
+    .select({
+      estimatedProfit: sql<number>`COALESCE(SUM(CAST(${inventoryItems.listingPrice} AS DECIMAL(10,2)) - CAST(${inventoryItems.costOfGoods} AS DECIMAL(10,2))), 0)`,
+    })
+    .from(inventoryItems)
+    .where(sql`${inventoryItems.status} IN ('AVAILABLE', 'LISTED')`);
+  
   return {
     totalInventory: Number(totalInventory?.count || 0),
     available: Number(availableCount?.count || 0),
@@ -428,6 +445,8 @@ export async function getDashboardKPIs() {
     totalRevenue: Number(revenueData?.totalRevenue || 0),
     totalProfit: Number(revenueData?.totalProfit || 0),
     avgProfit: Number(revenueData?.avgProfit || 0),
+    inventoryValue: Number(inventoryValue?.totalValue || 0),
+    estimatedProfit: Number(profitEstimate?.estimatedProfit || 0),
   };
 }
 

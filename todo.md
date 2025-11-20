@@ -334,3 +334,23 @@
 - [ ] Test sales channel filtering
 - [ ] Test admin-only features are protected
 - [ ] Conduct full regression testing
+
+## Bulk Upload Backend Implementation
+- [x] Add cleanupDatabase procedure (admin-only) with confirmation
+- [x] Add importCatalogFromCsv procedure with validation and error reporting
+- [x] Add importSalesChannelsFromCsv procedure for batch channel updates
+- [ ] Create CSV template generation for catalog import
+- [ ] Create CSV template generation for sales channel import
+- [ ] Add proper error handling and validation for CSV parsing
+- [ ] Write unit tests for bulk upload procedures
+
+## Dashboard Analytics Implementation
+- [x] Add getDashboardKPIs procedure to aggregate inventory statistics
+- [x] Calculate total inventory value (sum of listing prices)
+- [x] Calculate books by sales channel distribution
+- [x] Calculate profitability metrics (estimated profit per book)
+- [x] Get top 10 best-selling books (by quantity sold)
+- [x] Build Dashboard UI with KPI cards
+- [x] Add interactive charts using recharts library
+- [x] Add real-time data refresh
+- [ ] Write unit tests for dashboard queries

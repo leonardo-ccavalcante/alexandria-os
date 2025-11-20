@@ -488,7 +488,7 @@ export default function InventoryFinal() {
                         <span className="text-gray-600">Ubicación:</span>
                         <span className="font-medium">
                           {book.locations && book.locations.length > 0 
-                            ? book.locations.filter((loc: string) => loc && loc.trim() !== '').join(", ") || "-"
+                            ? (book.locations as string[]).filter((loc: string) => loc && loc.trim() !== '').join(", ") || "-"
                             : "-"}
                         </span>
                       </div>

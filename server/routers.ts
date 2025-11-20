@@ -739,6 +739,152 @@ export const appRouter = router({
         };
       }),
     
+    // Admin-only: Clean up database
+    cleanupDatabase: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        // Check if user is admin
+        if (ctx.user?.role !== 'admin') {
+          throw new Error('Only admins can clean up the database');
+        }
+        
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        
+        try {
+          // Delete all inventory items
+          await db.delete(inventoryItems);
+          
+          // Delete all catalog masters
+          await db.delete(catalogMasters);
+          
+          return {
+            success: true,
+            message: 'Database cleaned successfully',
+          };
+        } catch (error: any) {
+          throw new Error(`Failed to clean database: ${error.message}`);
+        }
+      }),
+    
+    // Import catalog from CSV
+    importCatalogFromCsv: protectedProcedure
+      .input(z.object({
+        csvData: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const lines = input.csvData.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+          throw new Error('CSV file is empty or invalid');
+        }
+        
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        const rows = lines.slice(1);
+        
+        const results = {
+          imported: 0,
+          skipped: 0,
+          errors: [] as string[],
+        };
+        
+        for (let i = 0; i < rows.length; i++) {
+          try {
+            const values = rows[i].split(',').map(v => v.trim().replace(/"/g, ''));
+            const row: Record<string, string> = {};
+            headers.forEach((header, idx) => {
+              row[header] = values[idx] || '';
+            });
+            
+            // Validate required fields
+            const isbn = row['ISBN'] || row['isbn13'] || row['ISBN13'];
+            if (!isbn) {
+              results.errors.push(`Row ${i + 2}: Missing ISBN`);
+              results.skipped++;
+              continue;
+            }
+            
+            // Upsert catalog master
+            await upsertCatalogMaster({
+              isbn13: isbn,
+              title: row['Título'] || row['Title'] || row['title'] || undefined,
+              author: row['Autor'] || row['Author'] || row['author'] || undefined,
+              publisher: row['Editorial'] || row['Publisher'] || row['publisher'] || undefined,
+              publicationYear: row['Año'] || row['publicationYear'] ? parseInt(row['Año'] || row['publicationYear']) : undefined,
+              language: row['Idioma'] || row['Language'] || row['language'] || undefined,
+              synopsis: row['Sinopsis'] || row['Synopsis'] || row['synopsis'] || undefined,
+              categoryLevel1: row['Categoría'] || row['Category'] || row['categoryLevel1'] || undefined,
+            });
+            
+            results.imported++;
+          } catch (error: any) {
+            results.errors.push(`Row ${i + 2}: ${error.message}`);
+            results.skipped++;
+          }
+        }
+        
+        return results;
+      }),
+    
+    // Import sales channels from CSV
+    importSalesChannelsFromCsv: protectedProcedure
+      .input(z.object({
+        csvData: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const lines = input.csvData.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+          throw new Error('CSV file is empty or invalid');
+        }
+        
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        const rows = lines.slice(1);
+        
+        const results = {
+          updated: 0,
+          skipped: 0,
+          errors: [] as string[],
+        };
+        
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        
+        for (let i = 0; i < rows.length; i++) {
+          try {
+            const values = rows[i].split(',').map(v => v.trim().replace(/"/g, ''));
+            const row: Record<string, string> = {};
+            headers.forEach((header, idx) => {
+              row[header] = values[idx] || '';
+            });
+            
+            // Validate required fields
+            if (!row['UUID']) {
+              results.errors.push(`Row ${i + 2}: Missing UUID`);
+              results.skipped++;
+              continue;
+            }
+            
+            // Parse sales channels (comma-separated)
+            const channelsStr = row['Canales'] || row['Channels'] || '';
+            const channels = channelsStr
+              .split(';')
+              .map(c => c.trim())
+              .filter(c => c.length > 0);
+            
+            // Update inventory item
+            await db
+              .update(inventoryItems)
+              .set({ salesChannels: JSON.stringify(channels) })
+              .where(eq(inventoryItems.uuid, row['UUID']));
+            
+            results.updated++;
+          } catch (error: any) {
+            results.errors.push(`Row ${i + 2}: ${error.message}`);
+            results.skipped++;
+          }
+        }
+        
+        return results;
+      }),
+    
     // Export inventory to CSV
     exportToCsv: protectedProcedure
       .input(z.object({

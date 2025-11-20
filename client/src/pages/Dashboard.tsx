@@ -93,6 +93,45 @@ export default function Dashboard() {
           </Card>
         </div>
 
+        {/* Inventory Value Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Inventory Value */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Valor Inventario
+              </CardTitle>
+              <DollarSign className="h-5 w-5 text-orange-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-orange-600">
+                €{(kpis?.inventoryValue || 0).toFixed(2)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Precio de venta total
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Estimated Profit */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">
+                Beneficio Estimado
+              </CardTitle>
+              <TrendingUp className="h-5 w-5 text-teal-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-teal-600">
+                €{(kpis?.estimatedProfit || 0).toFixed(2)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Inventario disponible/listado
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Revenue Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Total Revenue */}
