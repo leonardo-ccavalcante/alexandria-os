@@ -47,7 +47,7 @@ export default function InventoryFinal() {
   const { data: publishers = [] } = trpc.catalog.getPublishers.useQuery({ search: publisher });
   const { data: authors = [] } = trpc.catalog.getAuthors.useQuery({ search: author });
 
-  // ✅ PASSING SORT PARAMS TO BACKEND
+  // ✅ PASSING SORT PARAMS AND FILTERS TO BACKEND
   const { data: inventoryResponse, refetch, isLoading } = trpc.inventory.getGroupedByIsbn.useQuery({
     searchText,
     publisher,
@@ -55,6 +55,8 @@ export default function InventoryFinal() {
     yearFrom: yearFrom ? parseInt(yearFrom) : undefined,
     yearTo: yearTo ? parseInt(yearTo) : undefined,
     includeZeroInventory: showZeroInventory,
+    hideWithoutLocation,
+    hideWithoutQuantity,
     limit: pageSize,
     offset: (currentPage - 1) * pageSize,
     sortField,
@@ -115,27 +117,8 @@ export default function InventoryFinal() {
     },
   });
 
-  // ✅ REMOVED CLIENT-SIDE SORTING - Only filtering happens here now
-  const filteredData = useMemo(() => {
-    if (!inventoryData) return [];
-    
-    let filtered = [...inventoryData];
-    
-    if (hideWithoutLocation) {
-      filtered = filtered.filter(book => {
-        if (!book.locations || !Array.isArray(book.locations)) return false;
-        // Filter out empty/null locations and check if any valid ones remain
-        const validLocations = book.locations.filter((loc: string) => loc && loc.trim() !== "" && loc !== "-");
-        return validLocations.length > 0;
-      });
-    }
-    
-    if (hideWithoutQuantity) {
-      filtered = filtered.filter(book => book.availableQuantity > 0);
-    }
-    
-    return filtered;
-  }, [inventoryData, hideWithoutLocation, hideWithoutQuantity]); // Removed sort dependencies
+  // ✅ NO CLIENT-SIDE FILTERING - All filtering now happens on backend
+  const filteredData = inventoryData; // Removed sort dependencies
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -505,7 +488,7 @@ export default function InventoryFinal() {
                         <span className="text-gray-600">Ubicación:</span>
                         <span className="font-medium">
                           {book.locations && book.locations.length > 0 
-                            ? book.locations.filter((loc: string) => loc && loc.trim() !== "" && loc !== "-").join(", ") || "-"
+                            ? book.locations.filter((loc: string) => loc && loc.trim() !== '').join(", ") || "-"
                             : "-"}
                         </span>
                       </div>
@@ -556,9 +539,8 @@ export default function InventoryFinal() {
         {/* Pagination */}
         <div className="mt-6 flex items-center justify-between">
           <div className="text-sm text-gray-700">
-            Mostrando {filteredData.length > 0 ? ((currentPage - 1) * pageSize + 1) : 0}-
-            {Math.min(currentPage * pageSize, filteredData.length)} de {totalCount} libros
-            {(hideWithoutLocation || hideWithoutQuantity) && ` (filtrados de ${totalCount} total)`}
+            Mostrando {totalCount > 0 ? ((currentPage - 1) * pageSize + 1) : 0}-
+            {Math.min(currentPage * pageSize, totalCount)} de {totalCount} libros
           </div>
           
           <div className="flex items-center gap-4">

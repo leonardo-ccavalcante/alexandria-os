@@ -275,3 +275,10 @@
 - [x] Fix card view not displaying any books
 - [x] Test filters work correctly with both table and card views
 - [x] Verify "Ocultar libros sin ubicación" and "Ocultar libros sin cantidad disponible" filters work as expected
+
+## Filter Bug Fix - "Ocultar sin ubicación"
+- [x] Debug why "Ocultar libros sin ubicación" filter shows 0 results when combined with author filter
+- [x] Check if filters are being applied on frontend (client-side) or backend (server-side)
+- [x] Verify filter logic correctly handles locations array
+- [x] Test filter combinations (author + location filter, publisher + location filter, etc.)
+- [x] Ensure filters work correctly in both table and card views

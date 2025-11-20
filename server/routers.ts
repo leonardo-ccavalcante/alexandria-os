@@ -380,6 +380,8 @@ export const appRouter = router({
         yearFrom: z.number().optional(),
         yearTo: z.number().optional(),
         includeZeroInventory: z.boolean().default(false),
+        hideWithoutLocation: z.boolean().default(false),
+        hideWithoutQuantity: z.boolean().default(false),
         limit: z.number().default(50),
         offset: z.number().default(0),
         // NEW: Sort Parameters
@@ -433,7 +435,18 @@ export const appRouter = router({
             default: orderByClause = `cm.title ${dir}`;
         }
 
-        const havingClause = !input.includeZeroInventory ? 'HAVING totalQuantity > 0' : '';
+        // Build HAVING clause for post-aggregation filters
+        const havingConditions = [];
+        if (!input.includeZeroInventory) {
+          havingConditions.push('totalQuantity > 0');
+        }
+        if (input.hideWithoutLocation) {
+          havingConditions.push('locations IS NOT NULL AND locations != ""');
+        }
+        if (input.hideWithoutQuantity) {
+          havingConditions.push('availableQuantity > 0');
+        }
+        const havingClause = havingConditions.length > 0 ? `HAVING ${havingConditions.join(' AND ')}` : '';
         
         const dataQuery = `
           SELECT 
@@ -453,17 +466,20 @@ export const appRouter = router({
         `;
 
         // Count query must also respect the HAVING logic for consistency
-        let countQuerySql;
-        if (input.includeZeroInventory) {
-           countQuerySql = `SELECT COUNT(*) as count FROM catalog_masters cm WHERE ${whereClause}`;
-        } else {
-           countQuerySql = `
-             SELECT COUNT(DISTINCT cm.isbn13) as count
-             FROM catalog_masters cm
-             INNER JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
-             WHERE ${whereClause}
-           `;
-        }
+        // Use subquery to apply HAVING clause correctly
+        const countQuerySql = `
+          SELECT COUNT(*) as count FROM (
+            SELECT cm.isbn13,
+              COUNT(ii.uuid) as totalQuantity,
+              SUM(CASE WHEN ii.status = 'AVAILABLE' THEN 1 ELSE 0 END) as availableQuantity,
+              GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' AND ii.locationCode IS NOT NULL AND ii.locationCode != '' THEN ii.locationCode END ORDER BY ii.locationCode SEPARATOR ',') as locations
+            FROM catalog_masters cm
+            LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+            WHERE ${whereClause}
+            GROUP BY cm.isbn13
+            ${havingClause}
+          ) as filtered_books
+        `;
 
         // Use mysql2 pool directly for parameterized queries
         const pool = mysql.createPool(process.env.DATABASE_URL!);
