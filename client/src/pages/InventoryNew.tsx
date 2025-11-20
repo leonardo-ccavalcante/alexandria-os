@@ -20,7 +20,7 @@ export default function InventoryNew() {
   const [expandedBook, setExpandedBook] = useState<string | null>(null);
 
   // Fetch grouped inventory
-  const { data: books, isLoading, refetch } = trpc.inventory.getGroupedByIsbn.useQuery({
+  const { data: inventoryResponse, isLoading, refetch } = trpc.inventory.getGroupedByIsbn.useQuery({
     searchText: searchText || undefined,
     categoryLevel1: categoryFilter || undefined,
     publisher: publisherFilter || undefined,
@@ -30,6 +30,8 @@ export default function InventoryNew() {
     limit: 100,
     offset: 0,
   });
+  
+  const books = inventoryResponse?.items || [];
 
   // Mutations
   const addQuantityMutation = trpc.inventory.addQuantity.useMutation({

@@ -23,6 +23,14 @@ export default function InventoryFinal() {
   const [sortField, setSortField] = useState<SortField>("title");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   
+  // Pagination state
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  
+  // Additional filters
+  const [hideWithoutLocation, setHideWithoutLocation] = useState(false);
+  const [hideWithoutQuantity, setHideWithoutQuantity] = useState(false);
+  
   // Edit modal state
   const [editingBook, setEditingBook] = useState<any>(null);
   const [editForm, setEditForm] = useState<any>({});
@@ -36,14 +44,20 @@ export default function InventoryFinal() {
   const { data: authors = [] } = trpc.catalog.getAuthors.useQuery({ search: author });
 
   // Inventory query
-  const { data: inventoryData, refetch } = trpc.inventory.getGroupedByIsbn.useQuery({
+  const { data: inventoryResponse, refetch } = trpc.inventory.getGroupedByIsbn.useQuery({
     searchText,
     publisher,
     author,
     yearFrom: yearFrom ? parseInt(yearFrom) : undefined,
     yearTo: yearTo ? parseInt(yearTo) : undefined,
     includeZeroInventory: showZeroInventory,
+    limit: pageSize,
+    offset: (currentPage - 1) * pageSize,
   });
+  
+  const inventoryData = inventoryResponse?.items || [];
+  const totalCount = inventoryResponse?.total || 0;
+  const totalPages = inventoryResponse?.totalPages || 1;
 
   // Mutations
   const increaseQty = trpc.inventory.increaseQuantity.useMutation({
@@ -95,11 +109,26 @@ export default function InventoryFinal() {
     },
   });
 
-  // Sorted data
+   // Sort and filter data
   const sortedData = useMemo(() => {
     if (!inventoryData) return [];
     
-    const sorted = [...inventoryData].sort((a, b) => {
+    // Apply filters
+    let filtered = [...inventoryData];
+    
+    if (hideWithoutLocation) {
+      filtered = filtered.filter(book => 
+        book.locations && 
+        book.locations.length > 0 && 
+        book.locations.some(loc => loc !== null && loc !== "" && loc !== "-")
+      );
+    }
+    
+    if (hideWithoutQuantity) {
+      filtered = filtered.filter(book => book.availableQuantity > 0);
+    }
+    
+    const sorted = filtered.sort((a, b) => {
       let aVal: any, bVal: any;
       
       switch (sortField) {
@@ -143,7 +172,7 @@ export default function InventoryFinal() {
     });
     
     return sorted;
-  }, [inventoryData, sortField, sortDirection]);
+  }, [inventoryData, sortField, sortDirection, hideWithoutLocation, hideWithoutQuantity]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -257,15 +286,35 @@ export default function InventoryFinal() {
                 onChange={(e) => setYearTo(e.target.value)}
                 className="w-32"
               />
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={showZeroInventory}
-                  onChange={(e) => setShowZeroInventory(e.target.checked)}
-                  className="rounded"
-                />
-                Mostrar libros sin inventario (solo catálogo)
-              </label>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showZeroInventory}
+                    onChange={(e) => setShowZeroInventory(e.target.checked)}
+                    className="rounded"
+                  />
+                  Mostrar libros sin inventario (solo catálogo)
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={hideWithoutLocation}
+                    onChange={(e) => setHideWithoutLocation(e.target.checked)}
+                    className="rounded"
+                  />
+                  Ocultar libros sin ubicación
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={hideWithoutQuantity}
+                    onChange={(e) => setHideWithoutQuantity(e.target.checked)}
+                    className="rounded"
+                  />
+                  Ocultar libros sin cantidad disponible
+                </label>
+              </div>
             </div>
             
             <div className="flex gap-2">
@@ -456,8 +505,79 @@ export default function InventoryFinal() {
           </div>
         )}
 
-        <div className="mt-4 text-sm text-gray-600">
-          Mostrando {sortedData.length} libros
+        {/* Pagination Controls */}
+        <div className="mt-6 flex items-center justify-between border-t pt-4">
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-700">
+              Mostrando {sortedData.length > 0 ? ((currentPage - 1) * pageSize) + 1 : 0}-{Math.min(currentPage * pageSize, sortedData.length)} de {sortedData.length} libros
+              {(hideWithoutLocation || hideWithoutQuantity) && (
+                <span className="text-xs text-gray-500 ml-2">(filtrados de {totalCount} total)</span>
+              )}
+            </span>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600">Mostrar:</label>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="border rounded px-2 py-1 text-sm"
+              >
+                <option value={10}>10</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span className="text-sm text-gray-600">por página</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+            >
+              Anterior
+            </Button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={currentPage === pageNum ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(pageNum)}
+                    className="w-10"
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Siguiente
+            </Button>
+          </div>
         </div>
       </div>
 

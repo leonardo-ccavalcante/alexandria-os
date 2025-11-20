@@ -199,3 +199,33 @@
 - [x] Show visual feedback during save
 - [x] Write unit tests for batch location update (6 tests passing)
 - [x] Verify location updates reflect in grouped inventory view
+
+## Bug Fix - Inventory Display Issue
+- [x] Fix inventory page not showing book cards/table
+- [x] Debug why "Mostrando 49 libros" shows but no books display
+- [x] Verify data is loading correctly from backend
+
+## Pagination Enhancement
+- [x] Add page size selector (10, 50, 100 items per page)
+- [x] Implement pagination controls (Previous, Next, page numbers)
+- [x] Show total count: "Mostrando X-Y de Z libros"
+- [x] Persist page size selection in state
+- [x] Show filtered count when filters are active
+- [ ] Add "Ir a página" input for quick navigation
+
+## Sales Channel Multi-Select
+- [ ] Add sales channel field to inventory_items table (JSON array)
+- [ ] Create sales channel enum/list: Wallapop, Vinted, Todo Colección, Sitio web, Iberlibro, Amazon, Ebay, Casa del Libro, Fnac
+- [ ] Build multi-select dropdown for sales channels
+- [ ] Allow selecting multiple channels per item
+- [ ] Update backend procedure to save sales channels
+- [ ] Show sales channels in inventory table view
+- [ ] Add filter by sales channel
+- [ ] Display channel badges/tags in item cards
+
+## Inventory Filters Enhancement
+- [x] Add filter button to hide books without UBICACIÓN (location is null/empty)
+- [x] Add filter button to hide books without CANTIDAD (quantity = 0)
+- [x] Make filters toggleable with checkbox or button
+- [x] Update UI to show active filters (filtered count display)
+- [x] Persist filter state during pagination

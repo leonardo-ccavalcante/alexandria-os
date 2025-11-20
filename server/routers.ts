@@ -453,11 +453,24 @@ export const appRouter = router({
         }));
         
         // Filter by zero inventory if needed
-        if (!input.includeZeroInventory) {
-          return results.filter(r => r.totalQuantity > 0);
-        }
+        const filteredResults = !input.includeZeroInventory
+          ? results.filter(r => r.totalQuantity > 0)
+          : results;
         
-        return results;
+        // Get total count for pagination
+        const totalQuery = conditions.length > 0
+          ? await db.select({ count: sql<number>`count(*)` }).from(catalogMasters).where(and(...conditions))
+          : await db.select({ count: sql<number>`count(*)` }).from(catalogMasters);
+        
+        const totalCount = totalQuery[0]?.count || 0;
+        
+        return {
+          items: filteredResults,
+          total: totalCount,
+          page: Math.floor(input.offset / input.limit) + 1,
+          pageSize: input.limit,
+          totalPages: Math.ceil(totalCount / input.limit),
+        };
       }),
     
     // Increase quantity (alias for addQuantity)

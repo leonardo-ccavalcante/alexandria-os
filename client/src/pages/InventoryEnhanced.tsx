@@ -59,7 +59,7 @@ export default function InventoryEnhanced() {
   const [bulkLocation, setBulkLocation] = useState("");
 
   // Fetch grouped inventory
-  const { data: books, isLoading, refetch } = trpc.inventory.getGroupedByIsbn.useQuery({
+  const { data: inventoryResponse, isLoading, refetch } = trpc.inventory.getGroupedByIsbn.useQuery({
     searchText: searchText || undefined,
     publisher: publisherFilter || undefined,
     yearFrom: yearFrom ? parseInt(yearFrom) : undefined,
@@ -68,6 +68,8 @@ export default function InventoryEnhanced() {
     limit: 100,
     offset: 0,
   });
+  
+  const books = inventoryResponse?.items || [];
 
   // Mutations
   const updateLocationMutation = trpc.inventory.updateLocation.useMutation({
