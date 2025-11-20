@@ -191,3 +191,11 @@
 
 ## Bug Fix - Route Mismatch
 - [x] Fix inventory route mismatch (navigation uses /inventory but route is /inventario)
+
+## Inline Location Editing
+- [x] Make ubicación cell clickable for inline editing
+- [x] Add input field that appears when ubicación is clicked
+- [x] Save location on blur or Enter key
+- [x] Show visual feedback during save
+- [x] Write unit tests for batch location update (6 tests passing)
+- [x] Verify location updates reflect in grouped inventory view

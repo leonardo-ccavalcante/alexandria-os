@@ -26,6 +26,10 @@ export default function InventoryFinal() {
   // Edit modal state
   const [editingBook, setEditingBook] = useState<any>(null);
   const [editForm, setEditForm] = useState<any>({});
+  
+  // Inline location editing state
+  const [editingLocation, setEditingLocation] = useState<{ isbn: string; oldLocation: string } | null>(null);
+  const [newLocation, setNewLocation] = useState("");
 
   // Autocomplete queries
   const { data: publishers = [] } = trpc.catalog.getPublishers.useQuery({ search: publisher });
@@ -53,6 +57,17 @@ export default function InventoryFinal() {
     onSuccess: () => {
       toast.success("Cantidad disminuida");
       refetch();
+    },
+  });
+  
+  const updateLocationsMutation = trpc.batch.updateFromCsv.useMutation({
+    onSuccess: () => {
+      toast.success("Ubicación actualizada");
+      setEditingLocation(null);
+      refetch();
+    },
+    onError: (error: any) => {
+      toast.error(error.message);
     },
   });
 
@@ -350,7 +365,50 @@ export default function InventoryFinal() {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">{book.author}</td>
                     <td className="px-6 py-4 text-sm text-gray-900">{book.isbn13}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{book.locations || "-"}</td>
+                    <td className="px-6 py-4 text-sm text-gray-900">
+                      {editingLocation?.isbn === book.isbn13 ? (
+                        <Input
+                          value={newLocation}
+                          onChange={(e) => setNewLocation(e.target.value)}
+                          onBlur={() => {
+                            if (newLocation.trim() && editingLocation) {
+                              // Get all AVAILABLE items for this ISBN and update their locations
+                              const availableItems = book.items?.filter((item: any) => item.status === 'AVAILABLE') || [];
+                              if (availableItems.length > 0) {
+                                updateLocationsMutation.mutate({
+                                  updates: availableItems.map((item: any) => ({
+                                    uuid: item.uuid,
+                                    locationCode: newLocation.trim(),
+                                  })),
+                                });
+                              }
+                            } else {
+                              setEditingLocation(null);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.currentTarget.blur();
+                            } else if (e.key === 'Escape') {
+                              setEditingLocation(null);
+                            }
+                          }}
+                          autoFocus
+                          className="w-24 h-8"
+                          placeholder="ej: 16D"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingLocation({ isbn: book.isbn13, oldLocation: book.locations?.[0] || "" });
+                            setNewLocation(book.locations?.[0] || "");
+                          }}
+                          className="text-left hover:bg-gray-100 px-2 py-1 rounded w-full"
+                        >
+                          {book.locations && book.locations.length > 0 ? book.locations.join(", ") : "-"}
+                        </button>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-center">
                       <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${
                         book.availableQuantity > 0 ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
