@@ -3,6 +3,9 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
+import { eq, and, sql } from "drizzle-orm";
+import { catalogMasters, inventoryItems } from "../drizzle/schema";
+import { getDb } from "./db";
 import {
   getCatalogMasterByIsbn,
   upsertCatalogMaster,
@@ -287,6 +290,154 @@ export const appRouter = router({
           status: input.status,
         });
         return { success: true };
+      }),
+    
+    // Get inventory grouped by ISBN with counts and locations
+    getGroupedByIsbn: protectedProcedure
+      .input(z.object({
+        searchText: z.string().optional(),
+        categoryLevel1: z.string().optional(),
+        publisher: z.string().optional(),
+        yearFrom: z.number().optional(),
+        yearTo: z.number().optional(),
+        includeZeroInventory: z.boolean().default(false),
+        limit: z.number().default(50),
+        offset: z.number().default(0),
+      }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        
+        // Build filter conditions
+        const conditions = [];
+        if (input.searchText) {
+          const search = `%${input.searchText}%`;
+          conditions.push(
+            sql`${catalogMasters.title} LIKE ${search} OR ${catalogMasters.author} LIKE ${search} OR ${catalogMasters.isbn13} LIKE ${search}`
+          );
+        }
+        if (input.categoryLevel1) {
+          conditions.push(eq(catalogMasters.categoryLevel1, input.categoryLevel1));
+        }
+        if (input.publisher) {
+          conditions.push(sql`${catalogMasters.publisher} LIKE ${`%${input.publisher}%`}`);
+        }
+        if (input.yearFrom) {
+          conditions.push(sql`${catalogMasters.publicationYear} >= ${input.yearFrom}`);
+        }
+        if (input.yearTo) {
+          conditions.push(sql`${catalogMasters.publicationYear} <= ${input.yearTo}`);
+        }
+        
+        // Execute query with filters
+        const baseQuery = db
+          .select({
+            isbn13: catalogMasters.isbn13,
+            title: catalogMasters.title,
+            author: catalogMasters.author,
+            publisher: catalogMasters.publisher,
+            publicationYear: catalogMasters.publicationYear,
+            categoryLevel1: catalogMasters.categoryLevel1,
+            categoryLevel2: catalogMasters.categoryLevel2,
+            categoryLevel3: catalogMasters.categoryLevel3,
+            synopsis: catalogMasters.synopsis,
+            coverImageUrl: catalogMasters.coverImageUrl,
+          })
+          .from(catalogMasters);
+        
+        const books = conditions.length > 0
+          ? await baseQuery.where(and(...conditions)).limit(input.limit).offset(input.offset)
+          : await baseQuery.limit(input.limit).offset(input.offset);
+        
+        // For each book, get inventory count and locations
+        const results = await Promise.all(books.map(async (book) => {
+          const items = await db
+            .select({
+              uuid: inventoryItems.uuid,
+              status: inventoryItems.status,
+              conditionGrade: inventoryItems.conditionGrade,
+              locationCode: inventoryItems.locationCode,
+              listingPrice: inventoryItems.listingPrice,
+            })
+            .from(inventoryItems)
+            .where(eq(inventoryItems.isbn13, book.isbn13));
+          
+          const availableItems = items.filter(i => i.status === 'AVAILABLE');
+          const locations = Array.from(new Set(availableItems.map(i => i.locationCode).filter(Boolean)));
+          
+          return {
+            ...book,
+            totalQuantity: items.length,
+            availableQuantity: availableItems.length,
+            locations: locations,
+            items: items,
+          };
+        }));
+        
+        // Filter by zero inventory if needed
+        if (!input.includeZeroInventory) {
+          return results.filter(r => r.totalQuantity > 0);
+        }
+        
+        return results;
+      }),
+    
+    // Add new inventory item for existing ISBN
+    addQuantity: protectedProcedure
+      .input(z.object({
+        isbn13: z.string(),
+        quantity: z.number().min(1).max(100),
+        condition: z.enum(['COMO_NUEVO', 'BUENO', 'ACEPTABLE']).default('BUENO'),
+        location: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const items = [];
+        for (let i = 0; i < input.quantity; i++) {
+          const item = await createInventoryItem({
+            isbn13: input.isbn13,
+            status: 'AVAILABLE',
+            conditionGrade: input.condition,
+            locationCode: input.location || null,
+            createdBy: ctx.user.id,
+          });
+          items.push(item);
+        }
+        return { success: true, items };
+      }),
+    
+    // Remove inventory items (mark as donated/missing)
+    removeQuantity: protectedProcedure
+      .input(z.object({
+        isbn13: z.string(),
+        quantity: z.number().min(1),
+        reason: z.enum(['DONATED', 'MISSING', 'REJECTED']).default('DONATED'),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        
+        // Get available items for this ISBN
+        const items = await db
+          .select({ uuid: inventoryItems.uuid })
+          .from(inventoryItems)
+          .where(and(
+            eq(inventoryItems.isbn13, input.isbn13),
+            eq(inventoryItems.status, 'AVAILABLE')
+          ))
+          .limit(input.quantity);
+        
+        if (items.length < input.quantity) {
+          throw new Error(`Only ${items.length} available items found, cannot remove ${input.quantity}`);
+        }
+        
+        // Update status for each item
+        for (const item of items) {
+          await updateInventoryItem(item.uuid, {
+            status: input.reason,
+          });
+        }
+        
+        return { success: true, removed: items.length };
       }),
     
     // Record sale

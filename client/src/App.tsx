@@ -7,7 +7,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import Triage from "./pages/Triage";
 import Catalog from "./pages/Catalog";
-import Inventory from "./pages/Inventory";
+import InventoryNew from "./pages/InventoryNew";
 import Dashboard from "./pages/Dashboard";
 import BatchOperations from "./pages/BatchOperations";
 import Settings from "./pages/Settings";
@@ -57,7 +57,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/triage" component={Triage} />
         <Route path="/catalog" component={Catalog} />
-        <Route path="/inventory" component={Inventory} />
+        <Route path="/inventory" component={InventoryNew} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/batch" component={BatchOperations} />
         <Route path="/settings" component={Settings} />

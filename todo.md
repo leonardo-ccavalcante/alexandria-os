@@ -127,3 +127,27 @@
 - [x] Create post-migration data quality report
 - [x] Handle books without ISBN (skip or separate table)
 - [x] Validate all data before insert (fail gracefully)
+
+## Category Taxonomy Update
+- [x] Parse complete category taxonomy CSV (3 levels + materia)
+- [x] Update database schema to support 3-level categories)
+- [x] Create category mapping from old data to new taxonomy
+- [ ] Build intelligent category inference using LLM
+- [ ] Update migration script with new category logic
+- [ ] Re-migrate all 3,419 records with correct categories
+- [ ] Verify category distribution matches business logic
+- [ ] Update frontend to display 3-level categories
+
+## Enhanced Inventory Page
+- [x] Add backend procedure to get inventory grouped by ISBN with counts
+- [x] Add backend procedure to increase/decrease inventory quantity
+- [x] Add backend procedure to get zero-inventory catalog books
+- [x] Add advanced search supporting ISBN, author, publisher, year, category
+- [x] Build card view with expandable book details
+- [x] Build table view for compact display
+- [x] Add view toggle (card/table)
+- [x] Show quantity per ISBN with location breakdown
+- [x] Add quantity increase/decrease controls
+- [x] Display zero-inventory books (catalog only)
+- [x] Add book detail modal/expansion
+- [x] Test all search and filter combinations

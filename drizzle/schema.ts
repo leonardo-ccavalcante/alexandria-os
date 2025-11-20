@@ -36,15 +36,13 @@ export const catalogMasters = mysqlTable("catalog_masters", {
   
   // Enriched Data (AI-generated or scraped)
   synopsis: text("synopsis"),
-  category: mysqlEnum("category", [
-    "LITERATURA",
-    "HISTORIA",
-    "CIENCIA",
-    "ARTE",
-    "INFANTIL",
-    "ENSAYO",
-    "OTROS"
-  ]).default("OTROS"),
+  
+  // 3-Level Category Taxonomy
+  categoryLevel1: text("categoryLevel1"), // e.g., "Literatura", "Historia", "Arte"
+  categoryLevel2: text("categoryLevel2"), // e.g., "Narrativa española", "Historia de España"
+  categoryLevel3: text("categoryLevel3"), // e.g., "Novela contemporánea", "Siglo XIX"
+  materia: varchar("materia", { length: 10 }), // Numeric code from taxonomy
+  
   bisacCode: varchar("bisacCode", { length: 20 }),
   
   // Visual
@@ -59,7 +57,7 @@ export const catalogMasters = mysqlTable("catalog_masters", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => ({
-  categoryIdx: index("idx_masters_category").on(table.category),
+  categoryLevel1Idx: index("idx_masters_category_l1").on(table.categoryLevel1),
 }));
 
 export type CatalogMaster = typeof catalogMasters.$inferSelect;
