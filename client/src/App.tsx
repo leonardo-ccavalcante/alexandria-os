@@ -11,6 +11,9 @@ import InventoryFinal from "./pages/InventoryFinal";
 import Dashboard from "./pages/Dashboard";
 import BatchOperations from "./pages/BatchOperations";
 import Settings from "./pages/Settings";
+import CargaMasiva from "./pages/CargaMasiva";
+import ExportarDatos from "./pages/ExportarDatos";
+import Configuracion from "./pages/Configuracion";
 import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon } from "lucide-react";
 
 function Router() {
@@ -61,6 +64,9 @@ function Router() {
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/batch" component={BatchOperations} />
         <Route path="/settings" component={Settings} />
+        <Route path="/carga-masiva" component={CargaMasiva} />
+        <Route path="/exportar" component={ExportarDatos} />
+        <Route path="/configuracion" component={Configuracion} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

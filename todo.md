@@ -299,3 +299,38 @@
 - [ ] Test filter by channel works with other filters
 - [ ] Conduct full QA and code review
 - [x] Document sales channel feature in implementation guide
+
+## Missing Pages Implementation
+- [x] Add routes for /carga-masiva, /exportar, /configuracion in App.tsx
+- [x] Create CargaMasiva.tsx page component
+- [x] Create ExportarDatos.tsx page component  
+- [x] Create Configuracion.tsx page component
+- [x] Update Home.tsx to link to these pages
+
+## Carga Masiva Features
+- [ ] Add admin-only database cleanup button with confirmation dialog
+- [ ] Create catalog bulk upload section with CSV template download
+- [ ] Create sales channel batch upload section with CSV template download
+- [ ] Add file validation and error handling
+- [ ] Show upload progress and results
+- [ ] Add backend procedures for bulk operations
+
+## Sales Channel Frontend Integration (from guide)
+- [ ] Add CANALES column to inventory table view
+- [ ] Implement inline editing for sales channels in table
+- [ ] Add sales channel badges display in table rows
+- [ ] Add sales channel display in card view
+- [ ] Add sales channel edit dialog for card view
+- [ ] Add sales channel filter dropdown
+- [ ] Update backend to support channel filtering
+- [ ] Test all sales channel features work correctly
+
+## QA and Testing
+- [ ] Write unit tests for bulk upload procedures
+- [ ] Write unit tests for database cleanup
+- [ ] Test all new pages load correctly
+- [ ] Test navigation between all pages works
+- [ ] Test sales channel inline editing
+- [ ] Test sales channel filtering
+- [ ] Test admin-only features are protected
+- [ ] Conduct full regression testing

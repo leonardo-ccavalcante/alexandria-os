@@ -93,7 +93,8 @@ export default function Home() {
           </Link>
 
           {/* Batch Upload */}
-          <Card className="hover:shadow-lg transition-shadow h-full">
+          <Link href="/carga-masiva">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-3 bg-orange-100 rounded-lg">
@@ -113,9 +114,11 @@ export default function Home() {
               </ul>
             </CardContent>
           </Card>
+          </Link>
 
           {/* Batch Export */}
-          <Card className="hover:shadow-lg transition-shadow h-full">
+          <Link href="/exportar">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-3 bg-pink-100 rounded-lg">
@@ -135,9 +138,11 @@ export default function Home() {
               </ul>
             </CardContent>
           </Card>
+          </Link>
 
           {/* Settings */}
-          <Card className="hover:shadow-lg transition-shadow h-full">
+          <Link href="/configuracion">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
                 <div className="p-3 bg-indigo-100 rounded-lg">
@@ -157,6 +162,7 @@ export default function Home() {
               </ul>
             </CardContent>
           </Card>
+          </Link>
         </div>
 
         {/* Quick Start */}
