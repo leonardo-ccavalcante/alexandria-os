@@ -426,3 +426,16 @@
 - [x] Test with different ISBN formats (ISBN-10, ISBN-13, with/without hyphens)
 - [x] Write unit tests for AI ISBN extraction procedure (10/10 tests passing)
 - [ ] Document AI ISBN extraction feature in user guide
+
+## Triage-to-Inventory Workflow Connection
+- [x] Analyze current Triage → Catalog → Inventory workflow
+- [x] Identify friction points in manual navigation between pages
+- [x] Enhance Catalog page to accept ISBN from URL query parameters
+- [x] Pre-fill book data when navigating from Triage with ISBN (added book preview with cover, title, author)
+- [x] Add "Quick Add to Inventory" button on Triage success screen (⚡ Catalogar Rápido)
+- [x] Implement streamlined inventory creation flow after Triage acceptance (QuickCatalogModal component)
+- [x] Add option to skip cataloging and go directly to inventory for accepted books (two-button approach)
+- [x] Show success confirmation with link to view newly created inventory item (modal success screen)
+- [x] Test complete workflow: Scan ISBN → AI extraction → Triage decision → Inventory creation
+- [x] Write unit tests for Triage-to-Inventory connection (7/7 tests passing)
+- [ ] Document streamlined workflow in user guide

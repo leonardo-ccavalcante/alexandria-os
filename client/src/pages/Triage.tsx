@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation } from 'wouter';
+import { QuickCatalogModal } from '@/components/QuickCatalogModal';
 import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ export default function Triage() {
   const [isbn, setIsbn] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [showQuickCatalog, setShowQuickCatalog] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
 
   const checkIsbnMutation = trpc.triage.checkIsbn.useMutation();
@@ -99,6 +101,10 @@ export default function Triage() {
     if (result?.bookData) {
       setLocation(`/catalog?isbn=${result.bookData.isbn13}`);
     }
+  };
+
+  const handleQuickCatalog = () => {
+    setShowQuickCatalog(true);
   };
 
   const handleReset = () => {
@@ -246,11 +252,16 @@ export default function Triage() {
                 )}
 
                 {/* Actions */}
-                <div className="flex gap-4 justify-center">
+                <div className="flex gap-3 justify-center flex-wrap">
                   {result.decision === 'ACCEPT' && (
-                    <Button onClick={handleCatalog} size="lg" className="bg-green-600 hover:bg-green-700">
-                      Catalogar Libro
-                    </Button>
+                    <>
+                      <Button onClick={handleQuickCatalog} size="lg" className="bg-green-600 hover:bg-green-700">
+                        ⚡ Catalogar Rápido
+                      </Button>
+                      <Button onClick={handleCatalog} size="lg" variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
+                        Catalogar (Completo)
+                      </Button>
+                    </>
                   )}
                   <Button onClick={handleReset} variant="outline" size="lg">
                     Escanear Otro
@@ -261,6 +272,17 @@ export default function Triage() {
           </Card>
         )}
       </div>
+
+      {/* Quick Catalog Modal */}
+      {result?.bookData && (
+        <QuickCatalogModal
+          open={showQuickCatalog}
+          onClose={() => setShowQuickCatalog(false)}
+          isbn={result.bookData.isbn13}
+          bookData={result.bookData}
+          suggestedPrice={result.marketPrice}
+        />
+      )}
     </div>
   );
 }

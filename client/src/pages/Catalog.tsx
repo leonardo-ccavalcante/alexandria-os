@@ -29,6 +29,12 @@ export default function Catalog() {
     }
   }, []);
 
+  // Fetch book data from catalog
+  const { data: bookData } = trpc.triage.getBookByIsbn.useQuery(
+    { isbn },
+    { enabled: !!isbn && isbn.length === 13 }
+  );
+
   // Fetch suggested price
   const { data: priceData, isLoading: isPriceLoading } = trpc.catalog.calculatePrice.useQuery(
     { isbn, condition },
@@ -148,6 +154,27 @@ export default function Catalog() {
               Catalogar Libro
             </CardTitle>
             <CardDescription>
+              {bookData?.found && bookData.bookData && (
+                <div className="mt-4 bg-white rounded-lg p-4 border border-gray-200">
+                  <div className="flex gap-4">
+                    {bookData.bookData.coverImageUrl && (
+                      <img
+                        src={bookData.bookData.coverImageUrl}
+                        alt={bookData.bookData.title}
+                        className="w-20 h-28 object-cover rounded"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <h3 className="font-bold text-lg text-gray-900">{bookData.bookData.title}</h3>
+                      <p className="text-gray-600">{bookData.bookData.author}</p>
+                      <p className="text-sm text-gray-500 mt-1">ISBN: {bookData.bookData.isbn13}</p>
+                      {bookData.bookData.publisher && (
+                        <p className="text-sm text-gray-500">Editorial: {bookData.bookData.publisher}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               Asigna condición, ubicación y precio al libro
             </CardDescription>
           </CardHeader>

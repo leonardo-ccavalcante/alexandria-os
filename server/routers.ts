@@ -47,6 +47,23 @@ export const appRouter = router({
   // TRIAGE & SCAN
   // ============================================================================
   triage: router({
+    // Get book data by ISBN (for catalog page preview)
+    getBookByIsbn: protectedProcedure
+      .input(z.object({ isbn: z.string() }))
+      .query(async ({ input }) => {
+        const cleanedIsbn = input.isbn.replace(/[-\s]/g, '');
+        const bookData = await getCatalogMasterByIsbn(cleanedIsbn);
+        
+        if (!bookData) {
+          return { found: false };
+        }
+        
+        return {
+          found: true,
+          bookData,
+        };
+      }),
+    
     // Check if book exists in catalog and get profit projection
     checkIsbn: protectedProcedure
       .input(z.object({ isbn: z.string() }))
