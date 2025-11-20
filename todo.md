@@ -151,3 +151,17 @@
 - [x] Display zero-inventory books (catalog only)
 - [x] Add book detail modal/expansion
 - [x] Test all search and filter combinations
+
+## Item Detail & Status Management
+- [x] Build item detail modal showing all item information
+- [x] Add edit capabilities for location, price, condition, notes
+- [x] Implement status change workflow (AVAILABLE → LISTED → SOLD)
+- [x] Add status history tracking
+- [x] Build status change confirmation dialogs
+
+## Bulk Operations Enhancement
+- [x] Build bulk location update UI with multi-select
+- [x] Create CSV template generator with all required fields
+- [x] Add CSV upload interface with validation
+- [x] Show upload preview before committing
+- [x] Add progress indicator for bulk operations

@@ -168,11 +168,16 @@ export async function getInventoryItemByUuid(uuid: string): Promise<InventoryIte
   return result[0];
 }
 
-export async function updateInventoryItem(uuid: string, data: Partial<InsertInventoryItem>): Promise<void> {
+export async function updateInventoryItem(uuid: string, data: Partial<InsertInventoryItem>): Promise<InventoryItem> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
   await db.update(inventoryItems).set({ ...data, updatedAt: new Date() }).where(eq(inventoryItems.uuid, uuid));
+  
+  const updated = await db.select().from(inventoryItems).where(eq(inventoryItems.uuid, uuid)).limit(1);
+  if (updated.length === 0) throw new Error("Item not found after update");
+  
+  return updated[0]!;
 }
 
 export async function searchInventory(filters: {

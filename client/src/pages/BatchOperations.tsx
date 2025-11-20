@@ -109,17 +109,75 @@ export default function BatchOperations() {
   };
 
   const downloadTemplate = () => {
-    const template = `UUID,Ubicacion,Precio,Estado,Notas
-ejemplo-uuid-1234,02A,15.50,AVAILABLE,Libro en buen estado
-ejemplo-uuid-5678,03B,12.00,LISTED,Pequeña marca en cubierta`;
-
-    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
+    // Comprehensive CSV template with all fields and examples
+    const headers = [
+      "uuid",
+      "isbn13",
+      "title",
+      "author",
+      "publisher",
+      "publicationYear",
+      "conditionGrade",
+      "locationCode",
+      "listingPrice",
+      "status",
+      "conditionNotes"
+    ];
+    
+    const exampleRows = [
+      [
+        "550e8400-e29b-41d4-a716-446655440000",
+        "9788420412146",
+        "Cien años de soledad",
+        "Gabriel García Márquez",
+        "Editorial Sudamericana",
+        "1967",
+        "BUENO",
+        "02A",
+        "15.00",
+        "AVAILABLE",
+        "Lomo ligeramente desgastado"
+      ],
+      [
+        "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+        "9788408043638",
+        "La sombra del viento",
+        "Carlos Ruiz Zafón",
+        "Editorial Planeta",
+        "2001",
+        "COMO_NUEVO",
+        "03B",
+        "12.50",
+        "AVAILABLE",
+        ""
+      ],
+      [
+        "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "9788466331128",
+        "El código Da Vinci",
+        "Dan Brown",
+        "Editorial Umbriel",
+        "2003",
+        "ACEPTABLE",
+        "01C",
+        "8.50",
+        "LISTED",
+        "Páginas amarillentas"
+      ]
+    ];
+    
+    const csvContent = [
+      headers.join(","),
+      ...exampleRows.map(row => row.map(cell => `"${cell}"`).join(","))
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'plantilla_actualizacion.csv';
+    a.download = `alexandria_template_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
-    toast.success('Plantilla descargada');
+    toast.success('Plantilla CSV completa descargada');
   };
 
   return (
@@ -147,11 +205,17 @@ ejemplo-uuid-5678,03B,12.00,LISTED,Pequeña marca en cubierta`;
             <div className="space-y-2">
               <h3 className="font-semibold">Formato del CSV:</h3>
               <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                <li><strong>UUID</strong> (obligatorio): Identificador único del libro</li>
-                <li><strong>Ubicacion</strong> (opcional): Nueva ubicación (formato: 02A)</li>
-                <li><strong>Precio</strong> (opcional): Nuevo precio de venta</li>
-                <li><strong>Estado</strong> (opcional): AVAILABLE, LISTED, SOLD, etc.</li>
-                <li><strong>Notas</strong> (opcional): Notas de condición</li>
+                <li><strong>uuid</strong> (obligatorio): Identificador único del item</li>
+                <li><strong>isbn13</strong> (recomendado): ISBN-13 del libro</li>
+                <li><strong>title</strong> (recomendado): Título del libro</li>
+                <li><strong>author</strong> (recomendado): Autor del libro</li>
+                <li><strong>publisher</strong> (opcional): Editorial</li>
+                <li><strong>publicationYear</strong> (opcional): Año de publicación</li>
+                <li><strong>conditionGrade</strong> (opcional): COMO_NUEVO, BUENO, ACEPTABLE</li>
+                <li><strong>locationCode</strong> (opcional): Código de ubicación (formato: 02A)</li>
+                <li><strong>listingPrice</strong> (opcional): Precio de venta (formato: 15.00)</li>
+                <li><strong>status</strong> (opcional): AVAILABLE, LISTED, SOLD, RESERVED, DONATED, MISSING</li>
+                <li><strong>conditionNotes</strong> (opcional): Notas sobre el estado del libro</li>
               </ul>
             </div>
 

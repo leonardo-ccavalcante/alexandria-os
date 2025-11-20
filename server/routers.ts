@@ -250,7 +250,9 @@ export const appRouter = router({
     getByUuid: protectedProcedure
       .input(z.object({ uuid: z.string() }))
       .query(async ({ input }) => {
-        return await getInventoryItemByUuid(input.uuid);
+        const item = await getInventoryItemByUuid(input.uuid);
+        if (!item) throw new Error("Item not found");
+        return item;
       }),
     
     // Update item location
@@ -260,23 +262,23 @@ export const appRouter = router({
         locationCode: z.string().regex(/^[0-9]{2}[A-Z]$/),
       }))
       .mutation(async ({ input }) => {
-        await updateInventoryItem(input.uuid, {
+        const item = await updateInventoryItem(input.uuid, {
           locationCode: input.locationCode,
         });
-        return { success: true };
+        return { success: true, item };
       }),
     
     // Update item price
     updatePrice: protectedProcedure
       .input(z.object({
         uuid: z.string(),
-        listingPrice: z.string(),
+        listingPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
       }))
       .mutation(async ({ input }) => {
-        await updateInventoryItem(input.uuid, {
+        const item = await updateInventoryItem(input.uuid, {
           listingPrice: input.listingPrice,
         });
-        return { success: true };
+        return { success: true, item };
       }),
     
     // Update item status
@@ -286,10 +288,10 @@ export const appRouter = router({
         status: z.enum(['INGESTION', 'AVAILABLE', 'LISTED', 'RESERVED', 'SOLD', 'REJECTED', 'DONATED', 'MISSING']),
       }))
       .mutation(async ({ input }) => {
-        await updateInventoryItem(input.uuid, {
+        const item = await updateInventoryItem(input.uuid, {
           status: input.status,
         });
-        return { success: true };
+        return { success: true, item };
       }),
     
     // Get inventory grouped by ISBN with counts and locations
