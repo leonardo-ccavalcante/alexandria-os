@@ -42,14 +42,17 @@ export default function Inventory() {
   const updateLocationMutation = trpc.inventory.updateLocation.useMutation();
   const updatePriceMutation = trpc.inventory.updatePrice.useMutation();
   const recordSaleMutation = trpc.inventory.recordSale.useMutation();
-  const exportMutation = trpc.batch.exportToCsv.useQuery(
-    {
-      status: statusFilter || undefined,
-      condition: conditionFilter || undefined,
-      location: locationFilter || undefined,
+  const exportMutation = trpc.batch.exportToCsv.useMutation({
+    onSuccess: (data: { csv: string }) => {
+      const blob = new Blob([data.csv], { type: "text/csv" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `inventario_${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      toast.success("CSV exportado");
     },
-    { enabled: false }
-  );
+  });
 
   const handleUpdateLocation = async () => {
     if (!editingItem || !newLocation) return;
@@ -119,51 +122,10 @@ export default function Inventory() {
   };
 
   const handleExport = async () => {
-    try {
-      const result = await exportMutation.refetch();
-      if (!result.data?.items) {
-        toast.error('No hay datos para exportar');
-        return;
-      }
-
-      // Generate CSV
-      const csvRows = [
-        'UUID,ISBN,Titulo,Autor,Estado,Condicion,Ubicacion,Precio,Fecha_Entrada,Fecha_Venta,Canal_Venta,Precio_Venta,Beneficio_Neto',
-      ];
-
-      result.data.items.forEach((row: any) => {
-        const item = row.item;
-        const book = row.book;
-        csvRows.push([
-          item.uuid,
-          item.isbn13,
-          `"${book?.title?.replace(/"/g, '""') || 'Unknown'}"`,
-          `"${book?.author?.replace(/"/g, '""') || 'Unknown'}"`,
-          item.status,
-          item.conditionGrade,
-          item.locationCode || '',
-          item.listingPrice || '',
-          new Date(item.createdAt).toLocaleDateString(),
-          item.soldAt ? new Date(item.soldAt).toLocaleDateString() : '',
-          item.soldChannel || '',
-          item.finalSalePrice || '',
-          item.netProfit || '',
-        ].join(','));
-      });
-
-      const csvContent = csvRows.join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `inventario_${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-
-      toast.success(`${result.data.items.length} libros exportados`);
-    } catch (error: any) {
-      toast.error(error.message);
-    }
+    exportMutation.mutate({ filters: {} });
   };
+
+
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {

@@ -165,3 +165,26 @@
 - [x] Add CSV upload interface with validation
 - [x] Show upload preview before committing
 - [x] Add progress indicator for bulk operations
+
+## Search Enhancements
+- [ ] Add autocomplete for Editorial (publisher) search field
+- [ ] Add autocomplete for Author search field
+- [x] Backend procedure to get unique publishers list
+- [x] Backend procedure to get unique authors list
+- [ ] Implement dropdown suggestions with fuzzy matching
+
+## Book Editing Features
+- [ ] Add edit button for each book in inventory table
+- [ ] Build comprehensive book edit modal with all CSV fields
+- [ ] Include fields: title, author, publisher, year, ISBN, category, synopsis
+- [ ] Add category selector with 3-level taxonomy dropdown
+- [x] Backend procedure to update catalog master data
+- [ ] Validate all fields before saving
+- [ ] Show success/error feedback
+
+## Table Sorting
+- [ ] Add sorting icons to all table headers
+- [ ] Implement A-Z sorting for text columns
+- [ ] Implement Z-A sorting for text columns
+- [ ] Implement ascending/descending for numeric columns
+- [ ] Maintain sort state across page interactions

@@ -224,6 +224,81 @@ export const appRouter = router({
         
         return { success: true, item };
       }),
+    
+    // Get unique publishers for autocomplete
+    getPublishers: protectedProcedure
+      .input(z.object({ search: z.string().optional() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        
+        const conditions = [sql`${catalogMasters.publisher} IS NOT NULL`];
+        if (input.search) {
+          conditions.push(sql`${catalogMasters.publisher} LIKE ${`%${input.search}%`}`);
+        }
+        
+        const results = await db.selectDistinct({ publisher: catalogMasters.publisher })
+          .from(catalogMasters)
+          .where(and(...conditions))
+          .limit(50);
+        
+        return results.map(r => r.publisher).filter(Boolean);
+      }),
+    
+    // Get unique authors for autocomplete
+    getAuthors: protectedProcedure
+      .input(z.object({ search: z.string().optional() }))
+      .query(async ({ input }) => {
+        const db = await getDb();
+        if (!db) return [];
+        
+        const conditions = [sql`${catalogMasters.author} IS NOT NULL`];
+        if (input.search) {
+          conditions.push(sql`${catalogMasters.author} LIKE ${`%${input.search}%`}`);
+        }
+        
+        const results = await db.selectDistinct({ author: catalogMasters.author })
+          .from(catalogMasters)
+          .where(and(...conditions))
+          .limit(50);
+        
+        return results.map(r => r.author).filter(Boolean);
+      }),
+    
+    // Update catalog master (book metadata)
+    updateBook: protectedProcedure
+      .input(z.object({
+        isbn13: z.string(),
+        title: z.string().optional(),
+        author: z.string().optional(),
+        publisher: z.string().optional(),
+        publicationYear: z.number().optional(),
+        language: z.string().optional(),
+        categoryLevel1: z.string().optional(),
+        categoryLevel2: z.string().optional(),
+        categoryLevel3: z.string().optional(),
+        materia: z.string().optional(),
+        synopsis: z.string().optional(),
+        coverImageUrl: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        
+        const { isbn13, ...updateData } = input;
+        
+        await db.update(catalogMasters)
+          .set({ ...updateData, updatedAt: new Date() })
+          .where(eq(catalogMasters.isbn13, isbn13));
+        
+        const updated = await db.select().from(catalogMasters)
+          .where(eq(catalogMasters.isbn13, isbn13))
+          .limit(1);
+        
+        if (updated.length === 0) throw new Error("Book not found");
+        
+        return { success: true, book: updated[0] };
+      }),
   }),
 
   // ============================================================================
@@ -300,6 +375,7 @@ export const appRouter = router({
         searchText: z.string().optional(),
         categoryLevel1: z.string().optional(),
         publisher: z.string().optional(),
+        author: z.string().optional(),
         yearFrom: z.number().optional(),
         yearTo: z.number().optional(),
         includeZeroInventory: z.boolean().default(false),
@@ -382,6 +458,49 @@ export const appRouter = router({
         }
         
         return results;
+      }),
+    
+    // Increase quantity (alias for addQuantity)
+    increaseQuantity: protectedProcedure
+      .input(z.object({ isbn13: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const item = await createInventoryItem({
+          isbn13: input.isbn13,
+          status: 'AVAILABLE',
+          conditionGrade: 'BUENO',
+          locationCode: null,
+          createdBy: ctx.user.id,
+        });
+        return { success: true, item };
+      }),
+    
+    // Decrease quantity (alias for removeQuantity)
+    decreaseQuantity: protectedProcedure
+      .input(z.object({ isbn13: z.string() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        
+        // Get one available item for this ISBN
+        const items = await db
+          .select({ uuid: inventoryItems.uuid })
+          .from(inventoryItems)
+          .where(and(
+            eq(inventoryItems.isbn13, input.isbn13),
+            eq(inventoryItems.status, 'AVAILABLE')
+          ))
+          .limit(1);
+        
+        if (items.length === 0) {
+          throw new Error('No available items to remove');
+        }
+        
+        // Update status to DONATED
+        await db.update(inventoryItems)
+          .set({ status: 'DONATED', updatedAt: new Date() })
+          .where(eq(inventoryItems.uuid, items[0]!.uuid));
+        
+        return { success: true };
       }),
     
     // Add new inventory item for existing ISBN
@@ -531,19 +650,36 @@ export const appRouter = router({
     // Export inventory to CSV
     exportToCsv: protectedProcedure
       .input(z.object({
-        status: z.string().optional(),
-        condition: z.string().optional(),
-        location: z.string().optional(),
-        dateFrom: z.date().optional(),
-        dateTo: z.date().optional(),
+        filters: z.object({
+          searchText: z.string().optional(),
+          publisher: z.string().optional(),
+          author: z.string().optional(),
+        }).optional(),
       }))
-      .query(async ({ input }) => {
+      .mutation(async ({ input }) => {
         const { items } = await searchInventory({
-          ...input,
+          ...input.filters,
           limit: 10000, // Export all matching items
         });
         
-        return { items };
+        // Generate CSV
+        const headers = ['ISBN', 'Título', 'Autor', 'Editorial', 'Año', 'Categoría', 'Condición', 'Estado', 'Ubicación', 'Precio'];
+        const rows = items.map(({ item, book }) => [
+          item.isbn13,
+          book?.title || '',
+          book?.author || '',
+          book?.publisher || '',
+          book?.publicationYear || '',
+          book?.categoryLevel1 || '',
+          item.conditionGrade,
+          item.status,
+          item.locationCode || '',
+          item.listingPrice || '',
+        ]);
+        
+        const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+        
+        return { csv };
       }),
   }),
 
