@@ -22,8 +22,7 @@ export default function Home() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
           {/* Triage */}
           <Link href="/triage">
-            <a>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
                     <div className="p-3 bg-blue-100 rounded-lg">
@@ -43,13 +42,11 @@ export default function Home() {
                   </ul>
                 </CardContent>
               </Card>
-            </a>
           </Link>
 
           {/* Inventory */}
           <Link href="/inventory">
-            <a>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
                     <div className="p-3 bg-purple-100 rounded-lg">
@@ -69,13 +66,11 @@ export default function Home() {
                   </ul>
                 </CardContent>
               </Card>
-            </a>
           </Link>
 
           {/* Dashboard */}
           <Link href="/dashboard">
-            <a>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
                     <div className="p-3 bg-green-100 rounded-lg">
@@ -95,7 +90,6 @@ export default function Home() {
                   </ul>
                 </CardContent>
               </Card>
-            </a>
           </Link>
 
           {/* Batch Upload */}

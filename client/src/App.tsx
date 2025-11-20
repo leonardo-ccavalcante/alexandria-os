@@ -21,41 +21,31 @@ function Router() {
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <Link href="/">
-              <a className="text-2xl font-bold text-blue-600 flex items-center gap-2">
+              <span className="text-2xl font-bold text-blue-600 flex items-center gap-2 cursor-pointer">
                 <BookOpen className="h-8 w-8" />
                 Alexandria OS
-              </a>
+              </span>
             </Link>
             <div className="flex gap-4">
-              <Link href="/triage">
-                <a className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                  <BookOpen className="h-5 w-5" />
-                  Triage
-                </a>
+              <Link href="/triage" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                <BookOpen className="h-5 w-5" />
+                Triage
               </Link>
-              <Link href="/inventory">
-                <a className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                  <Package className="h-5 w-5" />
-                  Inventario
-                </a>
+              <Link href="/inventory" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                <Package className="h-5 w-5" />
+                Inventario
               </Link>
-              <Link href="/dashboard">
-                <a className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                  <BarChart3 className="h-5 w-5" />
-                  Dashboard
-                </a>
+              <Link href="/dashboard" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                <BarChart3 className="h-5 w-5" />
+                Dashboard
               </Link>
-              <Link href="/batch">
-                <a className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                  <Upload className="h-5 w-5" />
-                  Lotes
-                </a>
+              <Link href="/batch" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                <Upload className="h-5 w-5" />
+                Lotes
               </Link>
-              <Link href="/settings">
-                <a className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                  <SettingsIcon className="h-5 w-5" />
-                  Config
-                </a>
+              <Link href="/settings" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
+                <SettingsIcon className="h-5 w-5" />
+                Config
               </Link>
             </div>
           </div>

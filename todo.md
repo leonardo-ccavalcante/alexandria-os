@@ -96,3 +96,7 @@
 - [ ] Add inline help tooltips
 - [ ] Create checkpoint for deployment
 - [ ] Verify all features working in production
+
+## Bug Fixes
+- [x] Fix nested anchor tag error in navigation (App.tsx)
+- [x] Fix nested anchor tag error in home page cards (Home.tsx)
