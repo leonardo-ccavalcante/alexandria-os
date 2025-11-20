@@ -100,3 +100,30 @@
 ## Bug Fixes
 - [x] Fix nested anchor tag error in navigation (App.tsx)
 - [x] Fix nested anchor tag error in home page cards (Home.tsx)
+
+## Data Migration & Import
+- [x] Analyze CSV structure and map to Alexandria schema
+- [x] Identify data quality issues (missing ISBNs, invalid formats, etc.)
+- [x] Create data cleaning and normalization logic
+- [x] Build migration script to import catalog masters
+- [x] Build migration script to import inventory items
+- [x] Add validation to prevent duplicate entries
+- [x] Handle missing or malformed data gracefully
+- [x] Create import summary report
+- [ ] Add data validation procedures to backend
+- [x] Test with sample data before full import
+
+## Advanced Migration Business Logic (No Synthetic Data)
+- [x] Create ISBN validation (checksum verification)
+- [x] Implement duplicate detection by exact ISBN match
+- [x] Create data quality reporting (what's missing, not fabricated)
+- [x] Implement location code validation (format checking only)
+- [x] Create author name normalization (clean existing format)
+- [x] Build publisher name cleaning (trim, standardize case)
+- [x] Add year validation (range checking)
+- [x] Create condition grade mapping from description text)
+- [x] Implement batch processing with transaction rollback
+- [x] Add migration progress tracking
+- [x] Create post-migration data quality report
+- [x] Handle books without ISBN (skip or separate table)
+- [x] Validate all data before insert (fail gracefully)

@@ -163,12 +163,10 @@ export default function Home() {
         <div className="text-center mt-16">
           <h2 className="text-2xl font-bold mb-4">¿Listo para empezar?</h2>
           <Link href="/triage">
-            <a>
-              <Button size="lg" className="text-lg px-8 py-6">
-                <BookOpen className="mr-2 h-6 w-6" />
-                Escanear Primer Libro
-              </Button>
-            </a>
+            <Button size="lg" className="text-lg px-8 py-6">
+              <BookOpen className="mr-2 h-6 w-6" />
+              Escanear Primer Libro
+            </Button>
           </Link>
         </div>
       </div>
