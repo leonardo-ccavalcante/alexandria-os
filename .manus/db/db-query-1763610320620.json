@@ -1,0 +1,30 @@
+{
+  "query": "SELECT * FROM catalog_masters LIMIT 1",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xbcpjkj7urB6FV.123b8c0ef218 --database JSmQWHzFMNuBrpEm7nuLv4 --execute SELECT * FROM catalog_masters LIMIT 1",
+  "rows": [
+    {
+      "isbn13": "8408060546",
+      "title": "El secreto del rey cautivo",
+      "author": "Gómez rufo, Antonio",
+      "publisher": "Editorial Planeta",
+      "publicationYear": "2005",
+      "language": "es",
+      "synopsis": "\"El secreto del rey cautivo\" de Antonio Gómez Rufo es una apasionante novela histórica ambientada en la España de principios del siglo XIX durante la Guerra de la Independencia contra las tropas napoleónicas. La historia sigue al capitán Zamorano y sus compañeros en una peligrosa misión de transportar las claves para recuperar el patrimonio real del rey Fernando VII, cautivo en un Madrid ocupado por José Bonaparte. Combina aventura, intriga política y rivalidades amorosas, resaltando la lucha por la libertad frente al absolutismo impuesto tras la guerra. Dirigida a amantes de la narrativa histórica, ofrece un homenaje a los héroes anónimos de España, destacando un episodio clave poco recordado.",
+      "bisacCode": "NULL",
+      "coverImageUrl": "NULL",
+      "marketMinPrice": "5.00",
+      "marketMedianPrice": "10.00",
+      "lastPriceCheck": "2025-11-20 02:34:34",
+      "createdAt": "2025-11-20 02:34:33",
+      "updatedAt": "2025-11-20 02:34:33",
+      "categoryLevel1": "NULL",
+      "categoryLevel2": "NULL",
+      "categoryLevel3": "NULL",
+      "materia": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "isbn13\ttitle\tauthor\tpublisher\tpublicationYear\tlanguage\tsynopsis\tbisacCode\tcoverImageUrl\tmarketMinPrice\tmarketMedianPrice\tlastPriceCheck\tcreatedAt\tupdatedAt\tcategoryLevel1\tcategoryLevel2\tcategoryLevel3\tmateria\n8408060546\tEl secreto del rey cautivo\tGómez rufo, Antonio\tEditorial Planeta\t2005\tes\t\"El secreto del rey cautivo\" de Antonio Gómez Rufo es una apasionante novela histórica ambientada en la España de principios del siglo XIX durante la Guerra de la Independencia contra las tropas napoleónicas. La historia sigue al capitán Zamorano y sus compañeros en una peligrosa misión de transportar las claves para recuperar el patrimonio real del rey Fernando VII, cautivo en un Madrid ocupado por José Bonaparte. Combina aventura, intriga política y rivalidades amorosas, resaltando la lucha por la libertad frente al absolutismo impuesto tras la guerra. Dirigida a amantes de la narrativa histórica, ofrece un homenaje a los héroes anónimos de España, destacando un episodio clave poco recordado.\tNULL\tNULL\t5.00\t10.00\t2025-11-20 02:34:34\t2025-11-20 02:34:33\t2025-11-20 02:34:33\tNULL\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}
