@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
+import { IsbnImageUpload } from '@/components/IsbnImageUpload';
 import { Loader2, BookOpen, AlertCircle, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -152,8 +153,18 @@ export default function Triage() {
               setIsScanning={setIsScanning}
             />
 
+            {/* AI Image Upload */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">O sube una foto del libro:</p>
+              <IsbnImageUpload
+                onIsbnExtracted={handleScan}
+                disabled={isScanning || isChecking}
+              />
+            </div>
+
             {/* Manual ISBN Input */}
             <div className="space-y-2">
+              <p className="text-sm font-medium text-gray-700">O ingresa el ISBN manualmente:</p>
               <div className="flex gap-2">
                 <Input
                   type="text"

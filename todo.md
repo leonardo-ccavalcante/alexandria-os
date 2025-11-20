@@ -409,3 +409,20 @@
 - [ ] Test date range filters with various time periods
 - [ ] Verify charts render correctly with sample data
 - [ ] Test dashboard performance with large datasets
+
+## AI-Powered ISBN Extraction from Images
+- [x] Design backend procedure to extract ISBN from book cover images using vision AI
+- [x] Implement image upload to S3 storage
+- [x] Create AI vision prompt to identify ISBN from book cover photos
+- [x] Handle both printed ISBN text and barcode formats
+- [x] Add ISBN validation and cleaning after AI extraction
+- [x] Build image upload UI component with drag-and-drop
+- [x] Add camera capture option for mobile devices
+- [x] Integrate AI extraction with existing triage workflow
+- [x] Add loading states and progress indicators during AI processing
+- [x] Implement error handling for failed extractions
+- [x] Add visual feedback showing extracted ISBN before verification
+- [ ] Test with various book cover images (clear, blurry, angled, poor lighting)
+- [x] Test with different ISBN formats (ISBN-10, ISBN-13, with/without hyphens)
+- [x] Write unit tests for AI ISBN extraction procedure (10/10 tests passing)
+- [ ] Document AI ISBN extraction feature in user guide

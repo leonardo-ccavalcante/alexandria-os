@@ -7,6 +7,7 @@ import { eq, and, sql } from "drizzle-orm";
 import mysql from 'mysql2/promise';
 import { catalogMasters, inventoryItems } from "../drizzle/schema";
 import { getDb } from "./db";
+import { extractIsbnFromImage } from "./aiIsbnExtractor";
 import {
   getCatalogMasterByIsbn,
   upsertCatalogMaster,
@@ -159,11 +160,29 @@ export const appRouter = router({
         };
         
         await upsertCatalogMaster(catalogData);
-        
-        return {
+                return {
           success: true,
           bookData: await getCatalogMasterByIsbn(cleanedIsbn),
         };
+      }),
+    
+    // Extract ISBN from book cover image using AI vision
+    extractIsbnFromImage: protectedProcedure
+      .input(z.object({
+        imageBase64: z.string(),
+        mimeType: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        // Convert base64 to buffer
+        const buffer = Buffer.from(input.imageBase64, 'base64');
+        
+        // Extract ISBN using AI vision
+        const result = await extractIsbnFromImage({
+          buffer,
+          mimeType: input.mimeType,
+        });
+        
+        return result;
       }),
   }),
 
@@ -810,8 +829,8 @@ export const appRouter = router({
             // Upsert catalog master
             await upsertCatalogMaster({
               isbn13: isbn,
-              title: row['Título'] || row['Title'] || row['title'] || undefined,
-              author: row['Autor'] || row['Author'] || row['author'] || undefined,
+              title: row['Título'] || row['Title'] || row['title'] || 'Unknown Title',
+              author: row['Autor'] || row['Author'] || row['author'] || 'Unknown Author',
               publisher: row['Editorial'] || row['Publisher'] || row['publisher'] || undefined,
               publicationYear: row['Año'] || row['publicationYear'] ? parseInt(row['Año'] || row['publicationYear']) : undefined,
               language: row['Idioma'] || row['Language'] || row['language'] || undefined,
