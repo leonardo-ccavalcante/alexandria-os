@@ -439,3 +439,27 @@
 - [x] Test complete workflow: Scan ISBN → AI extraction → Triage decision → Inventory creation
 - [x] Write unit tests for Triage-to-Inventory connection (7/7 tests passing)
 - [ ] Document streamlined workflow in user guide
+
+## Phase 8: UX Polish & Guidelines (Current Task)
+- [x] Audit all pages for responsive design issues
+- [ ] Implement mobile-first responsive design (breakpoints: sm, md, lg, xl)
+- [x] Add loading skeletons for all data-fetching components (LoadingSkeleton component created)
+- [x] Implement toast notifications for all CRUD operations (already using sonner toasts)
+- [x] Add toast notifications for success/error states (integrated in mutations)
+- [x] Implement keyboard shortcuts hook (useKeyboardShortcut created)
+- [ ] Add ARIA labels and roles for screen readers
+- [ ] Implement focus management for modals and dialogs
+- [x] Add empty states component (EmptyState component created with variants)
+- [ ] Create error boundary component to catch React errors
+- [x] Add confirmation dialogs component (ConfirmDialog created)
+- [x] Implement debouncing for search inputs (useDebounce hook created)
+- [ ] Add memoization for expensive computations
+- [ ] Optimize re-renders with React.memo and useMemo
+- [ ] Integrate UX components into Inventory page
+- [ ] Integrate UX components into Dashboard page
+- [ ] Integrate UX components into Triage page
+- [ ] Integrate UX components into Catalog page
+- [ ] Test responsive design on mobile, tablet, and desktop
+- [ ] Test keyboard navigation throughout the app
+- [ ] Verify accessibility with screen reader
+- [ ] Write unit tests for new UX components

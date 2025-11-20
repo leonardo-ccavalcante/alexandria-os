@@ -1,5 +1,9 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { useDebounce } from "@/hooks/useDebounce";
+import { LoadingSkeleton } from "@/components/LoadingSkeleton";
+import { EmptyState } from "@/components/EmptyState";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +19,9 @@ type SortField = "title" | "author" | "publisher" | "isbn13" | "publicationYear"
 type SortDirection = "asc" | "desc";
 
 export default function InventoryFinal() {
+  const [, setLocation] = useLocation();
   const [searchText, setSearchText] = useState("");
+  const debouncedSearch = useDebounce(searchText, 300);
   const [publisher, setPublisher] = useState("");
   const [author, setAuthor] = useState("");
   const [yearFrom, setYearFrom] = useState("");
@@ -49,7 +55,7 @@ export default function InventoryFinal() {
 
   // ✅ PASSING SORT PARAMS AND FILTERS TO BACKEND
   const { data: inventoryResponse, refetch, isLoading } = trpc.inventory.getGroupedByIsbn.useQuery({
-    searchText,
+    searchText: debouncedSearch,
     publisher,
     author,
     yearFrom: yearFrom ? parseInt(yearFrom) : undefined,
