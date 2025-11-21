@@ -151,6 +151,10 @@ export default function CargaMasiva() {
       "Año",
       "Categoría",
       "Sinopsis",
+      "Páginas",
+      "Edición",
+      "Idioma",
+      "Cantidad",
     ];
     const example = [
       "9780061120084",
@@ -160,6 +164,10 @@ export default function CargaMasiva() {
       "1960",
       "Fiction",
       "A classic novel about racial injustice",
+      "324",
+      "1st Edition",
+      "EN",
+      "5",
     ];
     const csv = [headers.join(","), example.join(",")].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });

@@ -152,6 +152,8 @@ export default function InventoryFinal() {
       publisher: book.publisher || "",
       publicationYear: book.publicationYear || "",
       language: book.language || "",
+      pages: book.pages || "",
+      edition: book.edition || "",
       synopsis: book.synopsis || "",
       categoryLevel1: book.categoryLevel1 || "",
       categoryLevel2: book.categoryLevel2 || "",
@@ -164,6 +166,7 @@ export default function InventoryFinal() {
     updateBookMutation.mutate({
       ...editForm,
       publicationYear: editForm.publicationYear ? parseInt(editForm.publicationYear) : undefined,
+      pages: editForm.pages ? parseInt(editForm.pages) : undefined,
     });
   };
 
@@ -637,6 +640,31 @@ export default function InventoryFinal() {
                   type="number"
                   value={editForm.publicationYear}
                   onChange={(e) => setEditForm({ ...editForm, publicationYear: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Idioma (2 letras, ej: ES, EN)</Label>
+                <Input
+                  maxLength={2}
+                  value={editForm.language}
+                  onChange={(e) => setEditForm({ ...editForm, language: e.target.value.toUpperCase() })}
+                  placeholder="ES"
+                />
+              </div>
+              <div>
+                <Label>Páginas</Label>
+                <Input
+                  type="number"
+                  value={editForm.pages}
+                  onChange={(e) => setEditForm({ ...editForm, pages: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Edición</Label>
+                <Input
+                  value={editForm.edition}
+                  onChange={(e) => setEditForm({ ...editForm, edition: e.target.value })}
+                  placeholder="1st Edition"
                 />
               </div>
               <div className="col-span-2">

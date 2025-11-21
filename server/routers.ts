@@ -843,6 +843,16 @@ export const appRouter = router({
               continue;
             }
             
+            // Parse new fields
+            const pagesStr = row['Páginas'] || row['Pages'] || row['pages'];
+            const pages = pagesStr ? parseInt(pagesStr) : undefined;
+            const edition = row['Edición'] || row['Edition'] || row['edition'] || undefined;
+            const languageRaw = row['Idioma'] || row['Language'] || row['language'];
+            // Ensure language is 2 characters (e.g., "ES", "EN")
+            const language = languageRaw ? languageRaw.substring(0, 2).toUpperCase() : undefined;
+            const quantityStr = row['Cantidad'] || row['Quantity'] || row['quantity'];
+            const quantity = quantityStr ? parseInt(quantityStr) : 0;
+            
             // Upsert catalog master
             await upsertCatalogMaster({
               isbn13: isbn,
@@ -850,10 +860,23 @@ export const appRouter = router({
               author: row['Autor'] || row['Author'] || row['author'] || 'Unknown Author',
               publisher: row['Editorial'] || row['Publisher'] || row['publisher'] || undefined,
               publicationYear: row['Año'] || row['publicationYear'] ? parseInt(row['Año'] || row['publicationYear']) : undefined,
-              language: row['Idioma'] || row['Language'] || row['language'] || undefined,
+              language,
+              pages,
+              edition,
               synopsis: row['Sinopsis'] || row['Synopsis'] || row['synopsis'] || undefined,
               categoryLevel1: row['Categoría'] || row['Category'] || row['categoryLevel1'] || undefined,
             });
+            
+            // If quantity is provided, create inventory items
+            if (quantity > 0) {
+              for (let j = 0; j < quantity; j++) {
+                await createInventoryItem({
+                  isbn13: isbn,
+                  conditionGrade: 'BUENO', // Default condition
+                  status: 'AVAILABLE',
+                });
+              }
+            }
             
             results.imported++;
           } catch (error: any) {

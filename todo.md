@@ -463,3 +463,18 @@
 - [ ] Test keyboard navigation throughout the app
 - [ ] Verify accessibility with screen reader
 - [ ] Write unit tests for new UX components
+
+## Category Expansion and New Fields (Current Task)
+- [x] Review all categories from CSV file (35+ top-level categories)
+- [x] Update database schema category enum to include all categories (text fields support all categories)
+- [x] Add new fields to catalog_masters table: pages (int), edition (varchar), language (varchar 2-char)
+- [x] Add quantity field to CSV bulk upload (creates inventory items directly)
+- [x] Update CSV import backend to handle new fields (pages, edition, language, quantity)
+- [x] Update CSV template download to include new columns (Páginas, Edición, Idioma, Cantidad)
+- [x] Update frontend bulk upload UI to show new column requirements
+- [x] Update inventory display to show pages, edition, and language fields (edit dialog)
+- [x] Update catalog form to include new fields
+- [ ] Update triage workflow to display new fields when available
+- [x] Run database migration (pnpm db:push)
+- [x] Test CSV import with all new fields (9/9 tests passing)
+- [x] Write unit tests for new field handling (newFields.test.ts)
