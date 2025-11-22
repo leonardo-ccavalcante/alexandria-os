@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Settings, Save, Key, CheckCircle2, XCircle, Loader2 } from "lucide-react";
-import { trpc } from "@/lib/trpc";
+import { Settings, Save, Key } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Configuracion() {
@@ -20,21 +19,6 @@ export default function Configuracion() {
   });
 
   const [isSaving, setIsSaving] = useState(false);
-  const [isbndbApiKey, setIsbndbApiKey] = useState("");
-  const [isValidatingKey, setIsValidatingKey] = useState(false);
-  const [keyValidationStatus, setKeyValidationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
-  
-  // Load ISBNDB API key from settings
-  const { data: isbndbSetting } = trpc.settings.get.useQuery({ key: 'ISBNDB_API_KEY' });
-  const updateSettingMutation = trpc.settings.update.useMutation();
-  const validateKeyMutation = trpc.settings.validateIsbndbKey.useMutation();
-  
-  useEffect(() => {
-    if (isbndbSetting?.settingValue) {
-      setIsbndbApiKey(isbndbSetting.settingValue);
-      setKeyValidationStatus('valid');
-    }
-  }, [isbndbSetting]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -193,87 +177,52 @@ export default function Configuracion() {
             </CardContent>
           </Card>
 
-          {/* ISBNDB API Key Configuration */}
+          {/* API Keys Information */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Key className="h-5 w-5" />
-                ISBNDB API Key
+                Configuración de API Keys
               </CardTitle>
               <CardDescription>
-                Configure su clave de API de ISBNDB para usar como respaldo cuando Google Books no encuentra un libro.
-                <br />
-                Obtenga su API key gratis en{" "}
-                <a href="https://isbndb.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                  isbndb.com
-                </a>
+                Para configurar API keys externas (ISBNDB, etc.), use el panel de Secrets en la interfaz de gestión.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="isbndbKey">API Key</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="isbndbKey"
-                    type="password"
-                    placeholder="Ingrese su ISBNDB API key"
-                    value={isbndbApiKey}
-                    onChange={(e) => {
-                      setIsbndbApiKey(e.target.value);
-                      setKeyValidationStatus('idle');
-                    }}
-                  />
-                  <Button
-                    onClick={async () => {
-                      if (!isbndbApiKey.trim()) {
-                        toast.error('Por favor ingrese una API key');
-                        return;
-                      }
-                      
-                      setIsValidatingKey(true);
-                      try {
-                        const result = await validateKeyMutation.mutateAsync({ apiKey: isbndbApiKey });
-                        if (result.valid) {
-                          setKeyValidationStatus('valid');
-                          await updateSettingMutation.mutateAsync({
-                            key: 'ISBNDB_API_KEY',
-                            value: isbndbApiKey,
-                          });
-                          toast.success('API key válida y guardada correctamente');
-                        } else {
-                          setKeyValidationStatus('invalid');
-                          toast.error('API key inválida. Por favor verifique su clave.');
-                        }
-                      } catch (error: any) {
-                        setKeyValidationStatus('invalid');
-                        toast.error(error.message || 'Error al validar API key');
-                      } finally {
-                        setIsValidatingKey(false);
-                      }
-                    }}
-                    disabled={isValidatingKey}
-                  >
-                    {isValidatingKey ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      'Validar y Guardar'
-                    )}
-                  </Button>
-                </div>
-                {keyValidationStatus === 'valid' && (
-                  <div className="flex items-center gap-2 mt-2 text-green-600">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <span className="text-sm">API key configurada y válida</span>
-                  </div>
-                )}
-                {keyValidationStatus === 'invalid' && (
-                  <div className="flex items-center gap-2 mt-2 text-red-600">
-                    <XCircle className="h-4 w-4" />
-                    <span className="text-sm">API key inválida</span>
-                  </div>
-                )}
-                <p className="text-sm text-gray-500 mt-2">
-                  Cuando Google Books no encuentra un libro, el sistema automáticamente intentará buscarlo en ISBNDB.
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-semibold text-blue-900 mb-2">Cómo configurar ISBNDB API Key:</h4>
+                <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
+                  <li>Obtenga su API key gratis en{" "}
+                    <a href="https://isbndb.com/" target="_blank" rel="noopener noreferrer" className="underline font-medium">
+                      isbndb.com
+                    </a>
+                  </li>
+                  <li>Haga clic en el icono de configuración (⚙️) en la esquina superior derecha</li>
+                  <li>Seleccione "Secrets" en el menú lateral</li>
+                  <li>Haga clic en "+ Add Secret"</li>
+                  <li>Agregue la clave <code className="bg-blue-100 px-1 rounded">ISBNDB_API_KEY</code> con su valor</li>
+                </ol>
+                <p className="text-sm text-blue-700 mt-3">
+                  🔒 Las API keys se almacenan de forma segura y están disponibles automáticamente en el servidor.
+                </p>
+              </div>
+              
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h4 className="font-semibold text-green-900 mb-2">✅ Scraping de Precios Automático</h4>
+                <p className="text-sm text-green-800">
+                  El sistema busca automáticamente precios reales en 7 marketplaces españoles usando IA:
+                </p>
+                <ul className="list-disc list-inside mt-2 text-sm text-green-700 space-y-0.5">
+                  <li>Wallapop (segunda mano)</li>
+                  <li>Vinted (segunda mano)</li>
+                  <li>Amazon.es (nuevo y usado)</li>
+                  <li>Iberlibro (libros usados)</li>
+                  <li>Casa del Libro</li>
+                  <li>Todocolección</li>
+                  <li>FNAC</li>
+                </ul>
+                <p className="text-sm text-green-700 mt-2">
+                  Los precios se actualizan automáticamente cada 24 horas.
                 </p>
               </div>
             </CardContent>

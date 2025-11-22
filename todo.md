@@ -502,3 +502,21 @@
 - [x] Add API key validation and error handling
 - [x] Test complete ISBN lookup flow (Google Books → ISBNDB fallback)
 - [x] Write unit tests for ISBNDB integration (9/9 tests passing)
+
+## Fix ISBNDB Integration & Implement Real Price Scraping
+- [x] Fix ISBNDB API key to use Manus Secrets (process.env.ISBNDB_API_KEY) instead of system_settings
+- [x] Remove ISBNDB API key section from Configuración page UI
+- [x] Update documentation to guide users to add ISBNDB_API_KEY via Manus Secrets panel
+- [x] Create AI-powered price scraping module using Manus LLM (server/priceScraper.ts)
+- [x] Implement Wallapop price scraping with AI
+- [x] Implement Vinted price scraping with AI
+- [x] Implement Amazon.es price scraping with AI
+- [x] Implement Iberlibro price scraping with AI
+- [x] Implement Casa del Libro price scraping with AI
+- [x] Implement Todocolección price scraping with AI
+- [x] Implement FNAC price scraping with AI
+- [x] Add price aggregation logic (min, median, max from all sources)
+- [x] Replace mock prices with real scraped prices in triage workflow
+- [x] Add price caching to avoid repeated scraping (24h cache)
+- [x] Test complete flow: barcode scan → ISBN lookup → price scraping → profitability decision
+- [x] Write unit tests for price scraping module (7/7 tests passing)

@@ -153,15 +153,18 @@ export const appRouter = router({
           
           if (data.items && data.items.length > 0) {
             const book = data.items[0].volumeInfo;
+            const bookTitle = book.title || 'Unknown Title';
+            const bookAuthor = book.authors?.join(', ') || 'Autor Desconocido';
             
-            // For MVP, use mock price data
-            const mockMinPrice = 10.00 + Math.random() * 10;
-            const mockMedianPrice = mockMinPrice + 5;
+            // Scrape real prices from marketplaces using AI
+            console.log('[Triage] Scraping real prices from marketplaces...');
+            const { scrapeBookPrices } = await import('./priceScraper');
+            const priceData = await scrapeBookPrices(cleanedIsbn, bookTitle, bookAuthor);
             
             catalogData = {
               isbn13: cleanedIsbn,
-              title: book.title || 'Unknown Title',
-              author: book.authors?.join(', ') || 'Autor Desconocido',
+              title: bookTitle,
+              author: bookAuthor,
               publisher: book.publisher || null,
               publicationYear: book.publishedDate ? parseInt(book.publishedDate.substring(0, 4)) : null,
               language: (book.language || 'es').substring(0, 2).toUpperCase(),
@@ -169,10 +172,12 @@ export const appRouter = router({
               synopsis: book.description || null,
               categoryLevel1: 'Otros',
               coverImageUrl: book.imageLinks?.thumbnail || null,
-              marketMinPrice: mockMinPrice.toFixed(2),
-              marketMedianPrice: mockMedianPrice.toFixed(2),
+              marketMinPrice: priceData.minPrice?.toFixed(2) || null,
+              marketMedianPrice: priceData.medianPrice?.toFixed(2) || null,
               lastPriceCheck: new Date(),
             };
+            
+            console.log(`[Triage] Prices found - Min: €${priceData.minPrice}, Median: €${priceData.medianPrice}, Max: €${priceData.maxPrice}`);
           }
         } catch (error) {
           console.log('[Triage] Google Books failed, trying ISBNDB fallback...');
@@ -180,27 +185,31 @@ export const appRouter = router({
         
         // If Google Books failed, try ISBNDB
         if (!catalogData) {
-          const isbndbApiKey = await getSystemSetting('ISBNDB_API_KEY');
+          const isbndbApiKey = process.env.ISBNDB_API_KEY;
           
-          if (!isbndbApiKey?.settingValue) {
-            throw new Error('Libro no encontrado en Google Books. Configure su API key de ISBNDB en Configuración para usar el servicio de respaldo.');
+          if (!isbndbApiKey) {
+            throw new Error('Libro no encontrado en Google Books. Configure ISBNDB_API_KEY en Secrets (Management UI) para usar el servicio de respaldo.');
           }
           
           const { fetchFromISBNDB } = await import('./isbndbIntegration');
-          const isbndbBook = await fetchFromISBNDB(cleanedIsbn, isbndbApiKey.settingValue);
+          const isbndbBook = await fetchFromISBNDB(cleanedIsbn, isbndbApiKey);
           
           if (!isbndbBook) {
             throw new Error('Libro no encontrado en Google Books ni en ISBNDB');
           }
           
-          // For MVP, use mock price data
-          const mockMinPrice = 10.00 + Math.random() * 10;
-          const mockMedianPrice = mockMinPrice + 5;
+          const bookTitle = isbndbBook.title || 'Unknown Title';
+          const bookAuthor = isbndbBook.authors?.join(', ') || 'Autor Desconocido';
+          
+          // Scrape real prices from marketplaces using AI
+          console.log('[Triage] Scraping real prices from marketplaces (ISBNDB source)...');
+          const { scrapeBookPrices } = await import('./priceScraper');
+          const priceData = await scrapeBookPrices(cleanedIsbn, bookTitle, bookAuthor);
           
           catalogData = {
             isbn13: cleanedIsbn,
-            title: isbndbBook.title || 'Unknown Title',
-            author: isbndbBook.authors?.join(', ') || 'Autor Desconocido',
+            title: bookTitle,
+            author: bookAuthor,
             publisher: isbndbBook.publisher || null,
             publicationYear: isbndbBook.date_published ? parseInt(isbndbBook.date_published.substring(0, 4)) : null,
             language: (isbndbBook.language || 'es').substring(0, 2).toUpperCase(),
@@ -209,10 +218,12 @@ export const appRouter = router({
             synopsis: isbndbBook.synopsis || null,
             categoryLevel1: 'Otros',
             coverImageUrl: isbndbBook.image || null,
-            marketMinPrice: mockMinPrice.toFixed(2),
-            marketMedianPrice: mockMedianPrice.toFixed(2),
+            marketMinPrice: priceData.minPrice?.toFixed(2) || null,
+            marketMedianPrice: priceData.medianPrice?.toFixed(2) || null,
             lastPriceCheck: new Date(),
           };
+          
+          console.log(`[Triage] Prices found - Min: €${priceData.minPrice}, Median: €${priceData.medianPrice}, Max: €${priceData.maxPrice}`);
         }
         
         await upsertCatalogMaster(catalogData);
