@@ -169,6 +169,14 @@ export async function getInventoryItemByUuid(uuid: string): Promise<InventoryIte
   return result[0];
 }
 
+export async function getInventoryItemsByIsbn(isbn13: string): Promise<InventoryItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select().from(inventoryItems).where(eq(inventoryItems.isbn13, isbn13));
+  return result;
+}
+
 export async function updateInventoryItem(uuid: string, data: Partial<InsertInventoryItem>): Promise<InventoryItem> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

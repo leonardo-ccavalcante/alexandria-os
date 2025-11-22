@@ -852,6 +852,7 @@ export const appRouter = router({
             const language = languageRaw ? languageRaw.substring(0, 2).toUpperCase() : undefined;
             const quantityStr = row['Cantidad'] || row['Quantity'] || row['quantity'];
             const quantity = quantityStr ? parseInt(quantityStr) : 0;
+            const locationCode = row['Ubicación'] || row['Ubicacion'] || row['Location'] || row['location'] || undefined;
             
             // Upsert catalog master
             await upsertCatalogMaster({
@@ -870,11 +871,15 @@ export const appRouter = router({
             // If quantity is provided, create inventory items
             if (quantity > 0) {
               for (let j = 0; j < quantity; j++) {
-                await createInventoryItem({
+                const itemData: any = {
                   isbn13: isbn,
                   conditionGrade: 'BUENO', // Default condition
                   status: 'AVAILABLE',
-                });
+                };
+                if (locationCode) {
+                  itemData.locationCode = locationCode;
+                }
+                await createInventoryItem(itemData);
               }
             }
             

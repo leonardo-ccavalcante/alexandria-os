@@ -478,3 +478,11 @@
 - [x] Run database migration (pnpm db:push)
 - [x] Test CSV import with all new fields (9/9 tests passing)
 - [x] Write unit tests for new field handling (newFields.test.ts)
+
+## Add UBICACIÓN Column to Catalog CSV Import
+- [x] Update backend CSV import procedure to handle UBICACIÓN column
+- [x] Create inventory items automatically when UBICACIÓN is provided
+- [x] Update CSV template to include UBICACIÓN column with example (e.g., "01A")
+- [x] Update UI instructions to show UBICACIÓN as mandatory field
+- [x] Test CSV import with location data
+- [x] Write unit tests for location-based inventory creation (4/4 tests passing)
