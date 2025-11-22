@@ -14,44 +14,81 @@ import Settings from "./pages/Settings";
 import CargaMasiva from "./pages/CargaMasiva";
 import ExportarDatos from "./pages/ExportarDatos";
 import Configuracion from "./pages/Configuracion";
-import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon } from "lucide-react";
+import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon, Menu, X } from "lucide-react";
+import { useState } from "react";
 
 function Router() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const navLinks = [
+    { href: "/triage", icon: BookOpen, label: "Triage" },
+    { href: "/inventario", icon: Package, label: "Inventario" },
+    { href: "/dashboard", icon: BarChart3, label: "Dashboard" },
+    { href: "/batch", icon: Upload, label: "Lotes" },
+    { href: "/settings", icon: SettingsIcon, label: "Config" },
+  ];
+
   return (
     <div className="min-h-screen">
       {/* Navigation */}
-      <nav className="bg-white shadow-sm border-b">
+      <nav className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
+            {/* Logo */}
             <Link href="/">
-              <span className="text-2xl font-bold text-blue-600 flex items-center gap-2 cursor-pointer">
-                <BookOpen className="h-8 w-8" />
-                Alexandria OS
+              <span className="text-xl md:text-2xl font-bold text-blue-600 flex items-center gap-2 cursor-pointer">
+                <BookOpen className="h-6 w-6 md:h-8 md:w-8" />
+                <span className="hidden sm:inline">Alexandria OS</span>
+                <span className="sm:hidden">Alex</span>
               </span>
             </Link>
-            <div className="flex gap-4">
-              <Link href="/triage" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                <BookOpen className="h-5 w-5" />
-                Triage
-              </Link>
-              <Link href="/inventario" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                <Package className="h-5 w-5" />
-                Inventario
-              </Link>
-              <Link href="/dashboard" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                <BarChart3 className="h-5 w-5" />
-                Dashboard
-              </Link>
-              <Link href="/batch" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                <Upload className="h-5 w-5" />
-                Lotes
-              </Link>
-              <Link href="/settings" className="flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors">
-                <SettingsIcon className="h-5 w-5" />
-                Config
-              </Link>
+
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex gap-2 lg:gap-4">
+              {navLinks.map(({ href, icon: Icon, label }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors text-sm lg:text-base"
+                >
+                  <Icon className="h-4 w-4 lg:h-5 lg:w-5" />
+                  <span className="hidden lg:inline">{label}</span>
+                </Link>
+              ))}
             </div>
+
+            {/* Mobile Menu Button */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="md:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
+            </button>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden mt-4 pb-4 border-t pt-4">
+              <div className="flex flex-col gap-2">
+                {navLinks.map(({ href, icon: Icon, label }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-blue-50 transition-colors"
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span>{label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </nav>
 

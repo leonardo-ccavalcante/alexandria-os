@@ -1,36 +1,36 @@
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { BookOpen, Package, BarChart3, Upload, Download } from 'lucide-react';
+import { BookOpen, Package, BarChart3, Upload, Download, Settings } from 'lucide-react';
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="container mx-auto px-4 py-16">
+      <div className="container mx-auto px-4 py-8 md:py-16">
         {/* Hero Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-6xl font-bold mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <div className="text-center mb-8 md:mb-16">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-3 md:mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
             Alexandria OS
           </h1>
-          <p className="text-2xl text-gray-600 mb-2">Donation Edition</p>
-          <p className="text-lg text-gray-500">
+          <p className="text-xl md:text-2xl text-gray-600 mb-2">Donation Edition</p>
+          <p className="text-base md:text-lg text-gray-500 px-4">
             Sistema de Gestión de Inventario para Libros Usados
           </p>
         </div>
 
         {/* Feature Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto">
           {/* Triage */}
           <Link href="/triage">
             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="p-3 bg-blue-100 rounded-lg">
-                      <BookOpen className="h-8 w-8 text-blue-600" />
+                    <div className="p-2 md:p-3 bg-blue-100 rounded-lg">
+                      <BookOpen className="h-6 w-6 md:h-8 md:w-8 text-blue-600" />
                     </div>
-                    <CardTitle className="text-2xl">Triage & Scan</CardTitle>
+                    <CardTitle className="text-xl md:text-2xl">Triage & Scan</CardTitle>
                   </div>
-                  <CardDescription>
+                  <CardDescription className="text-sm md:text-base">
                     Escanea libros y determina automáticamente si son rentables para catalogar
                   </CardDescription>
                 </CardHeader>
@@ -49,12 +49,12 @@ export default function Home() {
             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="p-3 bg-purple-100 rounded-lg">
-                      <Package className="h-8 w-8 text-purple-600" />
+                    <div className="p-2 md:p-3 bg-purple-100 rounded-lg">
+                      <Package className="h-6 w-6 md:h-8 md:w-8 text-purple-600" />
                     </div>
-                    <CardTitle className="text-2xl">Inventario</CardTitle>
+                    <CardTitle className="text-xl md:text-2xl">Inventario</CardTitle>
                   </div>
-                  <CardDescription>
+                  <CardDescription className="text-sm md:text-base">
                     Gestiona todos los libros catalogados con búsqueda y filtros avanzados
                   </CardDescription>
                 </CardHeader>
@@ -73,12 +73,12 @@ export default function Home() {
             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="p-3 bg-green-100 rounded-lg">
-                      <BarChart3 className="h-8 w-8 text-green-600" />
+                    <div className="p-2 md:p-3 bg-green-100 rounded-lg">
+                      <BarChart3 className="h-6 w-6 md:h-8 md:w-8 text-green-600" />
                     </div>
-                    <CardTitle className="text-2xl">Dashboard</CardTitle>
+                    <CardTitle className="text-xl md:text-2xl">Dashboard</CardTitle>
                   </div>
-                  <CardDescription>
+                  <CardDescription className="text-sm md:text-base">
                     Analiza el rendimiento del negocio con métricas detalladas
                   </CardDescription>
                 </CardHeader>
@@ -97,12 +97,12 @@ export default function Home() {
           <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-3 bg-orange-100 rounded-lg">
-                  <Upload className="h-8 w-8 text-orange-600" />
+                <div className="p-2 md:p-3 bg-orange-100 rounded-lg">
+                  <Upload className="h-6 w-6 md:h-8 md:w-8 text-orange-600" />
                 </div>
-                <CardTitle className="text-2xl">Carga Masiva</CardTitle>
+                <CardTitle className="text-xl md:text-2xl">Carga Masiva</CardTitle>
               </div>
-              <CardDescription>
+              <CardDescription className="text-sm md:text-base">
                 Actualiza múltiples libros a la vez mediante archivos CSV
               </CardDescription>
             </CardHeader>
@@ -116,17 +116,17 @@ export default function Home() {
           </Card>
           </Link>
 
-          {/* Batch Export */}
+          {/* Export */}
           <Link href="/exportar">
           <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-3 bg-pink-100 rounded-lg">
-                  <Download className="h-8 w-8 text-pink-600" />
+                <div className="p-2 md:p-3 bg-pink-100 rounded-lg">
+                  <Download className="h-6 w-6 md:h-8 md:w-8 text-pink-600" />
                 </div>
-                <CardTitle className="text-2xl">Exportar Datos</CardTitle>
+                <CardTitle className="text-xl md:text-2xl">Exportar Datos</CardTitle>
               </div>
-              <CardDescription>
+              <CardDescription className="text-sm md:text-base">
                 Exporta el inventario completo o filtrado a CSV
               </CardDescription>
             </CardHeader>
@@ -145,12 +145,12 @@ export default function Home() {
           <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-3 bg-indigo-100 rounded-lg">
-                  <BarChart3 className="h-8 w-8 text-indigo-600" />
+                <div className="p-2 md:p-3 bg-indigo-100 rounded-lg">
+                  <Settings className="h-6 w-6 md:h-8 md:w-8 text-indigo-600" />
                 </div>
-                <CardTitle className="text-2xl">Configuración</CardTitle>
+                <CardTitle className="text-xl md:text-2xl">Configuración</CardTitle>
               </div>
-              <CardDescription>
+              <CardDescription className="text-sm md:text-base">
                 Ajusta los umbrales de rentabilidad y reglas de negocio
               </CardDescription>
             </CardHeader>
@@ -165,12 +165,12 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* Quick Start */}
-        <div className="text-center mt-16">
-          <h2 className="text-2xl font-bold mb-4">¿Listo para empezar?</h2>
+        {/* CTA Section */}
+        <div className="text-center mt-12 md:mt-16">
+          <h2 className="text-2xl md:text-3xl font-bold mb-4 md:mb-6">¿Listo para empezar?</h2>
           <Link href="/triage">
-            <Button size="lg" className="text-lg px-8 py-6">
-              <BookOpen className="mr-2 h-6 w-6" />
+            <Button size="lg" className="text-base md:text-lg px-6 md:px-8 py-4 md:py-6">
+              <BookOpen className="mr-2 h-5 w-5" />
               Escanear Primer Libro
             </Button>
           </Link>

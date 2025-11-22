@@ -245,9 +245,9 @@ export default function CargaMasiva() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Carga Masiva</h1>
+      <div className="container mx-auto px-3 md:px-4 py-4 md:py-8">
+        <div className="mb-4 md:mb-8">
+          <h1 className="text-2xl md:text-3xl font-bold mb-2">Carga Masiva</h1>
           <p className="text-gray-600">
             Actualiza múltiples libros a la vez mediante archivos CSV
           </p>

@@ -77,20 +77,20 @@ export default function Dashboard() {
   const profitMargin = kpis?.totalRevenue ? ((kpis.totalProfit / kpis.totalRevenue) * 100).toFixed(1) : '0';
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="container mx-auto space-y-6 py-8">
+    <div className="min-h-screen bg-gray-50 p-3 md:p-4">
+      <div className="container mx-auto space-y-4 md:space-y-6 py-4 md:py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <BarChart3 className="h-10 w-10 text-green-600" />
-            <h1 className="text-4xl font-bold">Dashboard</h1>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 md:mb-6">
+          <div className="flex items-center gap-2 md:gap-3">
+            <BarChart3 className="h-8 w-8 md:h-10 md:w-10 text-green-600" />
+            <h1 className="text-2xl md:text-4xl font-bold">Dashboard</h1>
           </div>
           
           {/* Date Range Filter */}
-          <div className="flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-gray-500" />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Calendar className="h-4 w-4 md:h-5 md:w-5 text-gray-500" />
             <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -105,7 +105,7 @@ export default function Dashboard() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
           {/* Total Inventory */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -115,7 +115,7 @@ export default function Dashboard() {
               <Package className="h-5 w-5 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{kpis?.totalInventory || 0}</div>
+              <div className="text-2xl md:text-3xl font-bold">{kpis?.totalInventory || 0}</div>
               <p className="text-xs text-gray-500 mt-1">
                 Libros en sistema
               </p>
@@ -131,7 +131,7 @@ export default function Dashboard() {
               <Package className="h-5 w-5 text-green-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-green-600">{kpis?.available || 0}</div>
+              <div className="text-2xl md:text-3xl font-bold text-green-600">{kpis?.available || 0}</div>
               <p className="text-xs text-gray-500 mt-1">
                 Listos para vender
               </p>
@@ -147,7 +147,7 @@ export default function Dashboard() {
               <ShoppingCart className="h-5 w-5 text-blue-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-blue-600">{kpis?.listed || 0}</div>
+              <div className="text-2xl md:text-3xl font-bold text-blue-600">{kpis?.listed || 0}</div>
               <p className="text-xs text-gray-500 mt-1">
                 En plataformas
               </p>
@@ -163,7 +163,7 @@ export default function Dashboard() {
               <TrendingUp className="h-5 w-5 text-purple-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-purple-600">{kpis?.sold || 0}</div>
+              <div className="text-2xl md:text-3xl font-bold text-purple-600">{kpis?.sold || 0}</div>
               <p className="text-xs text-gray-500 mt-1">
                 Transacciones completadas
               </p>
@@ -172,7 +172,7 @@ export default function Dashboard() {
         </div>
 
         {/* Financial Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-6">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">

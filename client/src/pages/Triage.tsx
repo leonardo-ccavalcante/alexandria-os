@@ -139,19 +139,19 @@ export default function Triage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <div className="max-w-2xl mx-auto space-y-6 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-3 md:p-4">
+      <div className="max-w-2xl mx-auto space-y-4 md:space-y-6 py-4 md:py-8">
         <Card>
           <CardHeader>
-            <CardTitle className="text-3xl flex items-center gap-2">
-              <BookOpen className="h-8 w-8 text-blue-600" />
+            <CardTitle className="text-2xl md:text-3xl flex items-center gap-2">
+              <BookOpen className="h-6 w-6 md:h-8 md:w-8 text-blue-600" />
               Triage & Scan
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm md:text-base">
               Escanea o ingresa el ISBN para determinar si el libro es rentable
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4 md:space-y-6">
             {/* Barcode Scanner */}
             <BarcodeScanner
               onScan={handleScan}
@@ -171,7 +171,7 @@ export default function Triage() {
             {/* Manual ISBN Input */}
             <div className="space-y-2">
               <p className="text-sm font-medium text-gray-700">O ingresa el ISBN manualmente:</p>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   type="text"
                   placeholder="Ingresa ISBN manualmente (13 dígitos)"
@@ -179,12 +179,13 @@ export default function Triage() {
                   onChange={(e) => setIsbn(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleCheck()}
                   disabled={isScanning || isChecking}
-                  className="text-lg"
+                  className="text-base md:text-lg"
                 />
                 <Button
                   onClick={() => handleCheck()}
                   disabled={isScanning || isChecking || !isbn}
                   size="lg"
+                  className="w-full sm:w-auto"
                 >
                   {isChecking ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -209,32 +210,32 @@ export default function Triage() {
 
                 {/* Decision */}
                 <div>
-                  <h2 className="text-3xl font-bold mb-2">
+                  <h2 className="text-2xl md:text-3xl font-bold mb-2">
                     {result.decision === 'ACCEPT' && '✅ ACEPTAR'}
                     {result.decision === 'DONATE' && '⚠️ DONAR'}
                     {result.decision === 'RECYCLE' && '❌ RECICLAR'}
                   </h2>
-                  <p className="text-lg text-gray-700">{result.reason}</p>
+                  <p className="text-base md:text-lg text-gray-700">{result.reason}</p>
                 </div>
 
                 {/* Book Info */}
                 {result.bookData && (
-                  <div className="bg-white rounded-lg p-4 text-left space-y-2">
-                    <div className="flex gap-4">
+                  <div className="bg-white rounded-lg p-3 md:p-4 text-left space-y-2">
+                    <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
                       {result.bookData.coverImageUrl && (
                         <img
                           src={result.bookData.coverImageUrl}
                           alt={result.bookData.title}
-                          className="w-24 h-32 object-cover rounded"
+                          className="w-20 h-28 sm:w-24 sm:h-32 object-cover rounded mx-auto sm:mx-0"
                         />
                       )}
-                      <div className="flex-1">
-                        <h3 className="font-bold text-lg">{result.bookData.title}</h3>
-                        <p className="text-gray-600">{result.bookData.author}</p>
-                        <p className="text-sm text-gray-500">ISBN: {result.bookData.isbn13}</p>
+                      <div className="flex-1 text-center sm:text-left">
+                        <h3 className="font-bold text-base md:text-lg">{result.bookData.title}</h3>
+                        <p className="text-sm md:text-base text-gray-600">{result.bookData.author}</p>
+                        <p className="text-xs md:text-sm text-gray-500">ISBN: {result.bookData.isbn13}</p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs md:text-sm pt-2 border-t">
                       <div>
                         <span className="font-semibold">Precio Mercado:</span> €{result.marketPrice.toFixed(2)}
                       </div>

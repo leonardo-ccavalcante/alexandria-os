@@ -171,36 +171,38 @@ export default function InventoryFinal() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-3 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-purple-100 rounded-lg">
-              <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4 md:mb-6">
+          <div className="flex items-center gap-2 md:gap-3">
+            <div className="p-2 md:p-3 bg-purple-100 rounded-lg">
+              <svg className="w-5 h-5 md:w-6 md:h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900">Inventario</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Inventario</h1>
           </div>
           <Button
             onClick={() => exportMutation.mutate({ filters: { searchText, publisher, author } })}
             variant="outline"
-            className="gap-2"
+            className="gap-2 w-full sm:w-auto"
+            size="sm"
           >
             <Download className="h-4 w-4" />
-            Exportar CSV
+            <span className="hidden sm:inline">Exportar CSV</span>
+            <span className="sm:hidden">Exportar</span>
           </Button>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <div className="bg-white rounded-lg shadow-sm p-3 md:p-6 mb-4 md:mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4 mb-3 md:mb-4">
             <Input
               placeholder="Buscar por título, autor, ISBN..."
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              className="col-span-2"
+              className="md:col-span-2"
             />
             
             <Select
@@ -220,22 +222,24 @@ export default function InventoryFinal() {
             />
           </div>
           
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-4">
-              <Input
-                type="number"
-                placeholder="Año desde"
-                value={yearFrom}
-                onChange={(e) => setYearFrom(e.target.value)}
-                className="w-32"
-              />
-              <Input
-                type="number"
-                placeholder="Año hasta"
-                value={yearTo}
-                onChange={(e) => setYearTo(e.target.value)}
-                className="w-32"
-              />
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-4">
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  placeholder="Año desde"
+                  value={yearFrom}
+                  onChange={(e) => setYearFrom(e.target.value)}
+                  className="w-full sm:w-32"
+                />
+                <Input
+                  type="number"
+                  placeholder="Año hasta"
+                  value={yearTo}
+                  onChange={(e) => setYearTo(e.target.value)}
+                  className="w-full sm:w-32"
+                />
+              </div>
               
               <div className="flex flex-col gap-1">
                 <label className="flex items-center gap-2 text-xs">
@@ -244,7 +248,8 @@ export default function InventoryFinal() {
                     checked={showZeroInventory}
                     onChange={(e) => setShowZeroInventory(e.target.checked)}
                   />
-                  Mostrar libros sin inventario (solo catálogo)
+                  <span className="hidden sm:inline">Mostrar libros sin inventario (solo catálogo)</span>
+                  <span className="sm:hidden">Mostrar sin inventario</span>
                 </label>
                 
                 <label className="flex items-center gap-2 text-xs">
@@ -262,7 +267,8 @@ export default function InventoryFinal() {
                     checked={hideWithoutQuantity}
                     onChange={(e) => setHideWithoutQuantity(e.target.checked)}
                   />
-                  Ocultar libros sin cantidad disponible
+                  <span className="hidden sm:inline">Ocultar libros sin cantidad disponible</span>
+                  <span className="sm:hidden">Ocultar sin cantidad</span>
                 </label>
               </div>
             </div>
@@ -272,6 +278,7 @@ export default function InventoryFinal() {
                 variant={viewMode === "table" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode("table")}
+                className="flex-1 sm:flex-none"
               >
                 Tabla
               </Button>
@@ -279,6 +286,7 @@ export default function InventoryFinal() {
                 variant={viewMode === "card" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode("card")}
+                className="flex-1 sm:flex-none"
               >
                 Tarjetas
               </Button>
@@ -289,6 +297,7 @@ export default function InventoryFinal() {
         {/* Table View */}
         {viewMode === "table" && (
           <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
             {isLoading ? (
               <div className="p-12 text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
@@ -461,6 +470,7 @@ export default function InventoryFinal() {
                 </tbody>
               </table>
             )}
+            </div>
           </div>
         )}
 
