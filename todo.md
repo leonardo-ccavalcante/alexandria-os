@@ -493,3 +493,12 @@
 - [x] Update UI instructions to show UBICACIÓN as mandatory field
 - [x] Test CSV import with location data
 - [x] Write unit tests for location-based inventory creation (4/4 tests passing)
+
+## Fix Barcode Scanning & Add ISBNDB Integration
+- [x] Fix database insertion error in barcode scanning (undefined fields causing SQL error)
+- [x] Add ISBNDB API key configuration in Settings page
+- [x] Create ISBNDB API integration module
+- [x] Update triage workflow to use ISBNDB as fallback when Google Books fails
+- [x] Add API key validation and error handling
+- [x] Test complete ISBN lookup flow (Google Books → ISBNDB fallback)
+- [x] Write unit tests for ISBNDB integration (9/9 tests passing)

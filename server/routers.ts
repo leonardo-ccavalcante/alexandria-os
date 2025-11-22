@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { eq, and, sql } from "drizzle-orm";
 import mysql from 'mysql2/promise';
-import { catalogMasters, inventoryItems } from "../drizzle/schema";
+import { catalogMasters, inventoryItems, InsertCatalogMaster } from "../drizzle/schema";
 import { getDb } from "./db";
 import { extractIsbnFromImage } from "./aiIsbnExtractor";
 import {
@@ -139,45 +139,84 @@ export const appRouter = router({
         };
       }),
     
-    // Fetch book data from external API (Google Books)
+    // Fetch book data from external API (Google Books with ISBNDB fallback)
     fetchBookData: protectedProcedure
       .input(z.object({ isbn: z.string() }))
       .mutation(async ({ input }) => {
         const cleanedIsbn = input.isbn.replace(/[-\s]/g, '');
+        let catalogData: InsertCatalogMaster | null = null;
         
-        // Call Google Books API
-        const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanedIsbn}`);
-        const data = await response.json();
-        
-        if (!data.items || data.items.length === 0) {
-          throw new Error('Libro no encontrado en Google Books');
+        // Try Google Books API first
+        try {
+          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanedIsbn}`);
+          const data = await response.json();
+          
+          if (data.items && data.items.length > 0) {
+            const book = data.items[0].volumeInfo;
+            
+            // For MVP, use mock price data
+            const mockMinPrice = 10.00 + Math.random() * 10;
+            const mockMedianPrice = mockMinPrice + 5;
+            
+            catalogData = {
+              isbn13: cleanedIsbn,
+              title: book.title || 'Unknown Title',
+              author: book.authors?.join(', ') || 'Autor Desconocido',
+              publisher: book.publisher || null,
+              publicationYear: book.publishedDate ? parseInt(book.publishedDate.substring(0, 4)) : null,
+              language: (book.language || 'es').substring(0, 2).toUpperCase(),
+              pages: book.pageCount || null,
+              synopsis: book.description || null,
+              categoryLevel1: 'Otros',
+              coverImageUrl: book.imageLinks?.thumbnail || null,
+              marketMinPrice: mockMinPrice.toFixed(2),
+              marketMedianPrice: mockMedianPrice.toFixed(2),
+              lastPriceCheck: new Date(),
+            };
+          }
+        } catch (error) {
+          console.log('[Triage] Google Books failed, trying ISBNDB fallback...');
         }
         
-        const book = data.items[0].volumeInfo;
-        
-        // For MVP, use mock price data
-        // In production, implement real price scraping
-        const mockMinPrice = 10.00 + Math.random() * 10;
-        const mockMedianPrice = mockMinPrice + 5;
-        
-        // Save to catalog
-        const catalogData = {
-          isbn13: cleanedIsbn,
-          title: book.title || 'Unknown Title',
-          author: book.authors?.join(', ') || 'Autor Desconocido',
-          publisher: book.publisher || null,
-          publicationYear: book.publishedDate ? parseInt(book.publishedDate.substring(0, 4)) : null,
-          language: book.language || 'es',
-          synopsis: book.description || null,
-          category: 'OTROS' as const,
-          coverImageUrl: book.imageLinks?.thumbnail || null,
-          marketMinPrice: mockMinPrice.toFixed(2),
-          marketMedianPrice: mockMedianPrice.toFixed(2),
-          lastPriceCheck: new Date(),
-        };
+        // If Google Books failed, try ISBNDB
+        if (!catalogData) {
+          const isbndbApiKey = await getSystemSetting('ISBNDB_API_KEY');
+          
+          if (!isbndbApiKey?.settingValue) {
+            throw new Error('Libro no encontrado en Google Books. Configure su API key de ISBNDB en Configuración para usar el servicio de respaldo.');
+          }
+          
+          const { fetchFromISBNDB } = await import('./isbndbIntegration');
+          const isbndbBook = await fetchFromISBNDB(cleanedIsbn, isbndbApiKey.settingValue);
+          
+          if (!isbndbBook) {
+            throw new Error('Libro no encontrado en Google Books ni en ISBNDB');
+          }
+          
+          // For MVP, use mock price data
+          const mockMinPrice = 10.00 + Math.random() * 10;
+          const mockMedianPrice = mockMinPrice + 5;
+          
+          catalogData = {
+            isbn13: cleanedIsbn,
+            title: isbndbBook.title || 'Unknown Title',
+            author: isbndbBook.authors?.join(', ') || 'Autor Desconocido',
+            publisher: isbndbBook.publisher || null,
+            publicationYear: isbndbBook.date_published ? parseInt(isbndbBook.date_published.substring(0, 4)) : null,
+            language: (isbndbBook.language || 'es').substring(0, 2).toUpperCase(),
+            pages: isbndbBook.pages || null,
+            edition: isbndbBook.edition || null,
+            synopsis: isbndbBook.synopsis || null,
+            categoryLevel1: 'Otros',
+            coverImageUrl: isbndbBook.image || null,
+            marketMinPrice: mockMinPrice.toFixed(2),
+            marketMedianPrice: mockMedianPrice.toFixed(2),
+            lastPriceCheck: new Date(),
+          };
+        }
         
         await upsertCatalogMaster(catalogData);
-                return {
+        return {
           success: true,
           bookData: await getCatalogMasterByIsbn(cleanedIsbn),
         };
@@ -1103,6 +1142,15 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         await updateSystemSetting(input.key, input.value);
         return { success: true };
+      }),
+    
+    // Validate ISBNDB API key
+    validateIsbndbKey: protectedProcedure
+      .input(z.object({ apiKey: z.string() }))
+      .mutation(async ({ input }) => {
+        const { validateISBNDBApiKey } = await import('./isbndbIntegration');
+        const isValid = await validateISBNDBApiKey(input.apiKey);
+        return { valid: isValid };
       }),
   }),
 });

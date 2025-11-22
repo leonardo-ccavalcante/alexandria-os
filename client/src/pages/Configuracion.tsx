@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Settings, Save } from "lucide-react";
+import { Settings, Save, Key, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
 export default function Configuracion() {
@@ -19,6 +20,21 @@ export default function Configuracion() {
   });
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isbndbApiKey, setIsbndbApiKey] = useState("");
+  const [isValidatingKey, setIsValidatingKey] = useState(false);
+  const [keyValidationStatus, setKeyValidationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
+  
+  // Load ISBNDB API key from settings
+  const { data: isbndbSetting } = trpc.settings.get.useQuery({ key: 'ISBNDB_API_KEY' });
+  const updateSettingMutation = trpc.settings.update.useMutation();
+  const validateKeyMutation = trpc.settings.validateIsbndbKey.useMutation();
+  
+  useEffect(() => {
+    if (isbndbSetting?.settingValue) {
+      setIsbndbApiKey(isbndbSetting.settingValue);
+      setKeyValidationStatus('valid');
+    }
+  }, [isbndbSetting]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -173,6 +189,92 @@ export default function Configuracion() {
                     })
                   }
                 />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ISBNDB API Key Configuration */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                ISBNDB API Key
+              </CardTitle>
+              <CardDescription>
+                Configure su clave de API de ISBNDB para usar como respaldo cuando Google Books no encuentra un libro.
+                <br />
+                Obtenga su API key gratis en{" "}
+                <a href="https://isbndb.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                  isbndb.com
+                </a>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="isbndbKey">API Key</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="isbndbKey"
+                    type="password"
+                    placeholder="Ingrese su ISBNDB API key"
+                    value={isbndbApiKey}
+                    onChange={(e) => {
+                      setIsbndbApiKey(e.target.value);
+                      setKeyValidationStatus('idle');
+                    }}
+                  />
+                  <Button
+                    onClick={async () => {
+                      if (!isbndbApiKey.trim()) {
+                        toast.error('Por favor ingrese una API key');
+                        return;
+                      }
+                      
+                      setIsValidatingKey(true);
+                      try {
+                        const result = await validateKeyMutation.mutateAsync({ apiKey: isbndbApiKey });
+                        if (result.valid) {
+                          setKeyValidationStatus('valid');
+                          await updateSettingMutation.mutateAsync({
+                            key: 'ISBNDB_API_KEY',
+                            value: isbndbApiKey,
+                          });
+                          toast.success('API key válida y guardada correctamente');
+                        } else {
+                          setKeyValidationStatus('invalid');
+                          toast.error('API key inválida. Por favor verifique su clave.');
+                        }
+                      } catch (error: any) {
+                        setKeyValidationStatus('invalid');
+                        toast.error(error.message || 'Error al validar API key');
+                      } finally {
+                        setIsValidatingKey(false);
+                      }
+                    }}
+                    disabled={isValidatingKey}
+                  >
+                    {isValidatingKey ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Validar y Guardar'
+                    )}
+                  </Button>
+                </div>
+                {keyValidationStatus === 'valid' && (
+                  <div className="flex items-center gap-2 mt-2 text-green-600">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="text-sm">API key configurada y válida</span>
+                  </div>
+                )}
+                {keyValidationStatus === 'invalid' && (
+                  <div className="flex items-center gap-2 mt-2 text-red-600">
+                    <XCircle className="h-4 w-4" />
+                    <span className="text-sm">API key inválida</span>
+                  </div>
+                )}
+                <p className="text-sm text-gray-500 mt-2">
+                  Cuando Google Books no encuentra un libro, el sistema automáticamente intentará buscarlo en ISBNDB.
+                </p>
               </div>
             </CardContent>
           </Card>
