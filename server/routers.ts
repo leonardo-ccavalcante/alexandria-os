@@ -3,7 +3,7 @@ import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, or, isNull } from "drizzle-orm";
 import mysql from 'mysql2/promise';
 import { catalogMasters, inventoryItems, InsertCatalogMaster } from "../drizzle/schema";
 import { getDb } from "./db";
@@ -388,7 +388,89 @@ export const appRouter = router({
         };
       }),
     
-    // Update catalog master (book metadata)
+    // Bulk enrich all books with missing metadata
+    bulkEnrichMetadata: protectedProcedure
+      .mutation(async () => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        
+        // Find all books with missing metadata
+        const booksNeedingEnrichment = await db
+          .select({ isbn13: catalogMasters.isbn13 })
+          .from(catalogMasters)
+          .where(
+            or(
+              isNull(catalogMasters.publisher),
+              isNull(catalogMasters.pages),
+              eq(catalogMasters.pages, 0),
+              isNull(catalogMasters.edition),
+              isNull(catalogMasters.language)
+            )
+          );
+        
+        const results = {
+          total: booksNeedingEnrichment.length,
+          enriched: 0,
+          failed: 0,
+          skipped: 0,
+          errors: [] as string[],
+        };
+        
+        // Process each book
+        for (const book of booksNeedingEnrichment) {
+          try {
+            // Get current book data
+            const existing = await getCatalogMasterByIsbn(book.isbn13);
+            if (!existing) {
+              results.skipped++;
+              continue;
+            }
+            
+            // Check if enrichment is needed
+            const needsEnrichment = !existing.publisher || !existing.pages || existing.pages === 0 || !existing.edition || !existing.language;
+            if (!needsEnrichment) {
+              results.skipped++;
+              continue;
+            }
+            
+            // Fetch metadata from external APIs
+            const metadata = await fetchExternalBookMetadata(book.isbn13);
+            if (!metadata.found) {
+              results.failed++;
+              results.errors.push(`${book.isbn13}: Metadata not found`);
+              continue;
+            }
+            
+            // Update only missing fields
+            const updateData: Partial<InsertCatalogMaster> = {};
+            if (!existing.publisher && metadata.publisher) updateData.publisher = metadata.publisher;
+            if ((!existing.pages || existing.pages === 0) && metadata.pageCount) updateData.pages = metadata.pageCount;
+            if (!existing.edition && metadata.edition) updateData.edition = metadata.edition;
+            if (!existing.language && metadata.language) updateData.language = metadata.language;
+            if (!existing.synopsis && metadata.description) updateData.synopsis = metadata.description;
+            if (!existing.coverImageUrl && metadata.coverImageUrl) updateData.coverImageUrl = metadata.coverImageUrl;
+            
+            if (Object.keys(updateData).length === 0) {
+              results.skipped++;
+              continue;
+            }
+            
+            // Update database
+            await db.update(catalogMasters)
+              .set({ ...updateData, updatedAt: new Date() })
+              .where(eq(catalogMasters.isbn13, book.isbn13));
+            
+            results.enriched++;
+          } catch (error: any) {
+            results.failed++;
+            results.errors.push(`${book.isbn13}: ${error.message}`);
+          }
+        }
+        
+        return results;
+      }),
+    
+    // Get unique publishers (book metadata)
     updateBook: protectedProcedure
       .input(z.object({
         isbn13: z.string(),
@@ -895,12 +977,34 @@ export const appRouter = router({
         csvData: z.string(),
       }))
       .mutation(async ({ input }) => {
+        // Helper function to parse CSV line respecting quoted fields
+        const parseCsvLine = (line: string): string[] => {
+          const result: string[] = [];
+          let current = '';
+          let inQuotes = false;
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            
+            if (char === '"') {
+              inQuotes = !inQuotes;
+            } else if (char === ',' && !inQuotes) {
+              result.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          result.push(current.trim());
+          return result;
+        };
+        
         const lines = input.csvData.split('\n').filter(line => line.trim());
         if (lines.length < 2) {
           throw new Error('CSV file is empty or invalid');
         }
         
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        const headers = parseCsvLine(lines[0]);
         const rows = lines.slice(1);
         
         const results = {
@@ -911,7 +1015,7 @@ export const appRouter = router({
         
         for (let i = 0; i < rows.length; i++) {
           try {
-            const values = rows[i].split(',').map(v => v.trim().replace(/"/g, ''));
+            const values = parseCsvLine(rows[i]);
             const row: Record<string, string> = {};
             headers.forEach((header, idx) => {
               row[header] = values[idx] || '';
@@ -925,29 +1029,45 @@ export const appRouter = router({
               continue;
             }
             
-            // Parse new fields
-            const pagesStr = row['Páginas'] || row['Pages'] || row['pages'];
-            const pages = pagesStr ? parseInt(pagesStr) : undefined;
-            const edition = row['Edición'] || row['Edition'] || row['edition'] || undefined;
-            const languageRaw = row['Idioma'] || row['Language'] || row['language'];
+            // Parse new fields with NaN handling
+            const pagesStr = row['Páginas'] || row['Pages'] || row['pages'] || '';
+            const pages = pagesStr && !isNaN(parseInt(pagesStr)) ? parseInt(pagesStr) : undefined;
+            
+            const editionRaw = row['Edición'] || row['Edition'] || row['edition'] || '';
+            const edition = editionRaw && editionRaw.trim() !== '' ? editionRaw.trim() : undefined;
+            
+            const languageRaw = row['Idioma'] || row['Language'] || row['language'] || '';
             // Ensure language is 2 characters (e.g., "ES", "EN")
-            const language = languageRaw ? languageRaw.substring(0, 2).toUpperCase() : undefined;
-            const quantityStr = row['Cantidad'] || row['Quantity'] || row['quantity'];
-            const quantity = quantityStr ? parseInt(quantityStr) : 0;
+            const language = languageRaw && languageRaw.trim() !== '' ? languageRaw.substring(0, 2).toUpperCase() : undefined;
+            
+            const quantityStr = row['Cantidad'] || row['Quantity'] || row['quantity'] || '0';
+            const quantity = quantityStr && !isNaN(parseInt(quantityStr)) ? parseInt(quantityStr) : 0;
+            
             const locationCode = row['Ubicación'] || row['Ubicacion'] || row['Location'] || row['location'] || undefined;
+            
+            // Parse publication year with NaN handling
+            const yearStr = row['Año'] || row['publicationYear'] || row['PublicationYear'] || '';
+            const publicationYear = yearStr && !isNaN(parseInt(yearStr)) && parseInt(yearStr) > 0 ? parseInt(yearStr) : undefined;
+            
+            // Parse other fields with proper null handling
+            const title = (row['Título'] || row['Title'] || row['title'] || '').trim() || 'Unknown Title';
+            const author = (row['Autor'] || row['Author'] || row['author'] || '').trim() || 'Unknown Author';
+            const publisher = (row['Editorial'] || row['Publisher'] || row['publisher'] || '').trim() || undefined;
+            const synopsis = (row['Sinopsis'] || row['Synopsis'] || row['synopsis'] || '').trim() || undefined;
+            const categoryLevel1 = (row['Categoría'] || row['Category'] || row['categoryLevel1'] || '').trim() || undefined;
             
             // Upsert catalog master
             await upsertCatalogMaster({
               isbn13: isbn,
-              title: row['Título'] || row['Title'] || row['title'] || 'Unknown Title',
-              author: row['Autor'] || row['Author'] || row['author'] || 'Unknown Author',
-              publisher: row['Editorial'] || row['Publisher'] || row['publisher'] || undefined,
-              publicationYear: row['Año'] || row['publicationYear'] ? parseInt(row['Año'] || row['publicationYear']) : undefined,
+              title,
+              author,
+              publisher,
+              publicationYear,
               language,
               pages,
               edition,
-              synopsis: row['Sinopsis'] || row['Synopsis'] || row['synopsis'] || undefined,
-              categoryLevel1: row['Categoría'] || row['Category'] || row['categoryLevel1'] || undefined,
+              synopsis,
+              categoryLevel1,
             });
             
             // If quantity is provided, create inventory items

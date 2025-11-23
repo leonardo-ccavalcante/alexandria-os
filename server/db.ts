@@ -133,6 +133,8 @@ export async function upsertCatalogMaster(data: InsertCatalogMaster): Promise<vo
   if (data.publisher !== undefined) updateSet.publisher = data.publisher;
   if (data.publicationYear !== undefined) updateSet.publicationYear = data.publicationYear;
   if (data.language !== undefined) updateSet.language = data.language;
+  if (data.pages !== undefined) updateSet.pages = data.pages;
+  if (data.edition !== undefined) updateSet.edition = data.edition;
   if (data.synopsis !== undefined) updateSet.synopsis = data.synopsis;
   if (data.categoryLevel1 !== undefined) updateSet.categoryLevel1 = data.categoryLevel1;
   if (data.categoryLevel2 !== undefined) updateSet.categoryLevel2 = data.categoryLevel2;

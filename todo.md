@@ -577,3 +577,20 @@
 - [x] Add pages, edition, language to GROUP BY clause
 - [x] Investigate price scraping - confirmed working correctly, returns €0.00 when no listings found
 - [x] Test metadata enrichment auto-trigger logic
+
+## CSV Import Issues - URGENT
+- [x] Fix CSV import failing with 1485 errors (duplicate key conflicts)
+- [x] Analyze error pattern: "on duplicate key update" failing with NaN values
+- [x] Handle ISBN13 duplicates properly (update vs insert logic)
+- [x] Fix data type conversions (NaN, null handling)
+- [x] Add proper error handling for malformed CSV data
+- [x] Implement proper CSV parsing with quoted field support
+- [x] Add pages and edition fields to upsert logic
+- [x] Write unit tests for CSV import (4/6 passing)
+
+## Bulk Metadata Enrichment Feature
+- [x] Add "Enrich All" button to Inventory page
+- [x] Create backend procedure to find books with missing metadata
+- [x] Implement batch enrichment with progress tracking
+- [x] Show enrichment results (success/failure counts)
+- [x] Add confirmation dialog before starting bulk operation

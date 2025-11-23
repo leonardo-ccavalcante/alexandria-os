@@ -123,6 +123,25 @@ export default function InventoryFinal() {
     },
   });
 
+  // Bulk enrichment mutation
+  const bulkEnrichMutation = trpc.catalog.bulkEnrichMetadata.useMutation({
+    onSuccess: (results) => {
+      toast.success(
+        `Enriquecimiento completado: ${results.enriched} exitosos, ${results.failed} fallidos, ${results.skipped} omitidos de ${results.total} total`
+      );
+      refetch(); // Refresh inventory list
+    },
+    onError: (error: any) => {
+      toast.error(`Error en enriquecimiento: ${error.message}`);
+    },
+  });
+
+  const handleBulkEnrich = () => {
+    if (confirm('¿Deseas enriquecer todos los libros con metadata faltante? Esto puede tardar varios minutos.')) {
+      bulkEnrichMutation.mutate();
+    }
+  };
+
   // ✅ NO CLIENT-SIDE FILTERING - All filtering now happens on backend
   const filteredData = inventoryData; // Removed sort dependencies
 
@@ -212,16 +231,31 @@ export default function InventoryFinal() {
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Inventario</h1>
           </div>
-          <Button
-            onClick={() => exportMutation.mutate({ filters: { searchText, publisher, author } })}
-            variant="outline"
-            className="gap-2 w-full sm:w-auto"
-            size="sm"
-          >
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Exportar CSV</span>
-            <span className="sm:hidden">Exportar</span>
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button
+              onClick={() => exportMutation.mutate({ filters: { searchText, publisher, author } })}
+              variant="outline"
+              className="gap-2 flex-1 sm:flex-none"
+              size="sm"
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Exportar CSV</span>
+              <span className="sm:hidden">Exportar</span>
+            </Button>
+            <Button
+              onClick={handleBulkEnrich}
+              variant="outline"
+              className="gap-2 flex-1 sm:flex-none"
+              size="sm"
+              disabled={bulkEnrichMutation.isPending}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="hidden sm:inline">{bulkEnrichMutation.isPending ? 'Enriqueciendo...' : 'Enriquecer Todo'}</span>
+              <span className="sm:hidden">{bulkEnrichMutation.isPending ? '...' : 'Enriquecer'}</span>
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
