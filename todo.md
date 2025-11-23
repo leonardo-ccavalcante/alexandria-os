@@ -617,3 +617,38 @@
 - [x] Root cause: Frontend passes 'author' parameter but backend doesn't use it in WHERE clause
 - [x] Add author filter to WHERE conditions (line 616-619)
 - [x] Test author search functionality (all tests passing)
+
+## Triage Scan System Bug - CRITICAL
+- [x] Investigate why ISBN lookup is stuck on "Buscando libro en Google Books..."
+- [x] Check the verifyIsbn tRPC procedure implementation
+- [x] Check if Google Books API is being called correctly
+- [x] Test with ISBN 9781119766124 to reproduce the issue
+- [x] RESULT: ISBN lookup is working correctly, book found successfully
+- [ ] Fix duplicate key warning in marketplace price table (Wallapop, Vinted appearing multiple times)
+
+## Dashboard Redesign - McKinsey/Cole Nussbaumer Style
+- [ ] Analyze current Dashboard queries and fix empty charts
+- [ ] Add ubicación capacity tracking (25-book limit alerts)
+- [ ] Calculate free space per ubicación
+- [ ] Apply McKinsey design principles (clean, minimal, data-focused)
+- [ ] Apply Cole Nussbaumer principles (remove chart junk, strategic color)
+- [ ] Fix "Añadidos vs Vendidos" chart to show actual data
+- [ ] Fix "Top 10 Autores" chart to display properly
+- [ ] Fix "Top 10 Editoriales" chart and table
+- [ ] Fix "Distribución por Categoría" pie chart
+- [ ] Fix "Análisis por Ubicación" bar chart with capacity indicators
+- [ ] Add capacity warnings for ubicaciones near 25-book limit
+
+## Dashboard Redesign - McKinsey & Cole Nussbaumer Principles
+- [x] Add ubicación capacity tracking backend procedure (calculate books per location)
+- [x] Add capacity warning logic (show visual indicator when location approaches ~25 books)
+- [x] Calculate free space per location (25 - current count)
+- [x] Redesign dashboard UI following McKinsey style (clean, minimal, data-focused)
+- [x] Apply Cole Nussbaumer principles: remove chart junk, strategic color, direct labels
+- [x] Remove unnecessary gridlines, borders, and 3D effects from charts
+- [x] Use gray for context data, accent color for key insights
+- [x] Add clear titles and direct labels instead of legends
+- [x] Implement capacity visualization showing locations near limit
+- [x] Add free space calculations display
+- [x] Test dashboard with actual inventory data
+- [x] Write unit tests for capacity tracking functions

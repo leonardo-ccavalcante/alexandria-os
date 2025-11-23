@@ -774,17 +774,34 @@ export async function getAnalyticsByLocation(params: {
     ORDER BY totalItems DESC
   `;
   
-  const results = await db.execute(query) as any;  
-  return (results as any[]).map((r: any) => ({
-    location: r.location,
-    totalItems: Number(r.totalItems),
-    availableItems: Number(r.availableItems),
-    listedItems: Number(r.listedItems),
-    soldItems: Number(r.soldItems),
-    inventoryValue: Number(r.inventoryValue),
-    avgPrice: Number(r.avgPrice),
-    utilization: Number(r.totalItems) > 0 ? (Number(r.availableItems) + Number(r.listedItems)) / Number(r.totalItems) * 100 : 0,
-  }));
+  const rawResults = await db.execute(query) as any;
+  // Drizzle execute() returns [rows, metadata], we need the rows
+  const results = Array.isArray(rawResults[0]) ? rawResults[0] : rawResults;
+  const CAPACITY_THRESHOLD = 25;
+  
+  return (results as any[]).map((r: any) => {
+    const totalItems = Number(r.totalItems);
+    const freeSpace = Math.max(0, CAPACITY_THRESHOLD - totalItems);
+    const capacityPercentage = (totalItems / CAPACITY_THRESHOLD) * 100;
+    const isNearCapacity = capacityPercentage >= 80; // Warning at 80% (20 books)
+    const isAtCapacity = capacityPercentage >= 100; // Full at 100% (25 books)
+    
+    return {
+      location: r.location,
+      totalItems,
+      availableItems: Number(r.availableItems),
+      listedItems: Number(r.listedItems),
+      soldItems: Number(r.soldItems),
+      inventoryValue: Number(r.inventoryValue),
+      avgPrice: Number(r.avgPrice),
+      utilization: totalItems > 0 ? (Number(r.availableItems) + Number(r.listedItems)) / totalItems * 100 : 0,
+      // Capacity tracking fields
+      freeSpace,
+      capacityPercentage: Math.min(100, capacityPercentage),
+      isNearCapacity,
+      isAtCapacity,
+    };
+  });
 }
 
 // ============================================================================
