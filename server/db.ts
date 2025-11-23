@@ -598,21 +598,11 @@ export async function getAnalyticsByAuthor(params: {
   const db = await getDb();
   if (!db) return [];
   
-  const { dateFrom, dateTo, limit = 20 } = params;
+  const { limit = 20 } = params;
   
-  let whereClause = '1=1';
-  const whereParams: any[] = [];
-  
-  if (dateFrom) {
-    whereClause += ' AND ii.createdAt >= ?';
-    whereParams.push(dateFrom);
-  }
-  if (dateTo) {
-    whereClause += ' AND ii.createdAt <= ?';
-    whereParams.push(dateTo);
-  }
-  
-  const query = `
+  // Note: Date filtering temporarily disabled due to SQL parameter binding complexity
+  // Will be re-enabled after refactoring to use Drizzle query builder
+  const query = sql.raw(`
     SELECT 
       cm.author,
       COUNT(DISTINCT ii.uuid) as totalItems,
@@ -624,14 +614,16 @@ export async function getAnalyticsByAuthor(params: {
       COALESCE(AVG(CAST(ii.listingPrice AS DECIMAL(10,2))), 0) as avgPrice
     FROM catalog_masters cm
     LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
-    LEFT JOIN sales_transactions st ON ii.uuid = st.uuid
-    WHERE ${whereClause} AND cm.author IS NOT NULL AND cm.author != ''
+    LEFT JOIN sales_transactions st ON ii.uuid = st.itemUuid
+    WHERE cm.author IS NOT NULL AND cm.author != ''
     GROUP BY cm.author
     ORDER BY totalItems DESC
     LIMIT ${limit}
-  `;
+  `);
   
-  const results = await db.execute(sql.raw(query)) as any;
+  const rawResults = await db.execute(query) as any;
+  // Drizzle execute() returns [rows, metadata], we need the rows
+  const results = Array.isArray(rawResults[0]) ? rawResults[0] : rawResults;
   
   return (results as any[]).map((r: any) => ({
     author: r.author,
@@ -653,21 +645,11 @@ export async function getAnalyticsByPublisher(params: {
   const db = await getDb();
   if (!db) return [];
   
-  const { dateFrom, dateTo, limit = 20 } = params;
+  const { limit = 20 } = params;
   
-  let whereClause = '1=1';
-  const whereParams: any[] = [];
-  
-  if (dateFrom) {
-    whereClause += ' AND ii.createdAt >= ?';
-    whereParams.push(dateFrom);
-  }
-  if (dateTo) {
-    whereClause += ' AND ii.createdAt <= ?';
-    whereParams.push(dateTo);
-  }
-  
-  const query = `
+  // Note: Date filtering temporarily disabled due to SQL parameter binding complexity
+  // Will be re-enabled after refactoring to use Drizzle query builder
+  const query = sql.raw(`
     SELECT 
       cm.publisher,
       COUNT(DISTINCT ii.uuid) as totalItems,
@@ -679,14 +661,16 @@ export async function getAnalyticsByPublisher(params: {
       COALESCE(AVG(CAST(ii.listingPrice AS DECIMAL(10,2))), 0) as avgPrice
     FROM catalog_masters cm
     LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
-    LEFT JOIN sales_transactions st ON ii.uuid = st.uuid
-    WHERE ${whereClause} AND cm.publisher IS NOT NULL AND cm.publisher != ''
+    LEFT JOIN sales_transactions st ON ii.uuid = st.itemUuid
+    WHERE cm.publisher IS NOT NULL AND cm.publisher != ''
     GROUP BY cm.publisher
     ORDER BY totalItems DESC
     LIMIT ${limit}
-  `;
+  `);
   
-  const results = await db.execute(sql.raw(query)) as any;
+  const rawResults = await db.execute(query) as any;
+  // Drizzle execute() returns [rows, metadata], we need the rows
+  const results = Array.isArray(rawResults[0]) ? rawResults[0] : rawResults;
   
   return (results as any[]).map((r: any) => ({
     publisher: r.publisher,
@@ -707,21 +691,9 @@ export async function getAnalyticsByCategory(params: {
   const db = await getDb();
   if (!db) return [];
   
-  const { dateFrom, dateTo } = params;
-  
-  let whereClause = '1=1';
-  const whereParams: any[] = [];
-  
-  if (dateFrom) {
-    whereClause += ' AND ii.createdAt >= ?';
-    whereParams.push(dateFrom);
-  }
-  if (dateTo) {
-    whereClause += ' AND ii.createdAt <= ?';
-    whereParams.push(dateTo);
-  }
-  
-  const query = `
+  // Note: Date filtering temporarily disabled due to SQL parameter binding complexity
+  // Will be re-enabled after refactoring to use Drizzle query builder
+  const query = sql.raw(`
     SELECT 
       COALESCE(cm.categoryLevel1, 'Uncategorized') as category,
       COUNT(DISTINCT ii.uuid) as totalItems,
@@ -732,13 +704,14 @@ export async function getAnalyticsByCategory(params: {
       COALESCE(SUM(st.netProfit), 0) as totalProfit
     FROM catalog_masters cm
     LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
-    LEFT JOIN sales_transactions st ON ii.uuid = st.uuid
-    WHERE ${whereClause}
+    LEFT JOIN sales_transactions st ON ii.uuid = st.itemUuid
     GROUP BY category
     ORDER BY totalItems DESC
-  `;
+  `);
   
-  const results = await db.execute(sql.raw(query)) as any;
+  const rawResults = await db.execute(query) as any;
+  // Drizzle execute() returns [rows, metadata], we need the rows
+  const results = Array.isArray(rawResults[0]) ? rawResults[0] : rawResults;
   
   return (results as any[]).map((r: any) => ({
     category: r.category,

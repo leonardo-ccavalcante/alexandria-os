@@ -652,3 +652,11 @@
 - [x] Add free space calculations display
 - [x] Test dashboard with actual inventory data
 - [x] Write unit tests for capacity tracking functions
+
+## Dashboard Performance Issues
+- [x] Fix slow/empty "Por Autor" analytics query
+- [x] Fix slow/empty "Por Editorial" analytics query  
+- [x] Fix slow/loading "Por Categoría" analytics query
+- [x] Optimize database queries for better performance
+- [x] Add proper error handling for empty results
+- [x] Test all analytics tabs load within 2 seconds

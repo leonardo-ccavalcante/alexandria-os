@@ -1,0 +1,30 @@
+{
+  "query": "SELECT \n  cm.author,\n  COUNT(DISTINCT ii.uuid) as totalItems\nFROM catalog_masters cm\nLEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13\nWHERE cm.author IS NOT NULL AND cm.author != ''\nGROUP BY cm.author\nORDER BY totalItems DESC\nLIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xbcpjkj7urB6FV.123b8c0ef218 --database JSmQWHzFMNuBrpEm7nuLv4 --execute SELECT \n  cm.author,\n  COUNT(DISTINCT ii.uuid) as totalItems\nFROM catalog_masters cm\nLEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13\nWHERE cm.author IS NOT NULL AND cm.author != ''\nGROUP BY cm.author\nORDER BY totalItems DESC\nLIMIT 5",
+  "rows": [
+    {
+      "author": ",",
+      "totalItems": "57"
+    },
+    {
+      "author": "Worth, Jennifer",
+      "totalItems": "20"
+    },
+    {
+      "author": "[Autor no identificable]",
+      "totalItems": "13"
+    },
+    {
+      "author": "Follet, Ken",
+      "totalItems": "9"
+    },
+    {
+      "author": "Barea, Arturo; De Villena, Luis Antonio (prologuista)",
+      "totalItems": "9"
+    }
+  ],
+  "messages": [],
+  "stdout": "author\ttotalItems\n,\t57\nWorth, Jennifer\t20\n[Autor no identificable]\t13\nFollet, Ken\t9\nBarea, Arturo; De Villena, Luis Antonio (prologuista)\t9\n",
+  "stderr": "",
+  "execution_time_ms": 540
+}
