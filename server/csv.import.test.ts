@@ -70,6 +70,21 @@ describe("CSV Import", () => {
     expect(result.errors[0]).toContain("Missing ISBN");
   });
 
+  it("should handle multi-line quoted fields", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const csvData = `ISBN,Titulo,Autor,Editorial,Año,Categoría,Sinopsis,Páginas,Edición,Idioma,Cantidad,Ubicación
+9788409274833,"Testigo de la guerra","Gheit, Ahmed",Casa Árabe,2023,Historia,"Un libro sobre la paz.
+",,,Primera,ES,1,01A`;
+
+    const result = await caller.batch.importCatalogFromCsv({ csvData });
+
+    expect(result.imported).toBe(1);
+    expect(result.skipped).toBe(0);
+    expect(result.errors).toHaveLength(0);
+  });
+
   it("should handle NaN values in numeric fields", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);

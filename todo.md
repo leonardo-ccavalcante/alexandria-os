@@ -594,3 +594,12 @@
 - [x] Implement batch enrichment with progress tracking
 - [x] Show enrichment results (success/failure counts)
 - [x] Add confirmation dialog before starting bulk operation
+
+## CSV Import - Remaining 205 Errors
+- [x] Analyze error log showing "default" values in database constraints
+- [x] Fix Row 12: Missing ISBN error
+- [x] Fix Row 18+: Database constraint violations with "default" values
+- [x] Identify why some rows are getting "default" instead of proper values
+- [x] Test import with full CSV to achieve 0 errors
+- [x] Implement proper multi-line CSV parser (handles quoted fields with newlines)
+- [x] Test with actual user CSV: 1325 expected imports, 116 empty ISBNs

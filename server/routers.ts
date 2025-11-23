@@ -977,35 +977,67 @@ export const appRouter = router({
         csvData: z.string(),
       }))
       .mutation(async ({ input }) => {
-        // Helper function to parse CSV line respecting quoted fields
-        const parseCsvLine = (line: string): string[] => {
-          const result: string[] = [];
-          let current = '';
+        // Proper CSV parser that handles multi-line quoted fields
+        const parseCSV = (csvText: string): string[][] => {
+          const rows: string[][] = [];
+          let currentRow: string[] = [];
+          let currentField = '';
           let inQuotes = false;
           
-          for (let i = 0; i < line.length; i++) {
-            const char = line[i];
+          for (let i = 0; i < csvText.length; i++) {
+            const char = csvText[i];
+            const nextChar = csvText[i + 1];
             
             if (char === '"') {
-              inQuotes = !inQuotes;
+              if (inQuotes && nextChar === '"') {
+                // Escaped quote ("")
+                currentField += '"';
+                i++; // Skip next quote
+              } else {
+                // Toggle quote state
+                inQuotes = !inQuotes;
+              }
             } else if (char === ',' && !inQuotes) {
-              result.push(current.trim());
-              current = '';
+              // End of field
+              currentRow.push(currentField.trim());
+              currentField = '';
+            } else if ((char === '\n' || char === '\r') && !inQuotes) {
+              // End of row
+              if (currentField || currentRow.length > 0) {
+                currentRow.push(currentField.trim());
+                if (currentRow.some(f => f.length > 0)) {
+                  rows.push(currentRow);
+                }
+                currentRow = [];
+                currentField = '';
+              }
+              // Skip \r\n pairs
+              if (char === '\r' && nextChar === '\n') {
+                i++;
+              }
             } else {
-              current += char;
+              currentField += char;
             }
           }
-          result.push(current.trim());
-          return result;
+          
+          // Push last field and row
+          if (currentField || currentRow.length > 0) {
+            currentRow.push(currentField.trim());
+            if (currentRow.some(f => f.length > 0)) {
+              rows.push(currentRow);
+            }
+          }
+          
+          return rows;
         };
         
-        const lines = input.csvData.split('\n').filter(line => line.trim());
-        if (lines.length < 2) {
+        const allRows = parseCSV(input.csvData);
+        if (allRows.length < 2) {
           throw new Error('CSV file is empty or invalid');
         }
         
-        const headers = parseCsvLine(lines[0]);
-        const rows = lines.slice(1);
+        const headers = allRows[0];
+        const rows = allRows.slice(1);
         
         const results = {
           imported: 0,
@@ -1015,7 +1047,7 @@ export const appRouter = router({
         
         for (let i = 0; i < rows.length; i++) {
           try {
-            const values = parseCsvLine(rows[i]);
+            const values = rows[i]; // Already parsed by parseCSV
             const row: Record<string, string> = {};
             headers.forEach((header, idx) => {
               row[header] = values[idx] || '';
