@@ -29,42 +29,77 @@ export async function fetchExternalBookMetadata(isbn: string): Promise<ExternalB
       return { found: false };
     }
 
-    // 3. Call Google Books API
-    // Note: Google's 'q=isbn:...' endpoint automatically handles both ISBN-10 and 13
-    const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`);
-    
-    if (!response.ok) {
-      throw new Error(`Google Books API Error: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-
-    if (data.totalItems > 0 && data.items?.[0]?.volumeInfo) {
-      const info = data.items[0].volumeInfo;
+    // 3. Try Google Books API first
+    console.log(`[ExternalApi] Trying Google Books for ISBN: ${cleanIsbn}`);
+    try {
+      const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}`);
       
-      // 4. Map & Normalize Data
-      return {
-        found: true,
-        title: info.title || "",
-        author: info.authors ? info.authors.join(", ") : "",
-        publisher: info.publisher || "",
-        // Extract just the year (YYYY) if full date is provided
-        publishedDate: info.publishedDate ? info.publishedDate.substring(0, 4) : "",
-        description: info.description || "",
-        pageCount: info.pageCount || 0,
-        // Normalize language to 2-char uppercase (e.g., "en" -> "EN")
-        language: info.language ? info.language.substring(0, 2).toUpperCase() : "ES",
-        // Map Google Categories to our CategoryLevel1 (Fallback to OTROS)
-        category: info.categories?.[0] || "OTROS",
-        coverImageUrl: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
-        // Google doesn't always give explicit edition, check contentVersion
-        edition: info.contentVersion || "" 
-      };
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data.totalItems > 0 && data.items?.[0]?.volumeInfo) {
+          const info = data.items[0].volumeInfo;
+          console.log(`[ExternalApi] Found in Google Books: ${info.title}`);
+          
+          // 4. Map & Normalize Data from Google Books
+          return {
+            found: true,
+            title: info.title || "",
+            author: info.authors ? info.authors.join(", ") : "",
+            publisher: info.publisher || "",
+            publishedDate: info.publishedDate ? info.publishedDate.substring(0, 4) : "",
+            description: info.description || "",
+            pageCount: info.pageCount || 0,
+            language: info.language ? info.language.substring(0, 2).toUpperCase() : "ES",
+            category: info.categories?.[0] || "OTROS",
+            coverImageUrl: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
+            edition: info.contentVersion || "" 
+          };
+        }
+      }
+    } catch (googleError) {
+      console.warn(`[ExternalApi] Google Books failed:`, googleError);
+    }
+
+    // 5. Fallback to ISBNDB if Google Books failed
+    const isbndbApiKey = process.env.ISBNDB_API_KEY;
+    
+    if (!isbndbApiKey) {
+      console.warn('[ExternalApi] ISBNDB_API_KEY not configured in Secrets');
+      return { found: false };
+    }
+
+    console.log(`[ExternalApi] Trying ISBNDB fallback for ISBN: ${cleanIsbn}`);
+    try {
+      const { fetchFromISBNDB } = await import('../isbndbIntegration');
+      const isbndbBook = await fetchFromISBNDB(cleanIsbn, isbndbApiKey);
+      
+      if (isbndbBook) {
+        console.log(`[ExternalApi] Found in ISBNDB: ${isbndbBook.title}`);
+        
+        // 6. Map & Normalize Data from ISBNDB
+        return {
+          found: true,
+          title: isbndbBook.title || "",
+          author: isbndbBook.authors?.join(", ") || "",
+          publisher: isbndbBook.publisher || "",
+          publishedDate: isbndbBook.date_published ? isbndbBook.date_published.substring(0, 4) : "",
+          description: isbndbBook.synopsis || "",
+          pageCount: isbndbBook.pages || 0,
+          language: isbndbBook.language ? isbndbBook.language.substring(0, 2).toUpperCase() : "ES",
+          category: "OTROS", // ISBNDB doesn't provide categories in same format
+          coverImageUrl: isbndbBook.image || undefined,
+          edition: isbndbBook.edition || "" 
+        };
+      }
+    } catch (isbndbError) {
+      console.warn(`[ExternalApi] ISBNDB failed:`, isbndbError);
     }
     
+    console.log(`[ExternalApi] No metadata found for ISBN: ${cleanIsbn}`);
     return { found: false };
   } catch (error) {
-    console.error("[ExternalBookApi] Error:", error);
+    console.error("[ExternalBookApi] Unexpected error:", error);
     return { found: false };
   }
 }

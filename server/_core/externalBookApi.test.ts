@@ -290,5 +290,95 @@ describe('External Book API', () => {
 
       expect(result.publishedDate).toBe('2020');
     });
+
+    it('should fallback to ISBNDB when Google Books returns no results', async () => {
+      // Mock Google Books returning empty results
+      (global.fetch as any).mockResolvedValue({
+        ok: true,
+        json: async () => ({ totalItems: 0, items: [] })
+      });
+
+      // Mock ISBNDB_API_KEY environment variable
+      const originalEnv = process.env.ISBNDB_API_KEY;
+      process.env.ISBNDB_API_KEY = 'test-api-key';
+
+      // Mock ISBNDB module
+      vi.doMock('../isbndbIntegration', () => ({
+        fetchFromISBNDB: vi.fn().mockResolvedValue({
+          title: 'Test Book from ISBNDB',
+          authors: ['ISBNDB Author'],
+          publisher: 'ISBNDB Publisher',
+          date_published: '2023-01-15',
+          synopsis: 'Description from ISBNDB',
+          pages: 250,
+          language: 'en',
+          image: 'https://isbndb.com/cover.jpg',
+          edition: '2nd'
+        })
+      }));
+
+      const result = await fetchExternalBookMetadata('9781234567890');
+
+      expect(result.found).toBe(true);
+      expect(result.title).toBe('Test Book from ISBNDB');
+      expect(result.author).toBe('ISBNDB Author');
+      expect(result.publisher).toBe('ISBNDB Publisher');
+      expect(result.publishedDate).toBe('2023');
+      expect(result.description).toBe('Description from ISBNDB');
+      expect(result.pageCount).toBe(250);
+      expect(result.language).toBe('EN');
+      expect(result.coverImageUrl).toBe('https://isbndb.com/cover.jpg');
+      expect(result.edition).toBe('2nd');
+
+      // Cleanup
+      process.env.ISBNDB_API_KEY = originalEnv;
+      vi.doUnmock('../isbndbIntegration');
+    });
+
+    it('should return found:false when both Google Books and ISBNDB fail', async () => {
+      // Mock Google Books returning empty results
+      (global.fetch as any).mockResolvedValue({
+        ok: true,
+        json: async () => ({ totalItems: 0, items: [] })
+      });
+
+      // Mock ISBNDB_API_KEY environment variable
+      const originalEnv = process.env.ISBNDB_API_KEY;
+      process.env.ISBNDB_API_KEY = 'test-api-key';
+
+      // Mock ISBNDB module returning null
+      vi.doMock('../isbndbIntegration', () => ({
+        fetchFromISBNDB: vi.fn().mockResolvedValue(null)
+      }));
+
+      const result = await fetchExternalBookMetadata('9999999999999');
+
+      expect(result.found).toBe(false);
+
+      // Cleanup
+      process.env.ISBNDB_API_KEY = originalEnv;
+      vi.doUnmock('../isbndbIntegration');
+    });
+
+    it('should return found:false when ISBNDB_API_KEY is not configured', async () => {
+      // Mock Google Books returning empty results
+      (global.fetch as any).mockResolvedValue({
+        ok: true,
+        json: async () => ({ totalItems: 0, items: [] })
+      });
+
+      // Ensure ISBNDB_API_KEY is not set
+      const originalEnv = process.env.ISBNDB_API_KEY;
+      delete process.env.ISBNDB_API_KEY;
+
+      const result = await fetchExternalBookMetadata('9781234567890');
+
+      expect(result.found).toBe(false);
+
+      // Cleanup
+      if (originalEnv) {
+        process.env.ISBNDB_API_KEY = originalEnv;
+      }
+    });
   });
 });

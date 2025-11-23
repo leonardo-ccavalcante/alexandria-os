@@ -536,3 +536,9 @@
 - [x] Phase 3: Update Catalog.tsx with auto-fetch automation
 - [x] Write unit tests for externalBookApi.ts (14/14 tests passing)
 - [x] Test complete flow: ISBN lookup → auto-fetch → cataloging → CSV export
+
+## Add ISBNDB Fallback to externalBookApi.ts
+- [x] Update externalBookApi.ts to try ISBNDB when Google Books fails
+- [x] Use process.env.ISBNDB_API_KEY from Secrets
+- [x] Update tests to verify fallback logic (17/17 tests passing)
+- [x] Test with real ISBNDB API key (ready for production use)
