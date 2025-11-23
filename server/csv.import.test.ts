@@ -70,6 +70,24 @@ describe("CSV Import", () => {
     expect(result.errors[0]).toContain("Missing ISBN");
   });
 
+  it("should handle 'Titulo' column name without accent", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+
+    const csvData = `ISBN,Titulo,Autor,Editorial,Año,Categoría,Sinopsis,Páginas,Edición,Idioma,Cantidad,Ubicación
+9788466319171,TU ROSTRO MAÑANA,"Marías, Javier",Punto de Lectura,2023,Arte,Una novela fascinante,324,1st Edition,ES,1,03A`;
+
+    const result = await caller.batch.importCatalogFromCsv({ csvData });
+
+    expect(result.imported).toBe(1);
+    expect(result.errors).toHaveLength(0);
+    
+    // Verify the title was correctly imported (not "Unknown Title")
+    const inventory = await caller.inventory.getGroupedByIsbn({});
+    const book = inventory.items.find((item: any) => item.isbn13 === '9788466319171');
+    expect(book?.title).toBe('TU ROSTRO MAÑANA');
+  });
+
   it("should handle multi-line quoted fields", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);

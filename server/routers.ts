@@ -1082,7 +1082,7 @@ export const appRouter = router({
             const publicationYear = yearStr && !isNaN(parseInt(yearStr)) && parseInt(yearStr) > 0 ? parseInt(yearStr) : undefined;
             
             // Parse other fields with proper null handling
-            const title = (row['Título'] || row['Title'] || row['title'] || '').trim() || 'Unknown Title';
+            const title = (row['Titulo'] || row['Título'] || row['Title'] || row['title'] || '').trim() || 'Unknown Title';
             const author = (row['Autor'] || row['Author'] || row['author'] || '').trim() || 'Unknown Author';
             const publisher = (row['Editorial'] || row['Publisher'] || row['publisher'] || '').trim() || undefined;
             const synopsis = (row['Sinopsis'] || row['Synopsis'] || row['synopsis'] || '').trim() || undefined;

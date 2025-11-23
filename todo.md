@@ -603,3 +603,15 @@
 - [x] Test import with full CSV to achieve 0 errors
 - [x] Implement proper multi-line CSV parser (handles quoted fields with newlines)
 - [x] Test with actual user CSV: 1325 expected imports, 116 empty ISBNs
+
+## CSV Import - Title Mapping Bug
+- [x] Investigate why all titles show as "Unknown Title" after CSV import
+- [x] Check column header mapping (Titulo vs Título)
+- [x] Fix: Added 'Titulo' (no accent) as first fallback option
+- [x] Write and run unit test (passing)
+- [ ] Test with user's actual CSV file via browser upload
+
+## Search Issues
+- [ ] Investigate why author search is not showing all authors in the database
+- [ ] Check if the search query is filtering correctly
+- [ ] Verify the getGroupedByIsbn query includes all authors
