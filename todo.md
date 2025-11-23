@@ -611,7 +611,9 @@
 - [x] Write and run unit test (passing)
 - [ ] Test with user's actual CSV file via browser upload
 
-## Search Issues
-- [ ] Investigate why author search is not showing all authors in the database
-- [ ] Check if the search query is filtering correctly
-- [ ] Verify the getGroupedByIsbn query includes all authors
+## Search Issues - Author Search Not Working
+- [x] Investigate why author search is not showing all authors in the database
+- [x] Check the getGroupedByIsbn query WHERE clause
+- [x] Root cause: Frontend passes 'author' parameter but backend doesn't use it in WHERE clause
+- [x] Add author filter to WHERE conditions (line 616-619)
+- [x] Test author search functionality (all tests passing)

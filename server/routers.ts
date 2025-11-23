@@ -613,6 +613,10 @@ export const appRouter = router({
           whereConditions.push('cm.publisher LIKE ?');
           whereParams.push(`%${input.publisher}%`);
         }
+        if (input.author) {
+          whereConditions.push('cm.author LIKE ?');
+          whereParams.push(`%${input.author}%`);
+        }
         if (input.yearFrom) {
           whereConditions.push('cm.publicationYear >= ?');
           whereParams.push(input.yearFrom);
