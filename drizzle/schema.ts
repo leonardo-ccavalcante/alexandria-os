@@ -48,6 +48,24 @@ export const catalogMasters = mysqlTable("catalog_masters", {
 export type CatalogMaster = typeof catalogMasters.$inferSelect;
 export type InsertCatalogMaster = typeof catalogMasters.$inferInsert;
 
+// Price History - Stores detailed marketplace prices for each book
+export const priceHistory = mysqlTable("price_history", {
+  id: int("id").autoincrement().primaryKey(),
+  isbn13: varchar("isbn13", { length: 13 }).notNull(),
+  marketplace: varchar("marketplace", { length: 50 }).notNull(),
+  price: decimal("price", { precision: 6, scale: 2 }),
+  condition: mysqlEnum("condition", ["NUEVO", "COMO_NUEVO", "BUENO", "ACEPTABLE"]),
+  url: text("url"),
+  available: mysqlEnum("available", ["YES", "NO"]).notNull().default("YES"),
+  scrapedAt: timestamp("scrapedAt").notNull().defaultNow(),
+}, (table) => ({
+  isbnIdx: index("idx_price_history_isbn").on(table.isbn13),
+  scrapedAtIdx: index("idx_price_history_scraped_at").on(table.scrapedAt),
+}));
+
+export type PriceHistory = typeof priceHistory.$inferSelect;
+export type InsertPriceHistory = typeof priceHistory.$inferInsert;
+
 export const inventoryItems = mysqlTable("inventory_items", {
   uuid: varchar("uuid", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
   isbn13: varchar("isbn13", { length: 13 }).notNull(),

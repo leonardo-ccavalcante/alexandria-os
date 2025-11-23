@@ -7,13 +7,16 @@ import {
   inventoryItems, 
   salesTransactions, 
   systemSettings,
+  priceHistory,
   CatalogMaster,
   InventoryItem,
   SalesTransaction,
   SystemSetting,
+  PriceHistory,
   InsertCatalogMaster,
   InsertInventoryItem,
-  InsertSalesTransaction
+  InsertSalesTransaction,
+  InsertPriceHistory
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -780,4 +783,51 @@ export async function getAnalyticsByLocation(params: {
     avgPrice: Number(r.avgPrice),
     utilization: Number(r.totalItems) > 0 ? (Number(r.availableItems) + Number(r.listedItems)) / Number(r.totalItems) * 100 : 0,
   }));
+}
+
+// ============================================================================
+// PRICE HISTORY
+// ============================================================================
+
+/**
+ * Save marketplace price details for a book
+ */
+export async function savePriceHistory(prices: InsertPriceHistory[]) {
+  const db = await getDb();
+  if (!db || prices.length === 0) return;
+  
+  try {
+    await db.insert(priceHistory).values(prices);
+  } catch (error) {
+    console.error("[Database] Failed to save price history:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get latest marketplace prices for a book (within last 24 hours)
+ */
+export async function getLatestMarketplacePrices(isbn: string): Promise<PriceHistory[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  
+  try {
+    const results = await db
+      .select()
+      .from(priceHistory)
+      .where(
+        and(
+          eq(priceHistory.isbn13, isbn),
+          gte(priceHistory.scrapedAt, oneDayAgo)
+        )
+      )
+      .orderBy(desc(priceHistory.scrapedAt));
+    
+    return results;
+  } catch (error) {
+    console.error("[Database] Failed to get latest marketplace prices:", error);
+    return [];
+  }
 }

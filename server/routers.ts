@@ -128,6 +128,10 @@ export const appRouter = router({
           color = 'green';
         }
         
+        // Get latest marketplace prices
+        const { getLatestMarketplacePrices } = await import('./db');
+        const marketplacePrices = await getLatestMarketplacePrices(cleanedIsbn);
+        
         return {
           found: true,
           decision,
@@ -137,6 +141,7 @@ export const appRouter = router({
           reason,
           color,
           bookData,
+          marketplacePrices, // Include detailed marketplace prices
         };
       }),
     
@@ -183,12 +188,26 @@ export const appRouter = router({
           lastPriceCheck: new Date(),
         };
         
-        // 4. Upsert to Database (Save immediately so it's available for Inventory)
+        // 4. Save marketplace price history
+        const { savePriceHistory } = await import('./db');
+        const priceHistoryRecords = priceData.prices.map(p => ({
+          isbn13: isbn13,
+          marketplace: p.marketplace,
+          price: p.price?.toFixed(2) || null,
+          condition: p.condition || null,
+          url: p.url || null,
+          available: p.available ? 'YES' as const : 'NO' as const,
+          scrapedAt: new Date(),
+        }));
+        await savePriceHistory(priceHistoryRecords);
+        
+        // 5. Upsert to Database (Save immediately so it's available for Inventory)
         await upsertCatalogMaster(catalogData);
         
         return {
           success: true,
           bookData: catalogData,
+          marketplacePrices: priceData.prices, // Include detailed marketplace prices
         };
       }),
     

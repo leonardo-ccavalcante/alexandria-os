@@ -542,3 +542,14 @@
 - [x] Use process.env.ISBNDB_API_KEY from Secrets
 - [x] Update tests to verify fallback logic (17/17 tests passing)
 - [x] Test with real ISBNDB API key (ready for production use)
+
+## Marketplace Price Visualization in Triage
+- [x] Create price_history table in database schema
+- [x] Update priceScraper.ts to return detailed marketplace breakdown (already returns prices array)
+- [x] Update backend to save marketplace prices to price_history table
+- [x] Update checkIsbn to include marketplace price details in response
+- [x] Create price comparison table in Triage page showing all 7 marketplaces
+- [x] Add visual indicators for lowest price (green), highest price (red), and average (blue)
+- [x] Add selling recommendation based on price analysis (recommends highest price marketplace)
+- [x] Write unit tests for price history functions (5/5 tests passing)
+- [x] Test with real ISBN scans

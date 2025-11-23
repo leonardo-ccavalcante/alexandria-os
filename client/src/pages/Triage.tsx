@@ -252,6 +252,93 @@ export default function Triage() {
                   </div>
                 )}
 
+                {/* Marketplace Price Comparison */}
+                {result.marketplacePrices && result.marketplacePrices.length > 0 && (
+                  <div className="bg-white rounded-lg p-3 md:p-4 text-left">
+                    <h4 className="font-bold text-base md:text-lg mb-3">📊 Comparativa de Precios por Marketplace</h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs md:text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 px-2">Marketplace</th>
+                            <th className="text-right py-2 px-2">Precio</th>
+                            <th className="text-center py-2 px-2">Estado</th>
+                            <th className="text-center py-2 px-2">Disponible</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {result.marketplacePrices
+                            .filter((p: any) => p.price !== null)
+                            .sort((a: any, b: any) => parseFloat(a.price) - parseFloat(b.price))
+                            .map((price: any, idx: number) => {
+                              const isLowest = idx === 0;
+                              const isHighest = idx === result.marketplacePrices.filter((p: any) => p.price !== null).length - 1;
+                              return (
+                                <tr key={price.marketplace} className={`border-b ${
+                                  isLowest ? 'bg-green-50' : isHighest ? 'bg-red-50' : ''
+                                }`}>
+                                  <td className="py-2 px-2 font-medium">
+                                    {price.marketplace}
+                                    {isLowest && <span className="ml-1 text-green-600 text-xs">🏆 Más bajo</span>}
+                                    {isHighest && <span className="ml-1 text-red-600 text-xs">📈 Más alto</span>}
+                                  </td>
+                                  <td className="text-right py-2 px-2 font-bold">
+                                    €{parseFloat(price.price).toFixed(2)}
+                                  </td>
+                                  <td className="text-center py-2 px-2">
+                                    <span className="text-xs px-2 py-1 rounded bg-gray-100">
+                                      {price.condition || 'N/A'}
+                                    </span>
+                                  </td>
+                                  <td className="text-center py-2 px-2">
+                                    {price.available === 'YES' ? '✅' : '❌'}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    {/* Price Summary */}
+                    <div className="mt-3 pt-3 border-t grid grid-cols-3 gap-2 text-xs md:text-sm">
+                      <div className="text-center">
+                        <div className="text-gray-600">Precio Mínimo</div>
+                        <div className="font-bold text-green-600">
+                          €{Math.min(...result.marketplacePrices.filter((p: any) => p.price !== null).map((p: any) => parseFloat(p.price))).toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-600">Precio Promedio</div>
+                        <div className="font-bold text-blue-600">
+                          €{(result.marketplacePrices.filter((p: any) => p.price !== null).reduce((sum: number, p: any) => sum + parseFloat(p.price), 0) / result.marketplacePrices.filter((p: any) => p.price !== null).length).toFixed(2)}
+                        </div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-gray-600">Precio Máximo</div>
+                        <div className="font-bold text-red-600">
+                          €{Math.max(...result.marketplacePrices.filter((p: any) => p.price !== null).map((p: any) => parseFloat(p.price))).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Selling Recommendation */}
+                    <div className="mt-3 pt-3 border-t bg-blue-50 rounded p-2">
+                      <p className="text-xs md:text-sm">
+                        <span className="font-semibold">💡 Recomendación:</span> Vender en{' '}
+                        <span className="font-bold">
+                          {result.marketplacePrices
+                            .filter((p: any) => p.price !== null)
+                            .sort((a: any, b: any) => parseFloat(b.price) - parseFloat(a.price))[0]?.marketplace}
+                        </span>{' '}
+                        para maximizar beneficio (€
+                        {Math.max(...result.marketplacePrices.filter((p: any) => p.price !== null).map((p: any) => parseFloat(p.price))).toFixed(2)}
+                        ).
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div className="flex gap-3 justify-center flex-wrap">
                   {result.decision === 'ACCEPT' && (
