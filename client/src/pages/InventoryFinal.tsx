@@ -143,7 +143,30 @@ export default function InventoryFinal() {
       <ChevronDown className="h-4 w-4" />;
   };
 
-  const handleEditBook = (book: any) => {
+  const enrichMetadataMutation = trpc.catalog.enrichMetadata.useMutation({
+    onSuccess: (data) => {
+      if (data.enriched && data.book) {
+        toast.success(`Metadata actualizada: ${data.fieldsUpdated?.join(", ")}`);
+        // Update form with enriched data
+        setEditForm((prev: any) => ({
+          ...prev,
+          publisher: data.book.publisher || prev.publisher,
+          pages: data.book.pages || prev.pages,
+          edition: data.book.edition || prev.edition,
+          language: data.book.language || prev.language,
+          synopsis: data.book.synopsis || prev.synopsis,
+        }));
+        refetch(); // Refresh inventory list
+      } else if (!data.enriched) {
+        console.log("No enrichment needed or available");
+      }
+    },
+    onError: (error: any) => {
+      console.error("Enrichment failed:", error.message);
+    },
+  });
+
+  const handleEditBook = async (book: any) => {
     setEditingBook(book);
     setEditForm({
       isbn13: book.isbn13,
@@ -160,6 +183,12 @@ export default function InventoryFinal() {
       categoryLevel3: book.categoryLevel3 || "",
       materia: book.materia || "",
     });
+    
+    // Auto-enrich if publisher or pages are missing
+    if (!book.publisher || !book.pages) {
+      toast.info("Buscando metadata faltante...");
+      enrichMetadataMutation.mutate({ isbn13: book.isbn13 });
+    }
   };
 
   const handleSaveEdit = () => {

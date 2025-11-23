@@ -335,6 +335,59 @@ export const appRouter = router({
         return results.map(r => r.author).filter(Boolean);
       }),
     
+    // Enrich catalog master with missing metadata from external APIs
+    enrichMetadata: protectedProcedure
+      .input(z.object({ isbn13: z.string() }))
+      .mutation(async ({ input }) => {
+        const db = await getDb();
+        if (!db) throw new Error("Database not available");
+        
+        // Get current book data
+        const existing = await getCatalogMasterByIsbn(input.isbn13);
+        if (!existing) throw new Error("Book not found in catalog");
+        
+        // Check if enrichment is needed
+        const needsEnrichment = !existing.publisher || !existing.pages;
+        if (!needsEnrichment) {
+          return { success: true, enriched: false, message: "Book already has complete metadata" };
+        }
+        
+        // Fetch metadata from external APIs
+        const metadata = await fetchExternalBookMetadata(input.isbn13);
+        if (!metadata.found) {
+          return { success: false, enriched: false, message: "Metadata not found in external APIs" };
+        }
+        
+        // Update only missing fields
+        const updateData: Partial<InsertCatalogMaster> = {};
+        if (!existing.publisher && metadata.publisher) updateData.publisher = metadata.publisher;
+        if (!existing.pages && metadata.pageCount) updateData.pages = metadata.pageCount;
+        if (!existing.edition && metadata.edition) updateData.edition = metadata.edition;
+        if (!existing.language && metadata.language) updateData.language = metadata.language;
+        if (!existing.synopsis && metadata.description) updateData.synopsis = metadata.description;
+        if (!existing.coverImageUrl && metadata.coverImageUrl) updateData.coverImageUrl = metadata.coverImageUrl;
+        
+        if (Object.keys(updateData).length === 0) {
+          return { success: true, enriched: false, message: "No new metadata available" };
+        }
+        
+        // Update database
+        await db.update(catalogMasters)
+          .set({ ...updateData, updatedAt: new Date() })
+          .where(eq(catalogMasters.isbn13, input.isbn13));
+        
+        const updated = await db.select().from(catalogMasters)
+          .where(eq(catalogMasters.isbn13, input.isbn13))
+          .limit(1);
+        
+        return { 
+          success: true, 
+          enriched: true, 
+          book: updated[0],
+          fieldsUpdated: Object.keys(updateData)
+        };
+      }),
+    
     // Update catalog master (book metadata)
     updateBook: protectedProcedure
       .input(z.object({

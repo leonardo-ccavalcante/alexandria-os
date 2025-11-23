@@ -561,3 +561,13 @@
 - [x] Issue #4: 404 error after cataloging - Fixed navigation route from /inventory to /inventario
 - [x] Issue #5: Edit modal in card view doesn't show book data - Fixed to call handleEditBook instead of setEditingBook
 - [x] Issue #6: Table edit modal unreadable on mobile - Made responsive with grid-cols-1 md:grid-cols-2 and max-h-[90vh] overflow
+
+## Automatic Metadata Enrichment for Existing Books
+- [ ] Create backend procedure enrichCatalogMaster(isbn13) to fetch and update missing metadata
+- [ ] Update edit modal to auto-fetch metadata when publisher or pages are empty
+- [ ] Create bulk enrichment script to update all books with missing publisher/pages
+- [ ] Add progress tracking for bulk enrichment (X of Y books updated)
+- [ ] Test enrichment with books missing publisher
+- [ ] Test enrichment with books missing pages
+- [ ] Verify CSV export includes enriched data
+- [ ] Write unit tests for metadata enrichment procedure
