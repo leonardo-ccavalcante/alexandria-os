@@ -129,7 +129,7 @@ export default function Catalog() {
                 </div>
                 <div className="flex gap-4 justify-center">
                   <Button onClick={handleReset} size="lg">Catalogar Otro</Button>
-                  <Button onClick={() => setLocation('/inventory')} variant="outline" size="lg">Ver Inventario</Button>
+                  <Button onClick={() => setLocation('/inventario')} variant="outline" size="lg">Ver Inventario</Button>
                 </div>
               </div>
             </CardContent>
@@ -170,9 +170,9 @@ export default function Catalog() {
                     <p className="text-purple-700 font-medium">{activeBookData.author}</p>
                     <div className="text-xs text-gray-500 grid grid-cols-2 gap-x-4 gap-y-1 mt-2">
                       <span>ISBN: {activeBookData.isbn13}</span>
-                      <span>Ed: {activeBookData.publisher}</span>
-                      <span>Año: {activeBookData.publicationYear}</span>
-                      <span>Pág: {activeBookData.pages}</span>
+                      <span>Ed: {activeBookData.publisher || 'N/A'}</span>
+                      <span>Año: {activeBookData.publicationYear || 'N/A'}</span>
+                      <span>Pág: {activeBookData.pages || 'N/A'}</span>
                     </div>
                   </div>
                 </div>

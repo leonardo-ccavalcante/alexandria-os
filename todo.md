@@ -553,3 +553,11 @@
 - [x] Add selling recommendation based on price analysis (recommends highest price marketplace)
 - [x] Write unit tests for price history functions (5/5 tests passing)
 - [x] Test with real ISBN scans
+
+## Critical Bug Fixes - Triage & Inventory Workflow
+- [x] Issue #1: Triage blocks cataloging for RECYCLE decision - Changed to always show catalog buttons (user decides)
+- [x] Issue #2: Catalog.tsx missing Publisher and Pages fields - Added fallback display (N/A when empty)
+- [x] Issue #3: Suggested price calculation - Using real scraped prices from database (marketMedianPrice)
+- [x] Issue #4: 404 error after cataloging - Fixed navigation route from /inventory to /inventario
+- [x] Issue #5: Edit modal in card view doesn't show book data - Fixed to call handleEditBook instead of setEditingBook
+- [x] Issue #6: Table edit modal unreadable on mobile - Made responsive with grid-cols-1 md:grid-cols-2 and max-h-[90vh] overflow

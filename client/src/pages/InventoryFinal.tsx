@@ -528,7 +528,7 @@ export default function InventoryFinal() {
                         variant="outline"
                         size="sm"
                         className="flex-1"
-                        onClick={() => setEditingBook(book)}
+                        onClick={() => handleEditBook(book)}
                       >
                         Editar
                       </Button>
@@ -618,11 +618,11 @@ export default function InventoryFinal() {
 
         {/* Edit Book Dialog */}
         <Dialog open={!!editingBook} onOpenChange={(open) => !open && setEditingBook(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Libro</DialogTitle>
             </DialogHeader>
-            <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
               <div>
                 <Label>Título</Label>
                 <Input
@@ -677,7 +677,7 @@ export default function InventoryFinal() {
                   placeholder="1st Edition"
                 />
               </div>
-              <div className="col-span-2">
+              <div className="md:col-span-2">
                 <Label>Sinopsis</Label>
                 <Textarea
                   value={editForm.synopsis}

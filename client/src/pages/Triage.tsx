@@ -339,18 +339,23 @@ export default function Triage() {
                   </div>
                 )}
 
-                {/* Actions */}
+                {/* Actions - Always show catalog options, let user decide */}
                 <div className="flex gap-3 justify-center flex-wrap">
-                  {result.decision === 'ACCEPT' && (
-                    <>
-                      <Button onClick={handleQuickCatalog} size="lg" className="bg-green-600 hover:bg-green-700">
-                        ⚡ Catalogar Rápido
-                      </Button>
-                      <Button onClick={handleCatalog} size="lg" variant="outline" className="border-green-600 text-green-600 hover:bg-green-50">
-                        Catalogar (Completo)
-                      </Button>
-                    </>
-                  )}
+                  <Button 
+                    onClick={handleQuickCatalog} 
+                    size="lg" 
+                    className={result.decision === 'ACCEPT' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}
+                  >
+                    ⚡ Catalogar Rápido
+                  </Button>
+                  <Button 
+                    onClick={handleCatalog} 
+                    size="lg" 
+                    variant="outline" 
+                    className={result.decision === 'ACCEPT' ? 'border-green-600 text-green-600 hover:bg-green-50' : 'border-blue-600 text-blue-600 hover:bg-blue-50'}
+                  >
+                    Catalogar (Completo)
+                  </Button>
                   <Button onClick={handleReset} variant="outline" size="lg">
                     Escanear Otro
                   </Button>
