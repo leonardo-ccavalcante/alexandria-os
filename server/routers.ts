@@ -346,8 +346,8 @@ export const appRouter = router({
         const existing = await getCatalogMasterByIsbn(input.isbn13);
         if (!existing) throw new Error("Book not found in catalog");
         
-        // Check if enrichment is needed
-        const needsEnrichment = !existing.publisher || !existing.pages;
+        // Check if enrichment is needed (pages can be 0 or null)
+        const needsEnrichment = !existing.publisher || !existing.pages || existing.pages === 0;
         if (!needsEnrichment) {
           return { success: true, enriched: false, message: "Book already has complete metadata" };
         }
@@ -361,7 +361,7 @@ export const appRouter = router({
         // Update only missing fields
         const updateData: Partial<InsertCatalogMaster> = {};
         if (!existing.publisher && metadata.publisher) updateData.publisher = metadata.publisher;
-        if (!existing.pages && metadata.pageCount) updateData.pages = metadata.pageCount;
+        if ((!existing.pages || existing.pages === 0) && metadata.pageCount) updateData.pages = metadata.pageCount;
         if (!existing.edition && metadata.edition) updateData.edition = metadata.edition;
         if (!existing.language && metadata.language) updateData.language = metadata.language;
         if (!existing.synopsis && metadata.description) updateData.synopsis = metadata.description;
@@ -574,6 +574,7 @@ export const appRouter = router({
           SELECT 
             cm.isbn13, cm.title, cm.author, cm.publisher, cm.publicationYear, 
             cm.categoryLevel1, cm.categoryLevel2, cm.categoryLevel3, cm.synopsis, cm.coverImageUrl,
+            cm.pages, cm.edition, cm.language,
             COUNT(ii.uuid) as totalQuantity,
             SUM(CASE WHEN ii.status = 'AVAILABLE' THEN 1 ELSE 0 END) as availableQuantity,
             GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' AND ii.locationCode IS NOT NULL AND ii.locationCode != '' THEN ii.locationCode END ORDER BY ii.locationCode SEPARATOR ',') as locations,
@@ -582,7 +583,7 @@ export const appRouter = router({
           FROM catalog_masters cm
           LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
           WHERE ${whereClause}
-          GROUP BY cm.isbn13, cm.title, cm.author, cm.publisher, cm.publicationYear, cm.categoryLevel1, cm.categoryLevel2, cm.categoryLevel3, cm.synopsis, cm.coverImageUrl
+          GROUP BY cm.isbn13, cm.title, cm.author, cm.publisher, cm.publicationYear, cm.categoryLevel1, cm.categoryLevel2, cm.categoryLevel3, cm.synopsis, cm.coverImageUrl, cm.pages, cm.edition, cm.language
           ${havingClause}
           ORDER BY ${orderByClause}
           LIMIT ${input.limit} OFFSET ${input.offset}

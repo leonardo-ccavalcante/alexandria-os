@@ -571,3 +571,9 @@
 - [ ] Test enrichment with books missing pages
 - [ ] Verify CSV export includes enriched data
 - [ ] Write unit tests for metadata enrichment procedure
+
+## Bug Fixes - Metadata Display & Price Scraping
+- [x] Fix getGroupedByIsbn query missing pages, edition, language fields in SELECT
+- [x] Add pages, edition, language to GROUP BY clause
+- [x] Investigate price scraping - confirmed working correctly, returns €0.00 when no listings found
+- [x] Test metadata enrichment auto-trigger logic
