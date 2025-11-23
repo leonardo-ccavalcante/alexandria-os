@@ -520,3 +520,19 @@
 - [x] Add price caching to avoid repeated scraping (24h cache)
 - [x] Test complete flow: barcode scan → ISBN lookup → price scraping → profitability decision
 - [x] Write unit tests for price scraping module (7/7 tests passing)
+
+## Optimize Price Scraping Performance
+- [x] Refactor scrapeBookPrices to use Promise.all() for parallel marketplace scraping
+- [x] Reduce scraping time from ~35s (sequential) to ~5s (parallel)
+- [x] Update tests to verify parallel execution (7/7 tests passing)
+- [x] Test performance with real ISBN lookups
+
+## ECR-2025-12: Inventory Data Portability & Cataloging Automation
+- [x] Phase 0: Install json2csv dependencies
+- [x] Phase 1: Create metadata enrichment service (server/_core/externalBookApi.ts)
+- [x] Phase 2A: Update routers.ts imports for externalBookApi
+- [x] Phase 2B: Replace fetchBookData mutation with new metadata service logic (with real price scraping)
+- [x] Phase 2C: Replace exportToCsv mutation with strict schema (12 columns)
+- [x] Phase 3: Update Catalog.tsx with auto-fetch automation
+- [x] Write unit tests for externalBookApi.ts (14/14 tests passing)
+- [x] Test complete flow: ISBN lookup → auto-fetch → cataloging → CSV export

@@ -51,19 +51,17 @@ export async function scrapeBookPrices(
     { name: 'FNAC', url: `https://www.fnac.es/SearchResult/ResultList.aspx?Search=${encodeURIComponent(isbn)}` },
   ];
 
-  const prices: MarketplacePrice[] = [];
+  // Scrape all marketplaces in parallel using Promise.all()
+  const scrapingPromises = marketplaces.map(marketplace =>
+    scrapeMarketplace(marketplace.name, marketplace.url, isbn, title, author)
+      .catch(error => {
+        console.error(`[PriceScraper] Error scraping ${marketplace.name}:`, error.message);
+        return null;
+      })
+  );
 
-  // Scrape each marketplace using AI
-  for (const marketplace of marketplaces) {
-    try {
-      const price = await scrapeMarketplace(marketplace.name, marketplace.url, isbn, title, author);
-      if (price) {
-        prices.push(price);
-      }
-    } catch (error: any) {
-      console.error(`[PriceScraper] Error scraping ${marketplace.name}:`, error.message);
-    }
-  }
+  const results = await Promise.all(scrapingPromises);
+  const prices: MarketplacePrice[] = results.filter((price): price is MarketplacePrice => price !== null);
 
   // Calculate statistics
   const availablePrices = prices.filter(p => p.available && p.price > 0).map(p => p.price);

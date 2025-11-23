@@ -7,11 +7,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2, Package, CheckCircle } from 'lucide-react';
+import { Loader2, Package, CheckCircle, Search, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Catalog() {
   const [, setLocation] = useLocation();
+  
+  // -- FORM STATE --
   const [isbn, setIsbn] = useState('');
   const [condition, setCondition] = useState<'COMO_NUEVO' | 'BUENO' | 'ACEPTABLE'>('BUENO');
   const [conditionNotes, setConditionNotes] = useState('');
@@ -20,22 +22,51 @@ export default function Catalog() {
   const [useManualPrice, setUseManualPrice] = useState(false);
   const [createdItem, setCreatedItem] = useState<any>(null);
 
-  // Get ISBN from URL query params
+  // -- INITIALIZATION --
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const isbnParam = params.get('isbn');
-    if (isbnParam) {
-      setIsbn(isbnParam);
-    }
+    if (isbnParam) setIsbn(isbnParam);
   }, []);
 
-  // Fetch book data from catalog
-  const { data: bookData } = trpc.triage.getBookByIsbn.useQuery(
+  // -- DATA FETCHING LOGIC --
+  
+  // 1. Check Internal Database
+  const { data: internalBookData, isLoading: isLoadingInternal } = trpc.triage.getBookByIsbn.useQuery(
     { isbn },
-    { enabled: !!isbn && isbn.length === 13 }
+    { enabled: !!isbn && isbn.length >= 10 }
   );
 
-  // Fetch suggested price
+  // 2. External API Mutation (Google Books)
+  const fetchExternalData = trpc.triage.fetchBookData.useMutation({
+    onSuccess: (data) => {
+      if (data.success) {
+        toast.success("Información recuperada de Google Books");
+      }
+    },
+    onError: () => {
+      toast.warning("No se encontraron datos externos. Por favor ingrese manualmente.");
+    }
+  });
+
+  // 3. AUTOMATION: Trigger External Fetch if Internal fails
+  useEffect(() => {
+    // Rules: Valid ISBN + Internal Check Done + Not Found Internally + Not fetching yet
+    if (isbn && !isLoadingInternal && internalBookData && !internalBookData.found) {
+      if (!fetchExternalData.isPending && !fetchExternalData.data && !fetchExternalData.isError) {
+         fetchExternalData.mutate({ isbn });
+      }
+    }
+  }, [isbn, isLoadingInternal, internalBookData, fetchExternalData]);
+
+  // 4. MERGE DATA (Priority: Internal > External)
+  const activeBookData = internalBookData?.found 
+    ? internalBookData.bookData 
+    : (fetchExternalData.data?.success ? fetchExternalData.data.bookData : null);
+
+  const isFetchingMetadata = isLoadingInternal || fetchExternalData.isPending;
+
+  // -- PRICING LOGIC --
   const { data: priceData, isLoading: isPriceLoading } = trpc.catalog.calculatePrice.useQuery(
     { isbn, condition },
     { enabled: !!isbn }
@@ -46,11 +77,7 @@ export default function Catalog() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!isbn) {
-      toast.error('ISBN es requerido');
-      return;
-    }
-
+    if (!isbn) { toast.error('ISBN es requerido'); return; }
     if (!locationCode || !/^[0-9]{2}[A-Z]$/.test(locationCode)) {
       toast.error('Código de ubicación inválido. Formato: 02A');
       return;
@@ -66,7 +93,6 @@ export default function Catalog() {
         locationCode: locationCode.toUpperCase(),
         listingPrice: finalPrice,
       });
-
       setCreatedItem(result.item);
       toast.success('¡Libro catalogado exitosamente!');
     } catch (error: any) {
@@ -82,9 +108,11 @@ export default function Catalog() {
     setManualPrice('');
     setUseManualPrice(false);
     setCreatedItem(null);
+    fetchExternalData.reset();
     setLocation('/triage');
   };
 
+  // -- SUCCESS VIEW --
   if (createdItem) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 p-4">
@@ -95,46 +123,13 @@ export default function Catalog() {
                 <div className="flex justify-center">
                   <CheckCircle className="h-24 w-24 text-green-600" />
                 </div>
-
                 <div>
-                  <h2 className="text-3xl font-bold mb-2 text-green-700">
-                    ✅ Libro Catalogado
-                  </h2>
-                  <p className="text-lg text-gray-700">
-                    El libro ha sido añadido al inventario
-                  </p>
+                  <h2 className="text-3xl font-bold mb-2 text-green-700">Libro Catalogado</h2>
+                  <p className="text-lg text-gray-700">El ítem ha sido añadido al inventario correctamente.</p>
                 </div>
-
-                <div className="bg-white rounded-lg p-6 text-left space-y-3">
-                  <div className="text-center mb-4">
-                    <div className="text-sm text-gray-500">UUID para Etiqueta</div>
-                    <div className="text-2xl font-mono font-bold text-blue-600">
-                      {createdItem.uuid}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 text-sm border-t pt-3">
-                    <div>
-                      <span className="font-semibold">ISBN:</span> {createdItem.isbn13}
-                    </div>
-                    <div>
-                      <span className="font-semibold">Condición:</span> {createdItem.conditionGrade}
-                    </div>
-                    <div>
-                      <span className="font-semibold">Ubicación:</span> {createdItem.locationCode}
-                    </div>
-                    <div>
-                      <span className="font-semibold">Precio:</span> €{parseFloat(createdItem.listingPrice).toFixed(2)}
-                    </div>
-                  </div>
-                </div>
-
                 <div className="flex gap-4 justify-center">
-                  <Button onClick={handleReset} size="lg">
-                    Catalogar Otro Libro
-                  </Button>
-                  <Button onClick={() => setLocation('/inventory')} variant="outline" size="lg">
-                    Ver Inventario
-                  </Button>
+                  <Button onClick={handleReset} size="lg">Catalogar Otro</Button>
+                  <Button onClick={() => setLocation('/inventory')} variant="outline" size="lg">Ver Inventario</Button>
                 </div>
               </div>
             </CardContent>
@@ -144,6 +139,7 @@ export default function Catalog() {
     );
   }
 
+  // -- MAIN FORM VIEW --
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-4">
       <div className="max-w-2xl mx-auto space-y-6 py-8">
@@ -154,172 +150,128 @@ export default function Catalog() {
               Catalogar Libro
             </CardTitle>
             <CardDescription>
-              {bookData?.found && bookData.bookData && (
-                <div className="mt-4 bg-white rounded-lg p-4 border border-gray-200">
-                  <div className="flex gap-4">
-                    {bookData.bookData.coverImageUrl && (
-                      <img
-                        src={bookData.bookData.coverImageUrl}
-                        alt={bookData.bookData.title}
-                        className="w-20 h-28 object-cover rounded"
-                      />
-                    )}
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg text-gray-900">{bookData.bookData.title}</h3>
-                      <p className="text-gray-600">{bookData.bookData.author}</p>
-                      <p className="text-sm text-gray-500 mt-1">ISBN: {bookData.bookData.isbn13}</p>
-                      {bookData.bookData.publisher && (
-                        <p className="text-sm text-gray-500">Editorial: {bookData.bookData.publisher}</p>
-                      )}
+              {/* METADATA STATUS INDICATOR */}
+              {isFetchingMetadata && (
+                <div className="mt-4 flex items-center gap-2 text-blue-600 bg-blue-50 p-3 rounded-md animate-pulse">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Buscando metadatos en Google Books...</span>
+                </div>
+              )}
+
+              {!isFetchingMetadata && activeBookData && (
+                <div className="mt-4 bg-white rounded-lg p-4 border border-gray-200 shadow-sm flex gap-4">
+                  {activeBookData.coverImageUrl ? (
+                    <img src={activeBookData.coverImageUrl} alt="Cover" className="w-20 h-28 object-cover rounded shadow-sm" />
+                  ) : (
+                    <div className="w-20 h-28 bg-gray-100 rounded flex items-center justify-center"><BookOpen className="h-8 w-8 text-gray-300"/></div>
+                  )}
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-lg text-gray-900">{activeBookData.title}</h3>
+                    <p className="text-purple-700 font-medium">{activeBookData.author}</p>
+                    <div className="text-xs text-gray-500 grid grid-cols-2 gap-x-4 gap-y-1 mt-2">
+                      <span>ISBN: {activeBookData.isbn13}</span>
+                      <span>Ed: {activeBookData.publisher}</span>
+                      <span>Año: {activeBookData.publicationYear}</span>
+                      <span>Pág: {activeBookData.pages}</span>
                     </div>
                   </div>
                 </div>
               )}
-              Asigna condición, ubicación y precio al libro
+
+              {!isFetchingMetadata && !activeBookData && isbn && (
+                <div className="mt-4 bg-yellow-50 text-yellow-800 p-3 rounded-md border border-yellow-200 text-sm">
+                  ⚠️ No se encontraron datos automáticos. Por favor ingrese los detalles manualmente.
+                </div>
+              )}
             </CardDescription>
           </CardHeader>
+          
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* ISBN (readonly) */}
+              {/* ISBN */}
               <div className="space-y-2">
                 <Label>ISBN</Label>
-                <Input
-                  type="text"
-                  value={isbn}
-                  readOnly
-                  className="bg-gray-100 font-mono"
-                />
+                <div className="relative">
+                  <Input value={isbn} readOnly className="bg-gray-100 font-mono pl-9" />
+                  <Search className="h-4 w-4 absolute left-3 top-3 text-gray-400" />
+                </div>
               </div>
 
-              {/* Condition */}
+              {/* CONDITION SELECTION */}
               <div className="space-y-3">
                 <Label>Condición del Libro</Label>
                 <RadioGroup value={condition} onValueChange={(value: any) => setCondition(value)}>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
-                    <RadioGroupItem value="COMO_NUEVO" id="como_nuevo" />
-                    <Label htmlFor="como_nuevo" className="flex-1 cursor-pointer">
-                      <div className="font-semibold">Como Nuevo</div>
-                      <div className="text-sm text-gray-500">95-100% - Sin defectos visibles</div>
-                    </Label>
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <RadioGroupItem value="COMO_NUEVO" id="cn" />
+                    <Label htmlFor="cn" className="flex-1 cursor-pointer font-semibold">Como Nuevo <span className="font-normal text-gray-500 block text-xs">Sin defectos visibles</span></Label>
                   </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
-                    <RadioGroupItem value="BUENO" id="bueno" />
-                    <Label htmlFor="bueno" className="flex-1 cursor-pointer">
-                      <div className="font-semibold">Bueno</div>
-                      <div className="text-sm text-gray-500">70-94% - Desgaste leve</div>
-                    </Label>
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <RadioGroupItem value="BUENO" id="bn" />
+                    <Label htmlFor="bn" className="flex-1 cursor-pointer font-semibold">Bueno <span className="font-normal text-gray-500 block text-xs">Desgaste ligero</span></Label>
                   </div>
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50">
-                    <RadioGroupItem value="ACEPTABLE" id="aceptable" />
-                    <Label htmlFor="aceptable" className="flex-1 cursor-pointer">
-                      <div className="font-semibold">Aceptable</div>
-                      <div className="text-sm text-gray-500">50-69% - Desgaste notable</div>
-                    </Label>
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                    <RadioGroupItem value="ACEPTABLE" id="ac" />
+                    <Label htmlFor="ac" className="flex-1 cursor-pointer font-semibold">Aceptable <span className="font-normal text-gray-500 block text-xs">Desgaste notable</span></Label>
                   </div>
                 </RadioGroup>
               </div>
 
-              {/* Condition Notes */}
-              <div className="space-y-2">
-                <Label>Notas de Condición (Opcional)</Label>
-                <Textarea
-                  placeholder="Ej: Página 45 doblada, subrayado en página 120"
-                  value={conditionNotes}
-                  onChange={(e) => setConditionNotes(e.target.value)}
-                  rows={3}
-                />
+              {/* NOTES & LOCATION */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Notas (Opcional)</Label>
+                  <Textarea 
+                    placeholder="Ej: Subrayado en pág 10..." 
+                    value={conditionNotes} 
+                    onChange={(e) => setConditionNotes(e.target.value)} 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Ubicación</Label>
+                  <Input 
+                    placeholder="02A" 
+                    value={locationCode} 
+                    onChange={(e) => setLocationCode(e.target.value.toUpperCase())} 
+                    maxLength={3} 
+                    className="text-lg font-mono"
+                  />
+                  <p className="text-xs text-gray-500">Formato: 2 números + 1 letra</p>
+                </div>
               </div>
 
-              {/* Location Code */}
-              <div className="space-y-2">
-                <Label>Código de Ubicación</Label>
-                <Input
-                  type="text"
-                  placeholder="Ej: 02A, 15C"
-                  value={locationCode}
-                  onChange={(e) => setLocationCode(e.target.value.toUpperCase())}
-                  maxLength={3}
-                  className="font-mono text-lg"
-                />
-                <p className="text-sm text-gray-500">
-                  Formato: 2 dígitos + 1 letra (Ej: 02A)
-                </p>
-              </div>
-
-              {/* Pricing */}
-              <div className="space-y-3">
-                <Label>Precio de Venta</Label>
-                
+              {/* PRICING */}
+              <div className="space-y-3 pt-2 border-t">
+                <Label>Precio de Venta (€)</Label>
                 {isPriceLoading ? (
-                  <div className="flex items-center gap-2 text-gray-500">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Calculando precio sugerido...
-                  </div>
+                   <div className="text-sm text-gray-500 flex gap-2"><Loader2 className="h-4 w-4 animate-spin"/> Calculando...</div>
                 ) : priceData ? (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold">Precio Sugerido:</span>
-                      <span className="text-2xl font-bold text-blue-600">
-                        €{priceData.suggestedPrice.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-600 space-y-1">
-                      <div>Precio base: €{priceData.basePrice.toFixed(2)}</div>
-                      <div>Modificador ({condition}): {(priceData.modifier * 100).toFixed(0)}%</div>
-                      <div>Margen adicional: €{priceData.padding.toFixed(2)}</div>
-                    </div>
+                  <div className="flex justify-between items-center bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <span className="text-sm text-blue-800">Sugerido:</span>
+                    <span className="text-xl font-bold text-blue-700">€{priceData.suggestedPrice.toFixed(2)}</span>
                   </div>
                 ) : null}
 
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="manual-price"
-                    checked={useManualPrice}
-                    onChange={(e) => setUseManualPrice(e.target.checked)}
-                    className="rounded"
+                <div className="flex items-center gap-2 mt-2">
+                  <input 
+                    type="checkbox" 
+                    id="manual" 
+                    checked={useManualPrice} 
+                    onChange={(e) => setUseManualPrice(e.target.checked)} 
                   />
-                  <Label htmlFor="manual-price" className="cursor-pointer">
-                    Usar precio manual
-                  </Label>
+                  <Label htmlFor="manual">Precio Manual</Label>
                 </div>
-
+                
                 {useManualPrice && (
-                  <Input
-                    type="number"
-                    step="0.01"
-                    placeholder="Precio manual"
-                    value={manualPrice}
-                    onChange={(e) => setManualPrice(e.target.value)}
-                  />
+                  <Input type="number" step="0.01" value={manualPrice} onChange={(e) => setManualPrice(e.target.value)} />
                 )}
               </div>
 
-              {/* Submit */}
-              <div className="flex gap-4">
-                <Button
-                  type="submit"
-                  disabled={createItemMutation.isPending}
-                  size="lg"
-                  className="flex-1"
-                >
-                  {createItemMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                      Guardando...
-                    </>
-                  ) : (
-                    'Catalogar Libro'
-                  )}
+              {/* ACTIONS */}
+              <div className="flex gap-4 pt-4">
+                <Button type="submit" disabled={createItemMutation.isPending} size="lg" className="flex-1">
+                  {createItemMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Guardando...</> : 'Catalogar'}
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setLocation('/triage')}
-                  size="lg"
-                >
-                  Cancelar
-                </Button>
+                <Button type="button" variant="outline" onClick={() => setLocation('/triage')} size="lg">Cancelar</Button>
               </div>
             </form>
           </CardContent>

@@ -8,6 +8,7 @@ import mysql from 'mysql2/promise';
 import { catalogMasters, inventoryItems, InsertCatalogMaster } from "../drizzle/schema";
 import { getDb } from "./db";
 import { extractIsbnFromImage } from "./aiIsbnExtractor";
+import { fetchExternalBookMetadata } from "./_core/externalBookApi";
 import {
   getCatalogMasterByIsbn,
   upsertCatalogMaster,
@@ -139,97 +140,55 @@ export const appRouter = router({
         };
       }),
     
-    // Fetch book data from external API (Google Books with ISBNDB fallback)
+    // Fetch book data from external API (Google Books)
     fetchBookData: protectedProcedure
       .input(z.object({ isbn: z.string() }))
       .mutation(async ({ input }) => {
-        const cleanedIsbn = input.isbn.replace(/[-\s]/g, '');
-        let catalogData: InsertCatalogMaster | null = null;
+        // 1. Fetch Extended Metadata using centralized service
+        const metadata = await fetchExternalBookMetadata(input.isbn);
         
-        // Try Google Books API first
-        try {
-          const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanedIsbn}`);
-          const data = await response.json();
-          
-          if (data.items && data.items.length > 0) {
-            const book = data.items[0].volumeInfo;
-            const bookTitle = book.title || 'Unknown Title';
-            const bookAuthor = book.authors?.join(', ') || 'Autor Desconocido';
-            
-            // Scrape real prices from marketplaces using AI
-            console.log('[Triage] Scraping real prices from marketplaces...');
-            const { scrapeBookPrices } = await import('./priceScraper');
-            const priceData = await scrapeBookPrices(cleanedIsbn, bookTitle, bookAuthor);
-            
-            catalogData = {
-              isbn13: cleanedIsbn,
-              title: bookTitle,
-              author: bookAuthor,
-              publisher: book.publisher || null,
-              publicationYear: book.publishedDate ? parseInt(book.publishedDate.substring(0, 4)) : null,
-              language: (book.language || 'es').substring(0, 2).toUpperCase(),
-              pages: book.pageCount || null,
-              synopsis: book.description || null,
-              categoryLevel1: 'Otros',
-              coverImageUrl: book.imageLinks?.thumbnail || null,
-              marketMinPrice: priceData.minPrice?.toFixed(2) || null,
-              marketMedianPrice: priceData.medianPrice?.toFixed(2) || null,
-              lastPriceCheck: new Date(),
-            };
-            
-            console.log(`[Triage] Prices found - Min: €${priceData.minPrice}, Median: €${priceData.medianPrice}, Max: €${priceData.maxPrice}`);
-          }
-        } catch (error) {
-          console.log('[Triage] Google Books failed, trying ISBNDB fallback...');
-        }
-        
-        // If Google Books failed, try ISBNDB
-        if (!catalogData) {
-          const isbndbApiKey = process.env.ISBNDB_API_KEY;
-          
-          if (!isbndbApiKey) {
-            throw new Error('Libro no encontrado en Google Books. Configure ISBNDB_API_KEY en Secrets (Management UI) para usar el servicio de respaldo.');
-          }
-          
-          const { fetchFromISBNDB } = await import('./isbndbIntegration');
-          const isbndbBook = await fetchFromISBNDB(cleanedIsbn, isbndbApiKey);
-          
-          if (!isbndbBook) {
-            throw new Error('Libro no encontrado en Google Books ni en ISBNDB');
-          }
-          
-          const bookTitle = isbndbBook.title || 'Unknown Title';
-          const bookAuthor = isbndbBook.authors?.join(', ') || 'Autor Desconocido';
-          
-          // Scrape real prices from marketplaces using AI
-          console.log('[Triage] Scraping real prices from marketplaces (ISBNDB source)...');
-          const { scrapeBookPrices } = await import('./priceScraper');
-          const priceData = await scrapeBookPrices(cleanedIsbn, bookTitle, bookAuthor);
-          
-          catalogData = {
-            isbn13: cleanedIsbn,
-            title: bookTitle,
-            author: bookAuthor,
-            publisher: isbndbBook.publisher || null,
-            publicationYear: isbndbBook.date_published ? parseInt(isbndbBook.date_published.substring(0, 4)) : null,
-            language: (isbndbBook.language || 'es').substring(0, 2).toUpperCase(),
-            pages: isbndbBook.pages || null,
-            edition: isbndbBook.edition || null,
-            synopsis: isbndbBook.synopsis || null,
-            categoryLevel1: 'Otros',
-            coverImageUrl: isbndbBook.image || null,
-            marketMinPrice: priceData.minPrice?.toFixed(2) || null,
-            marketMedianPrice: priceData.medianPrice?.toFixed(2) || null,
-            lastPriceCheck: new Date(),
+        if (!metadata.found) {
+          return { 
+            success: false, 
+            message: "Libro no encontrado en bases de datos externas." 
           };
-          
-          console.log(`[Triage] Prices found - Min: €${priceData.minPrice}, Median: €${priceData.medianPrice}, Max: €${priceData.maxPrice}`);
         }
         
+        // 2. Prepare Catalog Master Object
+        const isbn13 = input.isbn.replace(/[^0-9X]/gi, '');
+        const bookTitle = metadata.title || 'Unknown Title';
+        const bookAuthor = metadata.author || 'Autor Desconocido';
+        
+        // 3. Scrape real prices from marketplaces using AI (parallel)
+        console.log('[Triage] Scraping real prices from 7 marketplaces...');
+        const { scrapeBookPrices } = await import('./priceScraper');
+        const priceData = await scrapeBookPrices(isbn13, bookTitle, bookAuthor);
+        console.log(`[Triage] Prices found - Min: €${priceData.minPrice}, Median: €${priceData.medianPrice}, Max: €${priceData.maxPrice}`);
+
+        const catalogData: InsertCatalogMaster = {
+          isbn13: isbn13,
+          title: bookTitle,
+          author: bookAuthor,
+          publisher: metadata.publisher || null,
+          publicationYear: metadata.publishedDate ? parseInt(metadata.publishedDate) : null,
+          language: metadata.language || 'ES',
+          pages: metadata.pageCount || null,
+          synopsis: metadata.description ? metadata.description.substring(0, 2000) : null, // DB Limit Safety
+          categoryLevel1: metadata.category || 'Otros', 
+          edition: metadata.edition || null,
+          coverImageUrl: metadata.coverImageUrl || null,
+          // Use real scraped prices instead of mock
+          marketMinPrice: priceData.minPrice?.toFixed(2) || null,
+          marketMedianPrice: priceData.medianPrice?.toFixed(2) || null,
+          lastPriceCheck: new Date(),
+        };
+        
+        // 4. Upsert to Database (Save immediately so it's available for Inventory)
         await upsertCatalogMaster(catalogData);
+        
         return {
           success: true,
-          bookData: await getCatalogMasterByIsbn(cleanedIsbn),
+          bookData: catalogData,
         };
       }),
     
@@ -1004,7 +963,7 @@ export const appRouter = router({
         return results;
       }),
     
-    // Export inventory to CSV
+    // Export inventory to CSV (Strict Schema)
     exportToCsv: protectedProcedure
       .input(z.object({
         filters: z.object({
@@ -1014,29 +973,56 @@ export const appRouter = router({
         }).optional(),
       }))
       .mutation(async ({ input }) => {
+        // 1. Fetch Data
         const { items } = await searchInventory({
           ...input.filters,
-          limit: 10000, // Export all matching items
+          limit: 10000, 
         });
         
-        // Generate CSV
-        const headers = ['ISBN', 'Título', 'Autor', 'Editorial', 'Año', 'Categoría', 'Condición', 'Estado', 'Ubicación', 'Precio'];
-        const rows = items.map(({ item, book }) => [
-          item.isbn13,
-          book?.title || '',
-          book?.author || '',
-          book?.publisher || '',
-          book?.publicationYear || '',
-          book?.categoryLevel1 || '',
-          item.conditionGrade,
-          item.status,
-          item.locationCode || '',
-          item.listingPrice || '',
-        ]);
+        // 2. Define Exact Headers (Order Matters)
+        const headers = [
+          'ISBN',
+          'Título',
+          'Autor',
+          'Editorial',
+          'Año',
+          'Categoría',
+          'Sinopsis',
+          'Páginas',
+          'Edición',
+          'Idioma',
+          'Cantidad',
+          'Ubicación'
+        ];
+
+        // 3. Map Data to Rows
+        const rows = items.map(({ item, book }) => {
+          // Sanitize synopsis (remove newlines to prevent broken CSVs)
+          const cleanSynopsis = (book?.synopsis || '').replace(/(\r\n|\n|\r)/gm, " ").substring(0, 800);
+
+          return [
+            `'${item.isbn13}`,             // ISBN (quoted to prevent scientific notation)
+            book?.title || 'Sin Título',
+            book?.author || 'Desconocido',
+            book?.publisher || '',
+            book?.publicationYear || '',
+            book?.categoryLevel1 || 'OTROS',
+            cleanSynopsis,
+            book?.pages || '',
+            book?.edition || '',
+            book?.language || '',
+            "1",                            // Quantity is always 1 for unique items
+            item.locationCode || ''
+          ];
+        });
         
-        const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+        // 4. Generate CSV String
+        const csvContent = [
+          headers.join(','), 
+          ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        ].join('\n');
         
-        return { csv };
+        return { csv: csvContent };
       }),
   }),
 
