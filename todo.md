@@ -828,3 +828,8 @@
 - [x] Investigated capture="environment" - has poor support on Android Chrome
 - [x] Implemented solution: removed capture attribute to let browser use default camera picker
 - [ ] Test fixes on actual mobile device (user to verify)
+
+## Bug Fix - Camera Opening Gallery Instead of Camera (2025-11-27)
+- [x] Fix "Tomar Foto" button opening photo gallery instead of camera
+- [x] Add capture="user" attribute to all three file inputs (IsbnImageUpload, DepositoLegalCapture, CoverColophonCapture)
+- [ ] Test that camera opens directly when clicking "Tomar Foto" (user to verify)

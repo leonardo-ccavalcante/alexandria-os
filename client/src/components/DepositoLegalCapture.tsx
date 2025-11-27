@@ -103,6 +103,7 @@ export function DepositoLegalCapture({ onExtracted }: DepositoLegalCaptureProps)
           <Input
             type="file"
             accept="image/*"
+            capture="user"
             onChange={handleFileSelect}
             className="flex-1"
           />
