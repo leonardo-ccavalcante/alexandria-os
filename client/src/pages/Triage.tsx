@@ -285,6 +285,76 @@ export default function Triage() {
           </CardContent>
         </Card>
 
+        {/* Result for ISBN-less books (identified by photo) */}
+        {result && !result.found && (
+          <Card className="border-4 border-blue-500">
+            <CardContent className="pt-6">
+              <div className="text-center space-y-6">
+                {/* Icon */}
+                <div className="flex justify-center">
+                  <BookOpen className="h-16 w-16 text-blue-600" />
+                </div>
+
+                {/* Title */}
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold mb-2 text-blue-600">
+                    📚 Libro Identificado
+                  </h2>
+                  <p className="text-base md:text-lg text-gray-700">{result.reason}</p>
+                </div>
+
+                {/* Book Info */}
+                {result.title && (
+                  <div className="bg-white rounded-lg p-3 md:p-4 text-left space-y-2 border-2 border-blue-200">
+                    <div className="space-y-2">
+                      <div>
+                        <span className="font-semibold text-gray-700">Título:</span>
+                        <p className="text-lg font-bold text-blue-900">{result.title}</p>
+                      </div>
+                      {result.author && (
+                        <div>
+                          <span className="font-semibold text-gray-700">Autor:</span>
+                          <p className="text-base text-gray-800">{result.author}</p>
+                        </div>
+                      )}
+                      {result.publisher && (
+                        <div>
+                          <span className="font-semibold text-gray-700">Editorial:</span>
+                          <p className="text-base text-gray-800">{result.publisher}</p>
+                        </div>
+                      )}
+                      {result.publishedYear && (
+                        <div>
+                          <span className="font-semibold text-gray-700">Año:</span>
+                          <p className="text-base text-gray-800">{result.publishedYear}</p>
+                        </div>
+                      )}
+                      <div className="pt-2 border-t">
+                        <span className="font-semibold text-gray-700">ISBN Sintético:</span>
+                        <p className="text-sm font-mono text-blue-600">{result.isbn}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Catalog Button */}
+                <div className="flex gap-3 justify-center flex-wrap">
+                  <Button 
+                    onClick={() => setShowQuickCatalog(true)} 
+                    size="lg" 
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg"
+                  >
+                    📝 Catalogar Ahora
+                  </Button>
+                  <Button onClick={handleReset} variant="outline" size="lg">
+                    Escanear Otro
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Decision Result */}
         {result && result.found && (
           <Card className={`border-4 ${getDecisionColor(result.decision)}`}>
@@ -454,12 +524,19 @@ export default function Triage() {
       </div>
 
       {/* Quick Catalog Modal */}
-      {result?.bookData && (
+      {result && (
         <QuickCatalogModal
           open={showQuickCatalog}
           onClose={() => setShowQuickCatalog(false)}
-          isbn={result.bookData.isbn13}
-          bookData={result.bookData}
+          isbn={result.bookData?.isbn13 || result.isbn}
+          bookData={result.bookData || {
+            isbn13: result.isbn,
+            title: result.title || '',
+            author: result.author || '',
+            publisher: result.publisher || '',
+            publishedYear: result.publishedYear,
+            coverImageUrl: undefined
+          }}
           suggestedPrice={result.marketPrice}
         />
       )}

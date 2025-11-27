@@ -841,3 +841,12 @@
 - [x] Catalog form pre-filled with extracted title, author, publisher, year
 - [x] DepositoLegalCapture also opens catalog modal after extraction
 - [ ] Test complete flow on mobile device (user to verify)
+
+## Feature - Manual Catalog Button (2025-11-27)
+- [x] Add "Catalogar Ahora" button after book identification
+- [x] Button appears when result.found is false (ISBN-less books)
+- [x] Button opens QuickCatalogModal when clicked
+- [x] Button visible for both DepositoLegalCapture and CoverColophonCapture results
+- [x] Added new result card showing extracted book data (title, author, publisher, year)
+- [x] Updated QuickCatalogModal to work with ISBN-less books
+- [ ] Test button on mobile device (user to verify)
