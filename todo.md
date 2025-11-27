@@ -740,3 +740,17 @@
 - [ ] Apply premium typography and spacing
 - [ ] Test all pages for visual consistency
 - [ ] Verify no functionality changes
+
+## Sales Recording System
+- [x] Create Settings page for sales channel configuration
+- [x] Add system_settings table field for active sales channels
+- [x] Build sales channel selection UI with checkboxes
+- [x] Add backend procedure to save/load active channels
+- [x] Add "Vendido" button to inventory actions column
+- [x] Create sale recording modal with channel and price inputs
+- [x] Implement backend recordSale procedure
+- [x] Decrease inventory quantity automatically on sale
+- [x] Save sale transaction to sales_transactions table
+- [x] Add sale confirmation feedback (toast notification)
+- [x] Test sales flow end-to-end
+- [x] Write comprehensive unit tests (10 tests, all passing)

@@ -4,12 +4,27 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2, Settings as SettingsIcon, Save } from 'lucide-react';
 import { toast } from 'sonner';
+
+// Available sales channels
+const AVAILABLE_CHANNELS = [
+  "Amazon",
+  "Vinted",
+  "Wallapop",
+  "Todo Colección",
+  "Sitio web",
+  "Iberlibro",
+  "Ebay",
+  "Casa del Libro",
+  "Fnac",
+];
 
 export default function Settings() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
 
   const { data: allSettings, isLoading, refetch } = trpc.settings.getAll.useQuery();
   const updateSettingMutation = trpc.settings.update.useMutation();
@@ -21,6 +36,16 @@ export default function Settings() {
         settingsMap[setting.settingKey] = setting.settingValue;
       });
       setSettings(settingsMap);
+      
+      // Load active sales channels
+      if (settingsMap.ACTIVE_SALES_CHANNELS) {
+        try {
+          const channels = JSON.parse(settingsMap.ACTIVE_SALES_CHANNELS);
+          setSelectedChannels(Array.isArray(channels) ? channels : []);
+        } catch {
+          setSelectedChannels([]);
+        }
+      }
     }
   }, [allSettings]);
 
@@ -42,6 +67,17 @@ export default function Settings() {
 
   const handleChange = (key: string, value: string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleChannelToggle = (channel: string) => {
+    setSelectedChannels(prev => {
+      const newChannels = prev.includes(channel)
+        ? prev.filter(c => c !== channel)
+        : [...prev, channel];
+      // Update settings with new channels
+      handleChange('ACTIVE_SALES_CHANNELS', JSON.stringify(newChannels));
+      return newChannels;
+    });
   };
 
   if (isLoading) {
@@ -66,6 +102,57 @@ export default function Settings() {
               Ajusta los umbrales de rentabilidad y reglas de negocio
             </CardDescription>
           </CardHeader>
+        </Card>
+
+        {/* Sales Channels */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Canales de Venta</CardTitle>
+            <CardDescription>
+              Selecciona los canales de venta que utilizas. Solo los canales seleccionados aparecerán como opciones al registrar una venta.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {AVAILABLE_CHANNELS.map(channel => (
+                <div key={channel} className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 transition-colors">
+                  <Checkbox
+                    id={channel}
+                    checked={selectedChannels.includes(channel)}
+                    onCheckedChange={() => handleChannelToggle(channel)}
+                  />
+                  <label
+                    htmlFor={channel}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                  >
+                    {channel}
+                  </label>
+                </div>
+              ))}
+            </div>
+
+            {selectedChannels.length === 0 && (
+              <p className="text-sm text-muted-foreground bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                ⚠️ No has seleccionado ningún canal. Debes seleccionar al menos un canal para poder registrar ventas.
+              </p>
+            )}
+
+            {selectedChannels.length > 0 && (
+              <div className="pt-4 border-t">
+                <p className="text-sm font-medium mb-2">Canales Activos ({selectedChannels.length}):</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedChannels.map(channel => (
+                    <span
+                      key={channel}
+                      className="px-3 py-1 bg-gradient-mint text-white rounded-full text-sm font-medium shadow-sm"
+                    >
+                      {channel}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
         </Card>
 
         {/* Profitability Settings */}

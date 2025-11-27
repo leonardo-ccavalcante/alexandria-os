@@ -7,12 +7,13 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Download, Plus, Minus, Edit, ChevronUp, ChevronDown, MoreHorizontal, Tag } from "lucide-react";
+import { Download, Plus, Minus, Edit, ChevronUp, ChevronDown, MoreHorizontal, Tag, DollarSign } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import Select from "react-select";
+import { SaleRecordModal } from "@/components/SaleRecordModal";
 
 // Updated to match Backend Enum
 type SortField = "title" | "author" | "publisher" | "isbn13" | "publicationYear" | "location" | "available" | "total" | "price";
@@ -49,11 +50,17 @@ export default function InventoryFinal() {
   // Inline location editing state
   const [editingLocation, setEditingLocation] = useState<{ isbn: string; oldLocation: string } | null>(null);
   const [newLocation, setNewLocation] = useState("");
+  
+  // Sale modal state
+  const [saleModalBook, setSaleModalBook] = useState<any>(null);
 
   // Autocomplete queries
   const { data: publishers = [] } = trpc.catalog.getPublishers.useQuery({ search: publisher });
   const { data: authors = [] } = trpc.catalog.getAuthors.useQuery({ search: author });
   const { data: locations = [] } = trpc.catalog.getLocations.useQuery();
+  
+  // Load active sales channels
+  const { data: activeChannels = [] } = trpc.sales.getActiveChannels.useQuery();
 
   // ✅ PASSING SORT PARAMS AND FILTERS TO BACKEND
   const { data: inventoryResponse, refetch, isLoading } = trpc.inventory.getGroupedByIsbn.useQuery({
@@ -138,6 +145,9 @@ export default function InventoryFinal() {
       toast.error(`Error en enriquecimiento: ${error.message}`);
     },
   });
+  
+  // Record sale mutation
+  const recordSaleMutation = trpc.sales.recordSale.useMutation();
 
   const handleBulkEnrich = () => {
     if (confirm('¿Deseas enriquecer todos los libros con metadata faltante? Esto puede tardar varios minutos.')) {
@@ -542,6 +552,15 @@ export default function InventoryFinal() {
                             <Button
                               variant="ghost"
                               size="sm"
+                              onClick={() => setSaleModalBook(book)}
+                              disabled={book.availableQuantity === 0}
+                              title="Registrar venta"
+                            >
+                              <DollarSign className="h-4 w-4 text-green-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleEditBook(book)}
                             >
                               <Edit className="h-4 w-4" />
@@ -624,12 +643,21 @@ export default function InventoryFinal() {
                     
                     <div className="flex gap-2 mt-3 pt-3 border-t">
                       <Button
+                        variant="default"
+                        size="sm"
+                        className="flex-1 bg-green-600 hover:bg-green-700"
+                        onClick={() => setSaleModalBook(book)}
+                        disabled={book.availableQuantity === 0}
+                      >
+                        <DollarSign className="h-4 w-4 mr-1" />
+                        Vendido
+                      </Button>
+                      <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1"
                         onClick={() => handleEditBook(book)}
                       >
-                        Editar
+                        <Edit className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
@@ -795,6 +823,35 @@ export default function InventoryFinal() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Sale Record Modal */}
+        {saleModalBook && (
+          <SaleRecordModal
+            open={!!saleModalBook}
+            onOpenChange={(open) => !open && setSaleModalBook(null)}
+            book={{
+              isbn13: saleModalBook.isbn13,
+              title: saleModalBook.title,
+              author: saleModalBook.author,
+              listingPrice: saleModalBook.avgPrice,
+            }}
+            availableChannels={activeChannels}
+            onConfirm={async (data) => {
+              try {
+                await recordSaleMutation.mutateAsync({
+                  isbn13: saleModalBook.isbn13,
+                  channel: data.channel,
+                  salePrice: data.salePrice,
+                });
+                toast.success(`Venta registrada: €${data.salePrice.toFixed(2)} en ${data.channel}`);
+                refetch(); // Refresh inventory
+              } catch (error: any) {
+                toast.error(`Error: ${error.message}`);
+                throw error;
+              }
+            }}
+          />
+        )}
       </div>
     </div>
   );

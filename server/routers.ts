@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { eq, and, sql, or, isNull } from "drizzle-orm";
 import mysql from 'mysql2/promise';
-import { catalogMasters, inventoryItems, InsertCatalogMaster } from "../drizzle/schema";
+import { catalogMasters, inventoryItems, salesTransactions, InsertCatalogMaster } from "../drizzle/schema";
 import { getDb } from "./db";
 import { extractIsbnFromImage } from "./aiIsbnExtractor";
 import { fetchExternalBookMetadata } from "./_core/externalBookApi";
@@ -1487,6 +1487,108 @@ export const appRouter = router({
         const { validateISBNDBApiKey } = await import('./isbndbIntegration');
         const isValid = await validateISBNDBApiKey(input.apiKey);
         return { valid: isValid };
+      }),
+  }),
+
+  // ============================================================================
+  // SALES
+  // ============================================================================
+  sales: router({
+    // Record a sale
+    recordSale: protectedProcedure
+      .input(z.object({
+        isbn13: z.string(),
+        channel: z.string(),
+        salePrice: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+
+        // Find an available item for this ISBN
+        const availableItems = await db
+          .select()
+          .from(inventoryItems)
+          .where(
+            and(
+              eq(inventoryItems.isbn13, input.isbn13),
+              eq(inventoryItems.status, 'AVAILABLE')
+            )
+          )
+          .limit(1);
+
+        if (availableItems.length === 0) {
+          throw new Error('No available items found for this ISBN');
+        }
+
+        const item = availableItems[0];
+        const listingPrice = item.listingPrice ? parseFloat(item.listingPrice.toString()) : 0;
+        const costOfGoods = item.costOfGoods ? parseFloat(item.costOfGoods.toString()) : 0;
+        
+        // Calculate days in inventory
+        const daysInInventory = Math.floor(
+          (Date.now() - new Date(item.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        // Calculate platform fees (simplified - you can enhance this)
+        const platformFees = input.salePrice * 0.10; // 10% commission
+        const shippingCost = 3.00; // Fixed shipping cost
+        const grossProfit = input.salePrice - costOfGoods;
+        const netProfit = grossProfit - platformFees - shippingCost;
+
+        // Create sales transaction
+        await db.insert(salesTransactions).values({
+          itemUuid: item.uuid,
+          isbn13: input.isbn13,
+          channel: input.channel,
+          saleDate: new Date(),
+          listingPrice: listingPrice.toString(),
+          finalSalePrice: input.salePrice.toString(),
+          platformCommissionPct: '10.00',
+          platformFees: platformFees.toFixed(2),
+          shippingCost: shippingCost.toFixed(2),
+          grossProfit: grossProfit.toFixed(2),
+          netProfit: netProfit.toFixed(2),
+          daysInInventory,
+          createdBy: ctx.user?.id,
+        });
+
+        // Update inventory item status to SOLD
+        await db
+          .update(inventoryItems)
+          .set({
+            status: 'SOLD',
+            soldAt: new Date(),
+            soldChannel: input.channel,
+            finalSalePrice: input.salePrice.toString(),
+            platformFees: platformFees.toFixed(2),
+            netProfit: netProfit.toFixed(2),
+          })
+          .where(eq(inventoryItems.uuid, item.uuid));
+
+        return {
+          success: true,
+          transaction: {
+            itemUuid: item.uuid,
+            salePrice: input.salePrice,
+            netProfit,
+          },
+        };
+      }),
+
+    // Get active sales channels from settings
+    getActiveChannels: protectedProcedure
+      .query(async () => {
+        const setting = await getSystemSetting('ACTIVE_SALES_CHANNELS');
+        if (!setting) {
+          return [];
+        }
+        try {
+          const channels = JSON.parse(setting.settingValue);
+          return Array.isArray(channels) ? channels : [];
+        } catch {
+          return [];
+        }
       }),
   }),
 });
