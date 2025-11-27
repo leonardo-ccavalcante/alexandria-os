@@ -17,7 +17,10 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
 export const catalogMasters = mysqlTable("catalog_masters", {
+  // ISBN13 remains primary key (for pre-1970 books, use synthetic "DL-{hash}" format)
   isbn13: varchar("isbn13", { length: 13 }).primaryKey(),
+  // Depósito Legal: Actual legal deposit number for pre-1970 books (e.g., "M-1234-1965")
+  depositoLegal: varchar("depositoLegal", { length: 50 }),
   title: text("title").notNull(),
   author: text("author").notNull(),
   publisher: text("publisher"),

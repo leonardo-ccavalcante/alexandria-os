@@ -220,23 +220,70 @@ export const appRouter = router({
         };
       }),
     
-    // Extract ISBN from book cover image using AI vision
+    // Extract IS    // Extract ISBN from book cover image using AI vision
     extractIsbnFromImage: protectedProcedure
       .input(z.object({
         imageBase64: z.string(),
-        mimeType: z.string(),
+        mimeType: z.string().default('image/jpeg'),
       }))
       .mutation(async ({ input }) => {
-        // Convert base64 to buffer
-        const buffer = Buffer.from(input.imageBase64, 'base64');
-        
-        // Extract ISBN using AI vision
+        const buffer = Buffer.from(input.imageBase64.split(',')[1] || input.imageBase64, 'base64');
         const result = await extractIsbnFromImage({
           buffer,
           mimeType: input.mimeType,
         });
         
         return result;
+      }),
+    
+    // Extract Depósito Legal from copyright page image using AI vision
+    extractDepositoLegal: protectedProcedure
+      .input(z.object({
+        imageBase64: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        
+        try {
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Extract the "Depósito Legal" number from this image. The Depósito Legal is a legal deposit number found in Spanish books, typically on the copyright page. It usually follows formats like "M-1234-1965" or "B-5678-1968" (province letter + number + year). Return ONLY the Depósito Legal number, nothing else. If you cannot find it, return "NOT_FOUND".'
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: input.imageBase64,
+                      detail: 'high'
+                    }
+                  }
+                ]
+              }
+            ]
+          });
+          
+          const content = response.choices[0]?.message?.content;
+          const extractedText = (typeof content === 'string' ? content.trim() : 'NOT_FOUND') || 'NOT_FOUND';
+          
+          if (extractedText === 'NOT_FOUND' || !extractedText) {
+            return { depositoLegal: null };
+          }
+          
+          // Validate and normalize the extracted Depósito Legal
+          const { isValidDepositoLegal, normalizeDepositoLegal } = await import('../shared/deposito-legal-utils');
+          
+          if (isValidDepositoLegal(extractedText)) {
+            return { depositoLegal: normalizeDepositoLegal(extractedText) };
+          }
+          
+          return { depositoLegal: null };
+        } catch (error: any) {
+          throw new Error(`Error al extraer Depósito Legal: ${error.message}`);
+        }
       }),
   }),
 

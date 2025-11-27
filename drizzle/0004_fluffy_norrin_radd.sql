@@ -1,0 +1,1 @@
+ALTER TABLE `catalog_masters` ADD `depositoLegal` varchar(50);

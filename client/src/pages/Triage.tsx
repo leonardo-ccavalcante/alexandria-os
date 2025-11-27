@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { IsbnImageUpload } from '@/components/IsbnImageUpload';
+import { DepositoLegalCapture } from '@/components/DepositoLegalCapture';
 import { Loader2, BookOpen, AlertCircle, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -194,6 +195,23 @@ export default function Triage() {
                   )}
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Acepta ISBN-10 (10 dígitos) o ISBN-13 (13 dígitos)
+              </p>
+            </div>
+
+            {/* Depósito Legal for pre-1970 books */}
+            <div className="border-t pt-4">
+              <DepositoLegalCapture
+                onExtracted={(depositoLegal) => {
+                  // Generate synthetic ISBN and proceed with triage
+                  const { generateSyntheticIsbn } = require('@/../../shared/deposito-legal-utils');
+                  const syntheticIsbn = generateSyntheticIsbn(depositoLegal);
+                  setIsbn(syntheticIsbn);
+                  toast.success(`ISBN sintético generado: ${syntheticIsbn}`);
+                  // Note: The actual depositoLegal will be stored when cataloging
+                }}
+              />
             </div>
           </CardContent>
         </Card>

@@ -701,3 +701,30 @@
 - [x] Test location filter dropdown with real location data
 - [x] Test price column display and sorting functionality
 - [x] Verify enrichment properly fills missing data from Google Books/ISBN DB
+
+## Barcode Scanner ISBN-10 Support & Pre-1970 Books
+- [ ] Verify barcode scanner handles ISBN-10 barcodes (EAN-10 format)
+- [ ] Update barcode scanner to convert ISBN-10 to ISBN-13 automatically
+- [ ] Test barcode scanning with ISBN-10 book covers
+- [ ] Add "Depósito Legal" photo capture option in Triage page
+- [ ] Implement AI text extraction for Depósito Legal numbers from photos
+- [ ] Add Depósito Legal field to catalog_masters schema
+- [ ] Update backend to allow blank ISBN for books with Depósito Legal
+- [ ] Add validation: if ISBN is blank, Depósito Legal must be provided
+- [ ] Update Triage UI to show Depósito Legal input for pre-1970 books
+- [ ] Test complete workflow for pre-1970 book without ISBN
+
+## Barcode Scanner ISBN-10 Support
+- [x] Verify barcode scanner handles ISBN-10 barcodes
+- [x] Test barcode scanner with ISBN-10 and ISBN-13 barcodes
+- [x] Confirm ISBN-10 to ISBN-13 conversion works with scanned barcodes
+
+## Pre-1970 Book Support (Depósito Legal)
+- [x] Add depositoLegal field to catalog_masters schema
+- [x] Create utility functions to generate synthetic ISBN from Depósito Legal
+- [x] Implement Depósito Legal photo capture component
+- [x] Add AI vision extraction for Depósito Legal from copyright page
+- [x] Update backend to accept books without ISBN using synthetic ISBN
+- [x] Integrate Depósito Legal capture into Triage page
+- [ ] Test Depósito Legal extraction and synthetic ISBN generation
+- [ ] Verify pre-1970 books can be cataloged with Depósito Legal
