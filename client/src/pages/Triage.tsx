@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { IsbnImageUpload } from '@/components/IsbnImageUpload';
 import { DepositoLegalCapture } from '@/components/DepositoLegalCapture';
-import { Loader2, BookOpen, AlertCircle, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { Loader2, BookOpen, AlertCircle, CheckCircle, AlertTriangle, XCircle, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Triage() {
@@ -19,6 +19,7 @@ export default function Triage() {
   const [result, setResult] = useState<any>(null);
   const [showQuickCatalog, setShowQuickCatalog] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [showPre1970Section, setShowPre1970Section] = useState(false);
 
   const checkIsbnMutation = trpc.triage.checkIsbn.useMutation();
   const fetchBookDataMutation = trpc.triage.fetchBookData.useMutation();
@@ -200,18 +201,34 @@ export default function Triage() {
               </p>
             </div>
 
-            {/* Depósito Legal for pre-1970 books */}
+            {/* Collapsible Depósito Legal for pre-1970 books */}
             <div className="border-t pt-4">
-              <DepositoLegalCapture
-                onExtracted={(depositoLegal) => {
-                  // Generate synthetic ISBN and proceed with triage
-                  const { generateSyntheticIsbn } = require('@/../../shared/deposito-legal-utils');
-                  const syntheticIsbn = generateSyntheticIsbn(depositoLegal);
-                  setIsbn(syntheticIsbn);
-                  toast.success(`ISBN sintético generado: ${syntheticIsbn}`);
-                  // Note: The actual depositoLegal will be stored when cataloging
-                }}
-              />
+              <button
+                onClick={() => setShowPre1970Section(!showPre1970Section)}
+                className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full"
+              >
+                <ChevronRight
+                  className={`h-4 w-4 transition-transform ${
+                    showPre1970Section ? 'rotate-90' : ''
+                  }`}
+                />
+                Libros sin ISBN (pre-1970)
+              </button>
+              
+              {showPre1970Section && (
+                <div className="mt-4">
+                  <DepositoLegalCapture
+                    onExtracted={(depositoLegal) => {
+                      // Generate synthetic ISBN and proceed with triage
+                      const { generateSyntheticIsbn } = require('@/../../shared/deposito-legal-utils');
+                      const syntheticIsbn = generateSyntheticIsbn(depositoLegal);
+                      setIsbn(syntheticIsbn);
+                      toast.success(`ISBN sintético generado: ${syntheticIsbn}`);
+                      // Note: The actual depositoLegal will be stored when cataloging
+                    }}
+                  />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

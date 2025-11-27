@@ -784,3 +784,14 @@
 - [x] Collapsible button with ChevronRight icon added
 - [x] Conditional query (only fetches when expanded)
 - [x] Tested - currently 0 books without ISBN (feature ready for future use)
+
+## Triage Page - Collapsible Pre-1970 Books Section
+- [x] Make "Libros sin ISBN (pre-1970)" section collapsible
+- [x] Hide section by default (collapsed state)
+- [x] Add toggle button or expandable header
+- [x] Show chevron icon indicating expand/collapse state
+- [x] Preserve section state during page interactions
+- [x] Test user flow for books without ISBN
+- [x] Chevron rotates 90° when expanded (smooth transition)
+- [x] Section includes Depósito Legal capture (photo + manual input)
+- [x] Tested in browser - works perfectly
