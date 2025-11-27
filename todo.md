@@ -728,3 +728,15 @@
 - [x] Integrate Depósito Legal capture into Triage page
 - [ ] Test Depósito Legal extraction and synthetic ISBN generation
 - [ ] Verify pre-1970 books can be cataloged with Depósito Legal
+
+## Premium UI Design Overhaul
+- [ ] Extract color palette from image (deep teal #0A5F7D, turquoise #0A9396, mint #2EBFA5, cream #F4F1BB)
+- [ ] Update global CSS variables in index.css with new palette
+- [ ] Apply elegant rounded contours (border-radius: 16px-24px)
+- [ ] Add sophisticated shadows and depth
+- [ ] Update button styles with premium gradients
+- [ ] Polish card components with elegant borders
+- [ ] Update navigation with refined styling
+- [ ] Apply premium typography and spacing
+- [ ] Test all pages for visual consistency
+- [ ] Verify no functionality changes

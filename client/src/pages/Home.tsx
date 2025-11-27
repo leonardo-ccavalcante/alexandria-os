@@ -5,11 +5,11 @@ import { BookOpen, Package, BarChart3, Upload, Download, Settings } from 'lucide
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="min-h-screen bg-gradient-soft">
       <div className="container mx-auto px-4 py-8 md:py-16">
         {/* Hero Section */}
         <div className="text-center mb-8 md:mb-16">
-          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-3 md:mb-4 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-3 md:mb-4 bg-gradient-mint bg-clip-text text-transparent">
             Alexandria OS
           </h1>
           <p className="text-xl md:text-2xl text-gray-600 mb-2">Donation Edition</p>
@@ -22,11 +22,11 @@ export default function Home() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-6xl mx-auto">
           {/* Triage */}
           <Link href="/triage">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+            <Card className="hover:shadow-elegant-lg transition-all duration-300 cursor-pointer h-full border-2 hover:border-primary/30 rounded-2xl">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 md:p-3 bg-blue-100 rounded-lg">
-                      <BookOpen className="h-6 w-6 md:h-8 md:w-8 text-blue-600" />
+                    <div className="p-2 md:p-3 bg-gradient-teal rounded-xl shadow-elegant">
+                      <BookOpen className="h-6 w-6 md:h-8 md:w-8 text-white" />
                     </div>
                     <CardTitle className="text-xl md:text-2xl">Triage & Scan</CardTitle>
                   </div>
@@ -46,11 +46,11 @@ export default function Home() {
 
           {/* Inventory */}
           <Link href="/inventario">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+            <Card className="hover:shadow-elegant-lg transition-all duration-300 cursor-pointer h-full border-2 hover:border-primary/30 rounded-2xl">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 md:p-3 bg-purple-100 rounded-lg">
-                      <Package className="h-6 w-6 md:h-8 md:w-8 text-purple-600" />
+                    <div className="p-2 md:p-3 bg-gradient-mint rounded-xl shadow-elegant">
+                      <Package className="h-6 w-6 md:h-8 md:w-8 text-white" />
                     </div>
                     <CardTitle className="text-xl md:text-2xl">Inventario</CardTitle>
                   </div>
@@ -70,11 +70,11 @@ export default function Home() {
 
           {/* Dashboard */}
           <Link href="/dashboard">
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+            <Card className="hover:shadow-elegant-lg transition-all duration-300 cursor-pointer h-full border-2 hover:border-primary/30 rounded-2xl">
                 <CardHeader>
                   <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 md:p-3 bg-green-100 rounded-lg">
-                      <BarChart3 className="h-6 w-6 md:h-8 md:w-8 text-green-600" />
+                    <div className="p-2 md:p-3 bg-gradient-mint rounded-xl shadow-elegant">
+                      <BarChart3 className="h-6 w-6 md:h-8 md:w-8 text-white" />
                     </div>
                     <CardTitle className="text-xl md:text-2xl">Dashboard</CardTitle>
                   </div>
@@ -94,11 +94,11 @@ export default function Home() {
 
           {/* Batch Upload */}
           <Link href="/carga-masiva">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+          <Card className="hover:shadow-elegant-lg transition-all duration-300 cursor-pointer h-full border-2 hover:border-primary/30 rounded-2xl">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 md:p-3 bg-orange-100 rounded-lg">
-                  <Upload className="h-6 w-6 md:h-8 md:w-8 text-orange-600" />
+                <div className="p-2 md:p-3 bg-gradient-teal rounded-xl shadow-elegant">
+                  <Upload className="h-6 w-6 md:h-8 md:w-8 text-white" />
                 </div>
                 <CardTitle className="text-xl md:text-2xl">Carga Masiva</CardTitle>
               </div>
@@ -118,11 +118,11 @@ export default function Home() {
 
           {/* Export */}
           <Link href="/exportar">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+          <Card className="hover:shadow-elegant-lg transition-all duration-300 cursor-pointer h-full border-2 hover:border-primary/30 rounded-2xl">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 md:p-3 bg-pink-100 rounded-lg">
-                  <Download className="h-6 w-6 md:h-8 md:w-8 text-pink-600" />
+                <div className="p-2 md:p-3 bg-gradient-mint rounded-xl shadow-elegant">
+                  <Download className="h-6 w-6 md:h-8 md:w-8 text-white" />
                 </div>
                 <CardTitle className="text-xl md:text-2xl">Exportar Datos</CardTitle>
               </div>
@@ -142,11 +142,11 @@ export default function Home() {
 
           {/* Settings */}
           <Link href="/configuracion">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
+          <Card className="hover:shadow-elegant-lg transition-all duration-300 cursor-pointer h-full border-2 hover:border-primary/30 rounded-2xl">
             <CardHeader>
               <div className="flex items-center gap-3 mb-2">
-                <div className="p-2 md:p-3 bg-indigo-100 rounded-lg">
-                  <Settings className="h-6 w-6 md:h-8 md:w-8 text-indigo-600" />
+                <div className="p-2 md:p-3 bg-gradient-teal rounded-xl shadow-elegant">
+                  <Settings className="h-6 w-6 md:h-8 md:w-8 text-white" />
                 </div>
                 <CardTitle className="text-xl md:text-2xl">Configuración</CardTitle>
               </div>
