@@ -224,8 +224,27 @@ export default function Triage() {
                       // Generate synthetic ISBN and proceed with triage
                       const syntheticIsbn = generateSyntheticIsbn(depositoLegal);
                       setIsbn(syntheticIsbn);
+                      
+                      // Create a result object for books with Depósito Legal
+                      const bookResult = {
+                        found: false,
+                        isbn: syntheticIsbn,
+                        title: '', // Will be filled in catalog modal
+                        author: '',
+                        publisher: '',
+                        publishedYear: undefined,
+                        decision: 'ACCEPT' as const,
+                        reason: 'Libro sin ISBN con Depósito Legal: ' + depositoLegal,
+                        marketPrice: null,
+                        estimatedFees: null,
+                        profitEstimate: null
+                      };
+                      
+                      setResult(bookResult);
                       toast.success(`ISBN sintético generado: ${syntheticIsbn}`);
-                      // Note: The actual depositoLegal will be stored when cataloging
+                      
+                      // Open quick catalog modal
+                      setShowQuickCatalog(true);
                     }}
                   />
                   
@@ -237,8 +256,27 @@ export default function Triage() {
                       const titleHash = bookData.title.substring(0, 10).replace(/\s/g, '').toUpperCase();
                       const syntheticIsbn = generateSyntheticIsbn(`BOOK-${titleHash}`);
                       setIsbn(syntheticIsbn);
+                      
+                      // Create a result object with the extracted book data
+                      const bookResult = {
+                        found: false,
+                        isbn: syntheticIsbn,
+                        title: bookData.title,
+                        author: bookData.author || '',
+                        publisher: bookData.publisher || '',
+                        publishedYear: bookData.publicationYear,
+                        decision: 'ACCEPT' as const,
+                        reason: 'Libro sin ISBN identificado por portada/colofón',
+                        marketPrice: null,
+                        estimatedFees: null,
+                        profitEstimate: null
+                      };
+                      
+                      setResult(bookResult);
                       toast.success(`Libro identificado: ${bookData.title}`);
-                      // Note: The book metadata will be used during cataloging
+                      
+                      // Open quick catalog modal with the extracted data
+                      setShowQuickCatalog(true);
                     }}
                   />
                 </div>

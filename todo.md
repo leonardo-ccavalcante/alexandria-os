@@ -833,3 +833,11 @@
 - [x] Fix "Tomar Foto" button opening photo gallery instead of camera
 - [x] Add capture="user" attribute to all three file inputs (IsbnImageUpload, DepositoLegalCapture, CoverColophonCapture)
 - [ ] Test that camera opens directly when clicking "Tomar Foto" (user to verify)
+
+## Bug Fix - Book Not Cataloging After Identification (2025-11-27)
+- [x] Fix workflow: book is identified but not cataloged automatically
+- [x] After CoverColophonCapture extraction, opens QuickCatalogModal with extracted data
+- [x] Synthetic ISBN is generated and passed to catalog modal
+- [x] Catalog form pre-filled with extracted title, author, publisher, year
+- [x] DepositoLegalCapture also opens catalog modal after extraction
+- [ ] Test complete flow on mobile device (user to verify)
