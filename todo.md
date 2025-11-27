@@ -660,3 +660,13 @@
 - [x] Optimize database queries for better performance
 - [x] Add proper error handling for empty results
 - [x] Test all analytics tabs load within 2 seconds
+
+## ISBN-10 Support
+- [x] Create ISBN utility functions for validation and conversion
+- [x] Add ISBN-10 to ISBN-13 conversion function
+- [x] Update triage checkIsbn procedure to accept both ISBN-10 and ISBN-13
+- [x] Update fetchBookData procedure to normalize ISBN before processing
+- [x] Update frontend Triage page placeholder to show both formats accepted
+- [x] Test ISBN-10 input (8486015812) converts to ISBN-13 (9788486015817)
+- [x] Write unit tests for ISBN utility functions (10 tests passing)
+- [x] Verify system stability with both ISBN formats

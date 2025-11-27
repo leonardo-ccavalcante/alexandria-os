@@ -69,16 +69,22 @@ export const appRouter = router({
     checkIsbn: protectedProcedure
       .input(z.object({ isbn: z.string() }))
       .mutation(async ({ input }) => {
+        // Import ISBN utilities
+        const { normalizeISBN, isValidISBN } = await import('../shared/isbn-utils');
+        
         // Clean ISBN (remove hyphens and spaces)
         const cleanedIsbn = input.isbn.replace(/[-\s]/g, '');
         
-        // Validate ISBN format
-        if (!/^\d{13}$/.test(cleanedIsbn)) {
-          throw new Error('ISBN inválido. Debe tener 13 dígitos numéricos.');
+        // Validate ISBN format (accept both ISBN-10 and ISBN-13)
+        if (!isValidISBN(cleanedIsbn)) {
+          throw new Error('ISBN inválido. Debe ser un ISBN-10 (10 dígitos) o ISBN-13 (13 dígitos) válido.');
         }
         
-        // Check if book exists in catalog
-        let bookData = await getCatalogMasterByIsbn(cleanedIsbn);
+        // Normalize to ISBN-13 for database lookup
+        const isbn13 = normalizeISBN(cleanedIsbn);
+        
+        // Check if book exists in catalog (using normalized ISBN-13)
+        let bookData = await getCatalogMasterByIsbn(isbn13);
         
         // If book exists, check if price data is stale (>7 days)
         if (bookData) {
@@ -94,7 +100,7 @@ export const appRouter = router({
         if (!bookData) {
           return {
             found: false,
-            isbn: cleanedIsbn,
+            isbn: isbn13, // Return normalized ISBN-13
           };
         }
         
@@ -130,7 +136,7 @@ export const appRouter = router({
         
         // Get latest marketplace prices
         const { getLatestMarketplacePrices } = await import('./db');
-        const marketplacePrices = await getLatestMarketplacePrices(cleanedIsbn);
+        const marketplacePrices = await getLatestMarketplacePrices(isbn13);
         
         return {
           found: true,
@@ -149,8 +155,12 @@ export const appRouter = router({
     fetchBookData: protectedProcedure
       .input(z.object({ isbn: z.string() }))
       .mutation(async ({ input }) => {
+        // Import ISBN utilities and normalize
+        const { normalizeISBN } = await import('../shared/isbn-utils');
+        const isbn13 = normalizeISBN(input.isbn);
+        
         // 1. Fetch Extended Metadata using centralized service
-        const metadata = await fetchExternalBookMetadata(input.isbn);
+        const metadata = await fetchExternalBookMetadata(isbn13);
         
         if (!metadata.found) {
           return { 
@@ -160,7 +170,6 @@ export const appRouter = router({
         }
         
         // 2. Prepare Catalog Master Object
-        const isbn13 = input.isbn.replace(/[^0-9X]/gi, '');
         const bookTitle = metadata.title || 'Unknown Title';
         const bookAuthor = metadata.author || 'Autor Desconocido';
         
