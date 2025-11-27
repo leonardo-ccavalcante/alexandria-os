@@ -670,3 +670,34 @@
 - [x] Test ISBN-10 input (8486015812) converts to ISBN-13 (9788486015817)
 - [x] Write unit tests for ISBN utility functions (10 tests passing)
 - [x] Verify system stability with both ISBN formats
+
+## Inventory Critical Improvements
+- [ ] Change ubicación filter from text input to dropdown/select list
+- [ ] Add backend query to get all unique locations
+- [ ] Populate location dropdown with available locations
+- [ ] Add price column to inventory table display
+- [ ] Add price filtering capability (min/max price range)
+- [ ] Add price sorting (ascending/descending)
+- [ ] Support price column in CSV bulk upload (Carga Masiva)
+- [ ] Verify enrichment tool fills missing data from Google Books/ISBN DB
+- [ ] Fix edition field showing "preview" instead of proper edition info
+- [ ] Test enrichment with books that have blank fields
+- [ ] Verify all filters work together (location + price + author + publisher)
+
+## Inventory Critical Improvements (Nov 27, 2025)
+- [x] Add ubicación (location) filter dropdown to inventory search
+- [x] Add backend query to get all unique locations (getLocations procedure)
+- [x] Populate location dropdown with available locations from inventory
+- [x] Add PRECIO (price) column to inventory table display
+- [x] Add price sorting capability in inventory table
+- [x] Update backend getGroupedByIsbn to include price fields (avgPrice, minPrice, maxPrice)
+- [x] Fix column name from suggestedPrice to listingPrice in SQL queries
+- [x] Add price column support in CSV bulk upload (Carga Masiva)
+- [x] Parse "Precio" / "Price" column from CSV and set listingPrice for inventory items
+- [x] Fix enrichment tool edition field showing "preview" instead of proper edition
+- [x] Update external API to NOT use contentVersion for edition (it's "preview", "full_public_domain", etc.)
+- [x] Add logic to clear bad edition values ("preview", "full_public_domain", "full", "partial", "sample")
+- [x] Apply edition fix to both enrichMetadata and bulkEnrichMetadata procedures
+- [x] Test location filter dropdown with real location data
+- [x] Test price column display and sorting functionality
+- [x] Verify enrichment properly fills missing data from Google Books/ISBN DB

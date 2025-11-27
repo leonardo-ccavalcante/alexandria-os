@@ -53,7 +53,9 @@ export async function fetchExternalBookMetadata(isbn: string): Promise<ExternalB
             language: info.language ? info.language.substring(0, 2).toUpperCase() : "ES",
             category: info.categories?.[0] || "OTROS",
             coverImageUrl: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
-            edition: info.contentVersion || "" 
+            // Google Books doesn't reliably provide edition info, leave empty
+            // contentVersion is NOT edition (it's "preview", "full_public_domain", etc.)
+            edition: undefined 
           };
         }
       }

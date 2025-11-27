@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import Select from "react-select";
 
 // Updated to match Backend Enum
-type SortField = "title" | "author" | "publisher" | "isbn13" | "publicationYear" | "location" | "available" | "total";
+type SortField = "title" | "author" | "publisher" | "isbn13" | "publicationYear" | "location" | "available" | "total" | "price";
 type SortDirection = "asc" | "desc";
 
 export default function InventoryFinal() {
@@ -24,6 +24,7 @@ export default function InventoryFinal() {
   const debouncedSearch = useDebounce(searchText, 300);
   const [publisher, setPublisher] = useState("");
   const [author, setAuthor] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
   const [yearFrom, setYearFrom] = useState("");
   const [yearTo, setYearTo] = useState("");
   const [showZeroInventory, setShowZeroInventory] = useState(false);
@@ -52,12 +53,14 @@ export default function InventoryFinal() {
   // Autocomplete queries
   const { data: publishers = [] } = trpc.catalog.getPublishers.useQuery({ search: publisher });
   const { data: authors = [] } = trpc.catalog.getAuthors.useQuery({ search: author });
+  const { data: locations = [] } = trpc.catalog.getLocations.useQuery();
 
   // ✅ PASSING SORT PARAMS AND FILTERS TO BACKEND
   const { data: inventoryResponse, refetch, isLoading } = trpc.inventory.getGroupedByIsbn.useQuery({
     searchText: debouncedSearch,
     publisher,
     author,
+    location: locationFilter,
     yearFrom: yearFrom ? parseInt(yearFrom) : undefined,
     yearTo: yearTo ? parseInt(yearTo) : undefined,
     includeZeroInventory: showZeroInventory,
@@ -285,6 +288,16 @@ export default function InventoryFinal() {
             />
           </div>
           
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-3 md:mb-4">
+            <Select
+              options={locations.map(loc => ({ value: loc, label: loc }))}
+              onChange={(option) => setLocationFilter(option?.value || "")}
+              placeholder="Ubicación"
+              isClearable
+              className="text-sm"
+            />
+          </div>
+          
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-4">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 md:gap-4">
               <div className="flex gap-2">
@@ -424,6 +437,15 @@ export default function InventoryFinal() {
                         <SortIcon field="total" />
                       </button>
                     </th>
+                    <th className="px-6 py-3 text-right">
+                      <button
+                        onClick={() => handleSort("price")}
+                        className="flex items-center gap-1 text-xs font-medium text-gray-500 uppercase tracking-wider hover:text-gray-700"
+                      >
+                        PRECIO
+                        <SortIcon field="price" />
+                      </button>
+                    </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ACCIONES
                     </th>
@@ -432,7 +454,7 @@ export default function InventoryFinal() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredData.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                      <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
                         No se encontraron libros con los filtros seleccionados
                       </td>
                     </tr>
@@ -500,6 +522,20 @@ export default function InventoryFinal() {
                         </td>
                         <td className="px-6 py-4 text-center">
                           <Badge variant="outline">{book.totalQuantity}</Badge>
+                        </td>
+                        <td className="px-6 py-4 text-right text-sm text-gray-900">
+                          {book.avgPrice ? (
+                            <div>
+                              <div className="font-medium">€{book.avgPrice.toFixed(2)}</div>
+                              {book.minPrice !== book.maxPrice && (
+                                <div className="text-xs text-gray-500">
+                                  €{book.minPrice?.toFixed(2)} - €{book.maxPrice?.toFixed(2)}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-right text-sm font-medium">
                           <div className="flex items-center justify-end gap-2">

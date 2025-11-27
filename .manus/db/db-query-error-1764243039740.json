@@ -1,0 +1,8 @@
+{
+  "query": "SELECT \n  cm.isbn13, cm.title, cm.author,\n  COUNT(ii.uuid) as totalQuantity,\n  SUM(CASE WHEN ii.status = 'AVAILABLE' THEN 1 ELSE 0 END) as availableQuantity,\n  AVG(CASE WHEN ii.status = 'AVAILABLE' AND ii.suggestedPrice IS NOT NULL THEN ii.suggestedPrice ELSE NULL END) as avgPrice\nFROM catalog_masters cm\nLEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13\nWHERE 1=1\nGROUP BY cm.isbn13, cm.title, cm.author\nLIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xbcpjkj7urB6FV.123b8c0ef218 --database JSmQWHzFMNuBrpEm7nuLv4 --execute SELECT \n  cm.isbn13, cm.title, cm.author,\n  COUNT(ii.uuid) as totalQuantity,\n  SUM(CASE WHEN ii.status = 'AVAILABLE' THEN 1 ELSE 0 END) as availableQuantity,\n  AVG(CASE WHEN ii.status = 'AVAILABLE' AND ii.suggestedPrice IS NOT NULL THEN ii.suggestedPrice ELSE NULL END) as avgPrice\nFROM catalog_masters cm\nLEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13\nWHERE 1=1\nGROUP BY cm.isbn13, cm.title, cm.author\nLIMIT 5",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'ii.suggestedprice' in 'where clause'"
+  ]
+}

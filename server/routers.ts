@@ -344,6 +344,25 @@ export const appRouter = router({
         return results.map(r => r.author).filter(Boolean);
       }),
     
+    // Get unique locations for filter dropdown
+    getLocations: protectedProcedure
+      .query(async () => {
+        const db = await getDb();
+        if (!db) return [];
+        
+        const results = await db.selectDistinct({ locationCode: inventoryItems.locationCode })
+          .from(inventoryItems)
+          .where(and(
+            sql`${inventoryItems.locationCode} IS NOT NULL`,
+            sql`${inventoryItems.locationCode} != ''`,
+            sql`${inventoryItems.status} = 'AVAILABLE'`
+          ))
+          .orderBy(inventoryItems.locationCode)
+          .limit(200);
+        
+        return results.map(r => r.locationCode).filter(Boolean);
+      }),
+    
     // Enrich catalog master with missing metadata from external APIs
     enrichMetadata: protectedProcedure
       .input(z.object({ isbn13: z.string() }))
@@ -367,11 +386,19 @@ export const appRouter = router({
           return { success: false, enriched: false, message: "Metadata not found in external APIs" };
         }
         
-        // Update only missing fields
+        // Update only missing fields or fix bad data
         const updateData: Partial<InsertCatalogMaster> = {};
         if (!existing.publisher && metadata.publisher) updateData.publisher = metadata.publisher;
         if ((!existing.pages || existing.pages === 0) && metadata.pageCount) updateData.pages = metadata.pageCount;
-        if (!existing.edition && metadata.edition) updateData.edition = metadata.edition;
+        
+        // Fix bad edition values ("preview", "full_public_domain", etc.) by clearing them
+        const badEditionValues = ['preview', 'full_public_domain', 'full', 'partial', 'sample'];
+        if (existing.edition && badEditionValues.some(bad => existing.edition?.toLowerCase().includes(bad))) {
+          updateData.edition = null; // Clear bad edition data
+        } else if (!existing.edition && metadata.edition) {
+          updateData.edition = metadata.edition;
+        }
+        
         if (!existing.language && metadata.language) updateData.language = metadata.language;
         if (!existing.synopsis && metadata.description) updateData.synopsis = metadata.description;
         if (!existing.coverImageUrl && metadata.coverImageUrl) updateData.coverImageUrl = metadata.coverImageUrl;
@@ -450,11 +477,19 @@ export const appRouter = router({
               continue;
             }
             
-            // Update only missing fields
+            // Update only missing fields or fix bad data
             const updateData: Partial<InsertCatalogMaster> = {};
             if (!existing.publisher && metadata.publisher) updateData.publisher = metadata.publisher;
             if ((!existing.pages || existing.pages === 0) && metadata.pageCount) updateData.pages = metadata.pageCount;
-            if (!existing.edition && metadata.edition) updateData.edition = metadata.edition;
+            
+            // Fix bad edition values ("preview", "full_public_domain", etc.) by clearing them
+            const badEditionValues = ['preview', 'full_public_domain', 'full', 'partial', 'sample'];
+            if (existing.edition && badEditionValues.some(bad => existing.edition?.toLowerCase().includes(bad))) {
+              updateData.edition = null; // Clear bad edition data
+            } else if (!existing.edition && metadata.edition) {
+              updateData.edition = metadata.edition;
+            }
+            
             if (!existing.language && metadata.language) updateData.language = metadata.language;
             if (!existing.synopsis && metadata.description) updateData.synopsis = metadata.description;
             if (!existing.coverImageUrl && metadata.coverImageUrl) updateData.coverImageUrl = metadata.coverImageUrl;
@@ -590,6 +625,7 @@ export const appRouter = router({
         categoryLevel1: z.string().optional(),
         publisher: z.string().optional(),
         author: z.string().optional(),
+        location: z.string().optional(),
         yearFrom: z.number().optional(),
         yearTo: z.number().optional(),
         includeZeroInventory: z.boolean().default(false),
@@ -598,7 +634,7 @@ export const appRouter = router({
         limit: z.number().default(50),
         offset: z.number().default(0),
         // NEW: Sort Parameters
-        sortField: z.enum(['title', 'author', 'publisher', 'isbn13', 'publicationYear', 'total', 'available', 'location']).default('title'),
+        sortField: z.enum(['title', 'author', 'publisher', 'isbn13', 'publicationYear', 'total', 'available', 'location', 'price']).default('title'),
         sortDirection: z.enum(['asc', 'desc']).default('asc'),
       }))
       .query(async ({ input }) => {
@@ -626,6 +662,10 @@ export const appRouter = router({
           whereConditions.push('cm.author LIKE ?');
           whereParams.push(`%${input.author}%`);
         }
+        if (input.location) {
+          whereConditions.push('ii.locationCode LIKE ?');
+          whereParams.push(`%${input.location}%`);
+        }
         if (input.yearFrom) {
           whereConditions.push('cm.publicationYear >= ?');
           whereParams.push(input.yearFrom);
@@ -649,6 +689,7 @@ export const appRouter = router({
             case 'total': orderByClause = `totalQuantity ${dir}`; break;
             case 'available': orderByClause = `availableQuantity ${dir}`; break;
             case 'location': orderByClause = `locations ${dir}`; break;
+            case 'price': orderByClause = `avgPrice ${dir}`; break;
             default: orderByClause = `cm.title ${dir}`;
         }
 
@@ -674,7 +715,10 @@ export const appRouter = router({
             SUM(CASE WHEN ii.status = 'AVAILABLE' THEN 1 ELSE 0 END) as availableQuantity,
             GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' AND ii.locationCode IS NOT NULL AND ii.locationCode != '' THEN ii.locationCode END ORDER BY ii.locationCode SEPARATOR ',') as locations,
             GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' THEN ii.uuid END SEPARATOR ',') as availableItemUuids,
-            GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' AND ii.salesChannels IS NOT NULL THEN ii.salesChannels END SEPARATOR '|') as salesChannelsRaw
+            GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' AND ii.salesChannels IS NOT NULL THEN ii.salesChannels END SEPARATOR '|') as salesChannelsRaw,
+            AVG(CASE WHEN ii.status = 'AVAILABLE' AND ii.listingPrice IS NOT NULL THEN ii.listingPrice ELSE NULL END) as avgPrice,
+            MIN(CASE WHEN ii.status = 'AVAILABLE' AND ii.listingPrice IS NOT NULL THEN ii.listingPrice ELSE NULL END) as minPrice,
+            MAX(CASE WHEN ii.status = 'AVAILABLE' AND ii.listingPrice IS NOT NULL THEN ii.listingPrice ELSE NULL END) as maxPrice
           FROM catalog_masters cm
           LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
           WHERE ${whereClause}
@@ -734,6 +778,9 @@ export const appRouter = router({
             availableQuantity: Number(row.availableQuantity),
             locations: row.locations ? row.locations.split(',') : [],
             salesChannels,
+            avgPrice: row.avgPrice ? Number(row.avgPrice) : null,
+            minPrice: row.minPrice ? Number(row.minPrice) : null,
+            maxPrice: row.maxPrice ? Number(row.maxPrice) : null,
             items: row.availableItemUuids ? row.availableItemUuids.split(',').map((uuid: string) => ({ uuid, status: 'AVAILABLE' })) : []
           };
         });
@@ -1090,6 +1137,10 @@ export const appRouter = router({
             
             const locationCode = row['Ubicación'] || row['Ubicacion'] || row['Location'] || row['location'] || undefined;
             
+            // Parse price (listingPrice) with proper decimal handling
+            const priceStr = row['Precio'] || row['Price'] || row['price'] || row['listingPrice'] || '';
+            const listingPrice = priceStr && !isNaN(parseFloat(priceStr)) && parseFloat(priceStr) > 0 ? parseFloat(priceStr) : undefined;
+            
             // Parse publication year with NaN handling
             const yearStr = row['Año'] || row['publicationYear'] || row['PublicationYear'] || '';
             const publicationYear = yearStr && !isNaN(parseInt(yearStr)) && parseInt(yearStr) > 0 ? parseInt(yearStr) : undefined;
@@ -1125,6 +1176,9 @@ export const appRouter = router({
                 };
                 if (locationCode) {
                   itemData.locationCode = locationCode;
+                }
+                if (listingPrice !== undefined) {
+                  itemData.listingPrice = listingPrice.toFixed(2);
                 }
                 await createInventoryItem(itemData);
               }
