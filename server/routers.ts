@@ -1161,9 +1161,19 @@ export const appRouter = router({
             });
             
             // Validate required fields
-            const isbn = row['ISBN'] || row['isbn13'] || row['ISBN13'];
+            let isbn = row['ISBN'] || row['isbn13'] || row['ISBN13'];
             if (!isbn) {
               results.errors.push(`Row ${i + 2}: Missing ISBN`);
+              results.skipped++;
+              continue;
+            }
+            
+            // Strip leading quotes/apostrophes that Excel adds
+            isbn = isbn.replace(/^['"`]+/, '').replace(/['"`]+$/, '').trim();
+            
+            // Validate ISBN length (should be 13 characters)
+            if (isbn.length > 13) {
+              results.errors.push(`Row ${i + 2}: ISBN too long (${isbn.length} chars): ${isbn}`);
               results.skipped++;
               continue;
             }
@@ -1199,19 +1209,23 @@ export const appRouter = router({
             const synopsis = (row['Sinopsis'] || row['Synopsis'] || row['synopsis'] || '').trim() || undefined;
             const categoryLevel1 = (row['Categoría'] || row['Category'] || row['categoryLevel1'] || '').trim() || undefined;
             
-            // Upsert catalog master
-            await upsertCatalogMaster({
+            // Upsert catalog master - only include defined fields
+            const catalogData: any = {
               isbn13: isbn,
               title,
               author,
-              publisher,
-              publicationYear,
-              language,
-              pages,
-              edition,
-              synopsis,
-              categoryLevel1,
-            });
+            };
+            
+            // Only add optional fields if they have values
+            if (publisher !== undefined) catalogData.publisher = publisher;
+            if (publicationYear !== undefined) catalogData.publicationYear = publicationYear;
+            if (language !== undefined) catalogData.language = language;
+            if (pages !== undefined) catalogData.pages = pages;
+            if (edition !== undefined) catalogData.edition = edition;
+            if (synopsis !== undefined) catalogData.synopsis = synopsis;
+            if (categoryLevel1 !== undefined) catalogData.categoryLevel1 = categoryLevel1;
+            
+            await upsertCatalogMaster(catalogData);
             
             // If quantity is provided, create inventory items
             if (quantity > 0) {

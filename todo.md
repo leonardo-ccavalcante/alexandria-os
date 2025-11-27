@@ -754,3 +754,20 @@
 - [x] Add sale confirmation feedback (toast notification)
 - [x] Test sales flow end-to-end
 - [x] Write comprehensive unit tests (10 tests, all passing)
+
+## CSV Import/Export Compatibility Issue
+- [ ] Analyze exported CSV format structure
+- [ ] Identify missing required fields causing import failures
+- [ ] Fix CSV import validation to accept exported format
+- [ ] Ensure exported CSV can be re-imported without errors
+- [ ] Test full export → re-import workflow
+- [ ] Add proper error messages for validation failures
+
+## CSV Import/Export Compatibility (COMPLETED)
+- [x] Fix CSV export format to match import requirements
+- [x] Ensure exported CSV can be re-imported without errors
+- [x] Handle undefined/optional fields correctly in database insert
+- [x] Replace Drizzle ORM insert with mysql2 raw SQL to avoid 'default' keyword issue
+- [x] Strip leading quotes/apostrophes from ISBN values (Excel formatting)
+- [x] Validate ISBN length before database insert
+- [x] Successfully tested with 1613 books - all imported without errors

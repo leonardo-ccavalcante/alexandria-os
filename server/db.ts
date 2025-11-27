@@ -1,5 +1,6 @@
-import { eq, and, or, like, desc, sql, gte, lte, inArray } from "drizzle-orm";
+import { eq, desc, and, or, gte, lte, like, isNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
+import mysql from 'mysql2/promise';
 import { 
   InsertUser, 
   users, 
@@ -21,6 +22,7 @@ import {
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: mysql.Pool | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
@@ -33,6 +35,19 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+// Get mysql2 connection pool for raw queries
+export async function getPool() {
+  if (!_pool && process.env.DATABASE_URL) {
+    try {
+      _pool = mysql.createPool(process.env.DATABASE_URL);
+    } catch (error) {
+      console.warn("[Database] Failed to create pool:", error);
+      _pool = null;
+    }
+  }
+  return _pool;
 }
 
 // ============================================================================
@@ -123,32 +138,38 @@ export async function getCatalogMasterByIsbn(isbn13: string): Promise<CatalogMas
 }
 
 export async function upsertCatalogMaster(data: InsertCatalogMaster): Promise<void> {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
+  const pool = await getPool();
+  if (!pool) throw new Error("Database not available");
   
-  // Build update set with only defined fields
-  const updateSet: Record<string, any> = { updatedAt: new Date() };
-  if (data.title !== undefined) updateSet.title = data.title;
-  if (data.author !== undefined) updateSet.author = data.author;
-  if (data.publisher !== undefined) updateSet.publisher = data.publisher;
-  if (data.publicationYear !== undefined) updateSet.publicationYear = data.publicationYear;
-  if (data.language !== undefined) updateSet.language = data.language;
-  if (data.pages !== undefined) updateSet.pages = data.pages;
-  if (data.edition !== undefined) updateSet.edition = data.edition;
-  if (data.synopsis !== undefined) updateSet.synopsis = data.synopsis;
-  if (data.categoryLevel1 !== undefined) updateSet.categoryLevel1 = data.categoryLevel1;
-  if (data.categoryLevel2 !== undefined) updateSet.categoryLevel2 = data.categoryLevel2;
-  if (data.categoryLevel3 !== undefined) updateSet.categoryLevel3 = data.categoryLevel3;
-  if (data.materia !== undefined) updateSet.materia = data.materia;
-  if (data.bisacCode !== undefined) updateSet.bisacCode = data.bisacCode;
-  if (data.coverImageUrl !== undefined) updateSet.coverImageUrl = data.coverImageUrl;
-  if (data.marketMinPrice !== undefined) updateSet.marketMinPrice = data.marketMinPrice;
-  if (data.marketMedianPrice !== undefined) updateSet.marketMedianPrice = data.marketMedianPrice;
-  if (data.lastPriceCheck !== undefined) updateSet.lastPriceCheck = data.lastPriceCheck;
+  // Filter out undefined values
+  const cleanData = Object.fromEntries(
+    Object.entries(data).filter(([_, value]) => value !== undefined)
+  );
   
-  await db.insert(catalogMasters).values(data).onDuplicateKeyUpdate({
-    set: updateSet
-  });
+  // Build column names and placeholders for INSERT
+  const columns = Object.keys(cleanData);
+  const values = Object.values(cleanData);
+  const placeholders = columns.map(() => '?').join(', ');
+  
+  // Build UPDATE clause (exclude primary key)
+  const updateClauses = columns
+    .filter(col => col !== 'isbn13')
+    .map(col => `\`${col}\` = VALUES(\`${col}\`)`)
+    .join(', ');
+  
+  // Add updatedAt to update clause
+  const finalUpdateClause = updateClauses + ', `updatedAt` = NOW()';
+  
+  // Build SQL query
+  const columnList = columns.map(c => `\`${c}\``).join(', ');
+  const query = `
+    INSERT INTO \`catalog_masters\` (${columnList})
+    VALUES (${placeholders})
+    ON DUPLICATE KEY UPDATE ${finalUpdateClause}
+  `;
+  
+  // Execute with mysql2 pool
+  await pool.execute(query, values);
 }
 
 // ============================================================================
