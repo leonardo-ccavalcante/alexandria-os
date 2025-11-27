@@ -285,6 +285,71 @@ export const appRouter = router({
           throw new Error(`Error al extraer Depósito Legal: ${error.message}`);
         }
       }),
+
+    // Extract book metadata from cover or colophon image using AI vision
+    extractBookMetadata: protectedProcedure
+      .input(z.object({
+        imageBase64: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const { invokeLLM } = await import('./_core/llm');
+        
+        try {
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Extract book information from this image (book cover or colophon/copyright page). Return a JSON object with: {"title": "book title", "author": "author name", "publisher": "publisher name", "publicationYear": year}. If any field cannot be found, omit it from the response. Return ONLY valid JSON, nothing else.'
+                  },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: input.imageBase64,
+                      detail: 'high'
+                    }
+                  }
+                ]
+              }
+            ],
+            response_format: {
+              type: 'json_schema',
+              json_schema: {
+                name: 'book_metadata',
+                strict: true,
+                schema: {
+                  type: 'object',
+                  properties: {
+                    title: { type: 'string', description: 'The book title' },
+                    author: { type: 'string', description: 'The author name' },
+                    publisher: { type: 'string', description: 'The publisher name' },
+                    publicationYear: { type: 'integer', description: 'The publication year' },
+                  },
+                  required: ['title'],
+                  additionalProperties: false,
+                },
+              },
+            },
+          });
+          
+          const content = response.choices[0]?.message?.content;
+          if (!content || typeof content !== 'string') {
+            return { title: null, author: null, publisher: null, publicationYear: null };
+          }
+          
+          const metadata = JSON.parse(content);
+          return {
+            title: metadata.title || null,
+            author: metadata.author || null,
+            publisher: metadata.publisher || null,
+            publicationYear: metadata.publicationYear || null,
+          };
+        } catch (error: any) {
+          throw new Error(`Error al extraer metadata del libro: ${error.message}`);
+        }
+      }),
   }),
 
   // ============================================================================

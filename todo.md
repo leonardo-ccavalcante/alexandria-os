@@ -795,3 +795,15 @@
 - [x] Chevron rotates 90° when expanded (smooth transition)
 - [x] Section includes Depósito Legal capture (photo + manual input)
 - [x] Tested in browser - works perfectly
+
+## Books Without ISBN - Enhanced Workflow
+- [x] Auto-extract Depósito Legal from uploaded photo (remove manual "Extraer" button step)
+- [x] Add cover/colophon photo capture option for books without Depósito Legal
+- [x] Support pre-1900 books that don't have Depósito Legal
+- [x] Extract book metadata (title, author, publisher, year) from cover/colophon photos using LLM
+- [x] Generate synthetic ISBN for books cataloged via cover/colophon
+- [x] Keep manual Depósito Legal input option working
+- [x] Test both workflows (Depósito Legal + cover/colophon)
+- [x] Ensure backward compatibility with existing functionality
+- [x] Verify back camera (capture=environment) is used on mobile
+- [x] Write and pass 11 unit tests for API structure and workflows

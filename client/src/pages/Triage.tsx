@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { IsbnImageUpload } from '@/components/IsbnImageUpload';
 import { DepositoLegalCapture } from '@/components/DepositoLegalCapture';
+import { CoverColophonCapture } from '@/components/CoverColophonCapture';
 import { Loader2, BookOpen, AlertCircle, CheckCircle, AlertTriangle, XCircle, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -216,7 +217,7 @@ export default function Triage() {
               </button>
               
               {showPre1970Section && (
-                <div className="mt-4">
+                <div className="mt-4 space-y-4">
                   <DepositoLegalCapture
                     onExtracted={(depositoLegal) => {
                       // Generate synthetic ISBN and proceed with triage
@@ -225,6 +226,20 @@ export default function Triage() {
                       setIsbn(syntheticIsbn);
                       toast.success(`ISBN sintético generado: ${syntheticIsbn}`);
                       // Note: The actual depositoLegal will be stored when cataloging
+                    }}
+                  />
+                  
+                  {/* Alternative: Cover/Colophon capture for books without Depósito Legal */}
+                  <CoverColophonCapture
+                    onExtracted={(bookData) => {
+                      // For books without Depósito Legal, generate ISBN from title
+                      const { generateSyntheticIsbn } = require('@/../../shared/deposito-legal-utils');
+                      // Use a pseudo-deposito-legal based on title hash
+                      const titleHash = bookData.title.substring(0, 10).replace(/\s/g, '').toUpperCase();
+                      const syntheticIsbn = generateSyntheticIsbn(`BOOK-${titleHash}`);
+                      setIsbn(syntheticIsbn);
+                      toast.success(`Libro identificado: ${bookData.title}`);
+                      // Note: The book metadata will be used during cataloging
                     }}
                   />
                 </div>
