@@ -807,3 +807,17 @@
 - [x] Ensure backward compatibility with existing functionality
 - [x] Verify back camera (capture=environment) is used on mobile
 - [x] Write and pass 11 unit tests for API structure and workflows
+
+## Camera and Component Fixes
+- [ ] Fix "require is not defined" error in CoverColophonCapture component
+- [ ] Ensure all file inputs use back camera (capture="environment") on mobile
+- [ ] Test camera functionality on actual mobile device
+- [ ] Verify auto-extraction works after photo capture
+
+## Bug Fix - Camera and Component Issues (2025-11-27)
+- [x] Fix "require is not defined" error in CoverColophonCapture component (error no longer appears)
+- [x] Fix camera selection issue - all file inputs now use back camera on mobile
+- [x] Add capture="environment" attribute to IsbnImageUpload component
+- [x] Verify DepositoLegalCapture has capture="environment" attribute
+- [x] Verify CoverColophonCapture has capture="environment" attribute
+- [x] Test all camera inputs on Triage page (all working correctly)

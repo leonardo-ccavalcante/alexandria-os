@@ -99,14 +99,12 @@ export function IsbnImageUpload({ onIsbnExtracted, disabled }: IsbnImageUploadPr
 
   const handleCameraCapture = () => {
     if (fileInputRef.current) {
-      fileInputRef.current.setAttribute('capture', 'environment');
       fileInputRef.current.click();
     }
   };
 
   const handleUploadClick = () => {
     if (fileInputRef.current) {
-      fileInputRef.current.removeAttribute('capture');
       fileInputRef.current.click();
     }
   };
@@ -117,6 +115,7 @@ export function IsbnImageUpload({ onIsbnExtracted, disabled }: IsbnImageUploadPr
         ref={fileInputRef}
         type="file"
         accept="image/*"
+        capture="environment"
         onChange={handleFileSelect}
         className="hidden"
       />
