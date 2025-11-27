@@ -821,3 +821,10 @@
 - [x] Verify DepositoLegalCapture has capture="environment" attribute
 - [x] Verify CoverColophonCapture has capture="environment" attribute
 - [x] Test all camera inputs on Triage page (all working correctly)
+
+## Bug Fix - Mobile Camera Issues (URGENT - 2025-11-27)
+- [x] Fix "require is not defined" error - replaced require() with ES6 import in Triage.tsx
+- [x] Fix camera selection - removed capture="environment" attribute (limited browser support)
+- [x] Investigated capture="environment" - has poor support on Android Chrome
+- [x] Implemented solution: removed capture attribute to let browser use default camera picker
+- [ ] Test fixes on actual mobile device (user to verify)

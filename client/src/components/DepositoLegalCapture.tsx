@@ -100,13 +100,12 @@ export function DepositoLegalCapture({ onExtracted }: DepositoLegalCaptureProps)
         <div className="space-y-2">
           <Label>Tomar foto del Depósito Legal</Label>
           <div className="flex gap-2">
-            <Input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleFileSelect}
-              className="flex-1"
-            />
+          <Input
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            className="flex-1"
+          />
             <Button
               onClick={handleExtract}
               disabled={!imageFile || isExtracting}

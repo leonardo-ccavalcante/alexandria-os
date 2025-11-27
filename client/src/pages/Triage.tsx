@@ -12,6 +12,7 @@ import { DepositoLegalCapture } from '@/components/DepositoLegalCapture';
 import { CoverColophonCapture } from '@/components/CoverColophonCapture';
 import { Loader2, BookOpen, AlertCircle, CheckCircle, AlertTriangle, XCircle, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { generateSyntheticIsbn } from '@/../../shared/deposito-legal-utils';
 
 export default function Triage() {
   const [, setLocation] = useLocation();
@@ -221,7 +222,6 @@ export default function Triage() {
                   <DepositoLegalCapture
                     onExtracted={(depositoLegal) => {
                       // Generate synthetic ISBN and proceed with triage
-                      const { generateSyntheticIsbn } = require('@/../../shared/deposito-legal-utils');
                       const syntheticIsbn = generateSyntheticIsbn(depositoLegal);
                       setIsbn(syntheticIsbn);
                       toast.success(`ISBN sintético generado: ${syntheticIsbn}`);
@@ -233,7 +233,6 @@ export default function Triage() {
                   <CoverColophonCapture
                     onExtracted={(bookData) => {
                       // For books without Depósito Legal, generate ISBN from title
-                      const { generateSyntheticIsbn } = require('@/../../shared/deposito-legal-utils');
                       // Use a pseudo-deposito-legal based on title hash
                       const titleHash = bookData.title.substring(0, 10).replace(/\s/g, '').toUpperCase();
                       const syntheticIsbn = generateSyntheticIsbn(`BOOK-${titleHash}`);

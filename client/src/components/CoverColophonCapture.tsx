@@ -81,7 +81,6 @@ export function CoverColophonCapture({ onExtracted }: CoverColophonCaptureProps)
           <Input
             type="file"
             accept="image/*"
-            capture="environment"
             onChange={handleFileSelect}
             disabled={isExtracting}
           />
