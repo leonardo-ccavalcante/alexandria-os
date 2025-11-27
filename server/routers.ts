@@ -841,6 +841,33 @@ export const appRouter = router({
         };
       }),
     
+    // Get books without valid ISBN (for collapsible section)
+    getBooksWithoutIsbn: protectedProcedure
+      .query(async () => {
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        
+        const books = await db
+          .select({
+            isbn13: catalogMasters.isbn13,
+            title: catalogMasters.title,
+            author: catalogMasters.author,
+            publisher: catalogMasters.publisher,
+            publicationYear: catalogMasters.publicationYear,
+          })
+          .from(catalogMasters)
+          .where(
+            or(
+              isNull(catalogMasters.isbn13),
+              eq(catalogMasters.isbn13, ''),
+              sql`LENGTH(${catalogMasters.isbn13}) < 10`
+            )
+          )
+          .limit(100); // Limit to 100 for performance
+        
+        return { books, count: books.length };
+      }),
+    
     // Increase quantity (alias for addQuantity)
     increaseQuantity: protectedProcedure
       .input(z.object({ isbn13: z.string() }))

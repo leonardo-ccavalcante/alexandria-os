@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COUNT(*) as count FROM catalog_masters WHERE isbn13 IS NULL OR isbn13 = '' OR LENGTH(isbn13) < 10",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xbcpjkj7urB6FV.123b8c0ef218 --database JSmQWHzFMNuBrpEm7nuLv4 --execute SELECT COUNT(*) as count FROM catalog_masters WHERE isbn13 IS NULL OR isbn13 = '' OR LENGTH(isbn13) < 10",
+  "rows": [
+    {
+      "count": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "count\n0\n",
+  "stderr": "",
+  "execution_time_ms": 132
+}

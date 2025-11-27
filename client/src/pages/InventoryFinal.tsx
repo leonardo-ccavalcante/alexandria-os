@@ -7,7 +7,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Download, Plus, Minus, Edit, ChevronUp, ChevronDown, MoreHorizontal, Tag, DollarSign } from "lucide-react";
+import { Download, Plus, Minus, Edit, ChevronUp, ChevronDown, ChevronRight, MoreHorizontal, Tag, DollarSign } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -53,6 +53,13 @@ export default function InventoryFinal() {
   
   // Sale modal state
   const [saleModalBook, setSaleModalBook] = useState<any>(null);
+  
+  // Collapsible section for books without ISBN
+  const [showBooksWithoutIsbn, setShowBooksWithoutIsbn] = useState(false);
+  const { data: booksWithoutIsbnData } = trpc.inventory.getBooksWithoutIsbn.useQuery(
+    undefined,
+    { enabled: showBooksWithoutIsbn } // Only fetch when expanded
+  );
 
   // Autocomplete queries
   const { data: publishers = [] } = trpc.catalog.getPublishers.useQuery({ search: publisher });
@@ -741,6 +748,57 @@ export default function InventoryFinal() {
               </Button>
             </div>
           </div>
+        </div>
+
+        {/* Collapsible Section for Books Without ISBN */}
+        <div className="mt-8 border-t pt-6">
+          <button
+            onClick={() => setShowBooksWithoutIsbn(!showBooksWithoutIsbn)}
+            className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+          >
+            <ChevronRight 
+              className={`h-4 w-4 transition-transform ${
+                showBooksWithoutIsbn ? 'rotate-90' : ''
+              }`}
+            />
+            <span>Libros sin ISBN</span>
+            {!showBooksWithoutIsbn && booksWithoutIsbnData && (
+              <Badge variant="secondary" className="ml-2">
+                {booksWithoutIsbnData.count}
+              </Badge>
+            )}
+          </button>
+          
+          {showBooksWithoutIsbn && (
+            <div className="mt-4 space-y-2">
+              {booksWithoutIsbnData && booksWithoutIsbnData.books.length > 0 ? (
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                  <div className="text-sm text-gray-600 mb-3">
+                    {booksWithoutIsbnData.count} libro(s) sin ISBN válido
+                  </div>
+                  {booksWithoutIsbnData.books.map((book, idx) => (
+                    <div key={idx} className="bg-white rounded p-3 shadow-sm">
+                      <div className="font-medium text-gray-900">{book.title}</div>
+                      <div className="text-sm text-gray-600">{book.author}</div>
+                      {book.publisher && (
+                        <div className="text-xs text-gray-500 mt-1">{book.publisher}</div>
+                      )}
+                      {book.publicationYear && (
+                        <div className="text-xs text-gray-500">Año: {book.publicationYear}</div>
+                      )}
+                      <div className="text-xs text-red-600 mt-1">
+                        ISBN: {book.isbn13 || '(vacío)'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 italic">
+                  No hay libros sin ISBN en el catálogo
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Edit Book Dialog */}

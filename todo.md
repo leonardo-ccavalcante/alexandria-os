@@ -771,3 +771,16 @@
 - [x] Strip leading quotes/apostrophes from ISBN values (Excel formatting)
 - [x] Validate ISBN length before database insert
 - [x] Successfully tested with 1613 books - all imported without errors
+
+## Books Without ISBN - Collapsible Section
+- [x] Separate books with ISBN from books without ISBN in backend query
+- [x] Add collapsible/expandable section UI (Dropbox-style)
+- [x] Show books without ISBN only when section is expanded
+- [x] Keep section collapsed by default
+- [x] Add expand/collapse icon and animation
+- [x] Show count of books without ISBN in section header
+- [x] Test with real data (books with/without ISBN)
+- [x] Backend procedure getBooksWithoutIsbn created
+- [x] Collapsible button with ChevronRight icon added
+- [x] Conditional query (only fetches when expanded)
+- [x] Tested - currently 0 books without ISBN (feature ready for future use)

@@ -1,0 +1,14 @@
+{
+  "query": "SELECT COUNT(*) as count, GROUP_CONCAT(DISTINCT title SEPARATOR ' | ') as sample_titles FROM catalog_masters WHERE isbn13 IS NULL OR isbn13 = '' OR LENGTH(isbn13) < 10 LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xbcpjkj7urB6FV.123b8c0ef218 --database JSmQWHzFMNuBrpEm7nuLv4 --execute SELECT COUNT(*) as count, GROUP_CONCAT(DISTINCT title SEPARATOR ' | ') as sample_titles FROM catalog_masters WHERE isbn13 IS NULL OR isbn13 = '' OR LENGTH(isbn13) < 10 LIMIT 5",
+  "rows": [
+    {
+      "count": "0",
+      "sample_titles": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "count\tsample_titles\n0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 63
+}
