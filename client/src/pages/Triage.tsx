@@ -537,6 +537,7 @@ export default function Triage() {
         <QuickCatalogModal
           open={showQuickCatalog}
           onClose={() => setShowQuickCatalog(false)}
+          onCatalogComplete={handleReset}
           isbn={result.bookData?.isbn13 || result.isbn}
           bookData={result.bookData || {
             isbn13: result.isbn,

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 interface QuickCatalogModalProps {
   open: boolean;
   onClose: () => void;
+  onCatalogComplete?: () => void;
   isbn: string;
   bookData: any;
   suggestedPrice?: number;
@@ -20,7 +21,7 @@ interface QuickCatalogModalProps {
   existingCount?: number;
 }
 
-export function QuickCatalogModal({ open, onClose, isbn, bookData, suggestedPrice, isDuplicate, suggestedAllocation, existingCount }: QuickCatalogModalProps) {
+export function QuickCatalogModal({ open, onClose, onCatalogComplete, isbn, bookData, suggestedPrice, isDuplicate, suggestedAllocation, existingCount }: QuickCatalogModalProps) {
   const [condition, setCondition] = useState<'COMO_NUEVO' | 'BUENO' | 'ACEPTABLE'>('BUENO');
   const [conditionNotes, setConditionNotes] = useState('');
   const [locationCode, setLocationCode] = useState(suggestedAllocation || '');
@@ -69,6 +70,7 @@ export function QuickCatalogModal({ open, onClose, isbn, bookData, suggestedPric
   };
 
   const handleClose = () => {
+    const wasSuccess = success;
     setSuccess(false);
     setCreatedItem(null);
     setCondition('BUENO');
@@ -76,6 +78,10 @@ export function QuickCatalogModal({ open, onClose, isbn, bookData, suggestedPric
     setLocationCode('');
     setListingPrice(suggestedPrice?.toFixed(2) || '');
     onClose();
+    // If closing after successful catalog, trigger complete reset
+    if (wasSuccess && onCatalogComplete) {
+      onCatalogComplete();
+    }
   };
 
   if (success && createdItem) {

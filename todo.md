@@ -909,3 +909,11 @@
 - [x] Remove second duplicate warning box (showing twice)
 - [x] Remove "Catalogar (Completo)" button (keep only "Catalogar Rápido")
 - [x] Simplify action buttons to just "Catalogar Rápido" and "Escanear Otro"
+
+## Bug Fix - Triage Workflow Reset After Cataloging (URGENT - 2025-11-28)
+- [x] Fix "Catalogar Otro" button in success modal to clear ISBN field
+- [x] Automatically reset entire triage form after successful cataloging
+- [x] Clear result state completely when starting new scan
+- [x] Added onCatalogComplete callback to QuickCatalogModal
+- [x] Connected callback to handleReset in Triage page
+- [ ] Test workflow on mobile: catalog book → click "Catalogar Otro" → ISBN field should be empty and ready
