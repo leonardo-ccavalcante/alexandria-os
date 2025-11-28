@@ -859,3 +859,25 @@
 - [x] Updated ISBN-10 to ISBN-13 conversion to handle X properly
 - [x] Added test case for ISBN-10 with X check digit
 - [x] All tests passing (11/11)
+
+## Feature - Duplicate Book Detection in Triage (2025-11-27)
+- [ ] Check if scanned book already exists in catalog (by ISBN)
+- [ ] If book exists, show existing allocation (e.g., "01A")
+- [ ] Display current quantity in inventory
+- [ ] Allow user to edit allocation if needed
+- [ ] Add "Book Cataloged" button to increment quantity
+- [ ] Skip full cataloging flow for existing books
+- [ ] If book is new, follow normal cataloging process
+- [ ] Test with existing book in inventory
+- [ ] Test with new book not in catalog
+
+## Feature - Duplicate Book Detection in Triage (2025-11-27)
+- [x] Design duplicate detection workflow and UI
+- [x] Add backend function getInventorySummaryByIsbn to check inventory
+- [x] Return inventory summary (totalCount, availableCount, mostCommonAllocation) in checkIsbn
+- [x] Show warning alert when duplicate book is detected in triage result
+- [x] Pre-fill allocation in QuickCatalogModal with most common location
+- [x] Allow user to change allocation before cataloging (editable field)
+- [x] QuickCatalogModal shows duplicate warning with existing count
+- [x] "Catalogar Rápido" button increments quantity by creating new inventory item
+- [x] Added 4 comprehensive tests - all passing

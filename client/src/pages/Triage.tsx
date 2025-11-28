@@ -496,6 +496,39 @@ export default function Triage() {
                   </div>
                 )}
 
+                {/* Duplicate Detection Alert */}
+                {result.inventorySummary && result.inventorySummary.totalCount > 0 && (
+                  <Alert className="bg-yellow-50 border-yellow-300">
+                    <AlertCircle className="h-5 w-5 text-yellow-600" />
+                    <AlertDescription>
+                      <div className="space-y-3">
+                        <p className="font-semibold text-yellow-900">
+                          ⚠️ Este libro ya existe en el inventario
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-600">Cantidad total:</span>
+                            <span className="ml-2 font-bold">{result.inventorySummary.totalCount}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Disponibles:</span>
+                            <span className="ml-2 font-bold">{result.inventorySummary.availableCount}</span>
+                          </div>
+                          {result.inventorySummary.mostCommonAllocation && (
+                            <div className="col-span-2">
+                              <span className="text-gray-600">Ubicación más común:</span>
+                              <span className="ml-2 font-bold text-blue-600">{result.inventorySummary.mostCommonAllocation}</span>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-700">
+                          Puedes usar el botón "Catalogar Rápido" para agregar una nueva unidad a esta ubicación.
+                        </p>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* Actions - Always show catalog options, let user decide */}
                 <div className="flex gap-3 justify-center flex-wrap">
                   <Button 
@@ -538,6 +571,9 @@ export default function Triage() {
             coverImageUrl: undefined
           }}
           suggestedPrice={result.marketPrice}
+          isDuplicate={result.inventorySummary && result.inventorySummary.totalCount > 0}
+          suggestedAllocation={result.inventorySummary?.mostCommonAllocation}
+          existingCount={result.inventorySummary?.totalCount}
         />
       )}
     </div>

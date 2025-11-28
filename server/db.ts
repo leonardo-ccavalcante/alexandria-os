@@ -203,6 +203,52 @@ export async function getInventoryItemsByIsbn(isbn13: string): Promise<Inventory
   return result;
 }
 
+/**
+ * Get inventory summary for a book (total count and most common allocation)
+ * Used for duplicate detection in triage
+ */
+export async function getInventorySummaryByIsbn(isbn13: string): Promise<{
+  totalCount: number;
+  availableCount: number;
+  mostCommonAllocation: string | null;
+} | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const items = await db.select().from(inventoryItems).where(eq(inventoryItems.isbn13, isbn13));
+  
+  if (items.length === 0) {
+    return null;
+  }
+  
+  // Count available items (not SOLD, DONATED, REJECTED, MISSING)
+  const availableStatuses = ['INGESTION', 'AVAILABLE', 'LISTED', 'RESERVED'];
+  const availableCount = items.filter(item => availableStatuses.includes(item.status)).length;
+  
+  // Find most common allocation (locationCode)
+  const locationCounts = new Map<string, number>();
+  items.forEach(item => {
+    if (item.locationCode) {
+      locationCounts.set(item.locationCode, (locationCounts.get(item.locationCode) || 0) + 1);
+    }
+  });
+  
+  let mostCommonAllocation: string | null = null;
+  let maxCount = 0;
+  locationCounts.forEach((count, location) => {
+    if (count > maxCount) {
+      maxCount = count;
+      mostCommonAllocation = location;
+    }
+  });
+  
+  return {
+    totalCount: items.length,
+    availableCount,
+    mostCommonAllocation,
+  };
+}
+
 export async function updateInventoryItem(uuid: string, data: Partial<InsertInventoryItem>): Promise<InventoryItem> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

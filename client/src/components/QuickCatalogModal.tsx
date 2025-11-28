@@ -15,12 +15,15 @@ interface QuickCatalogModalProps {
   isbn: string;
   bookData: any;
   suggestedPrice?: number;
+  isDuplicate?: boolean;
+  suggestedAllocation?: string | null;
+  existingCount?: number;
 }
 
-export function QuickCatalogModal({ open, onClose, isbn, bookData, suggestedPrice }: QuickCatalogModalProps) {
+export function QuickCatalogModal({ open, onClose, isbn, bookData, suggestedPrice, isDuplicate, suggestedAllocation, existingCount }: QuickCatalogModalProps) {
   const [condition, setCondition] = useState<'COMO_NUEVO' | 'BUENO' | 'ACEPTABLE'>('BUENO');
   const [conditionNotes, setConditionNotes] = useState('');
-  const [locationCode, setLocationCode] = useState('');
+  const [locationCode, setLocationCode] = useState(suggestedAllocation || '');
   const [listingPrice, setListingPrice] = useState(suggestedPrice?.toFixed(2) || '');
   const [success, setSuccess] = useState(false);
   const [createdItem, setCreatedItem] = useState<any>(null);
@@ -137,6 +140,16 @@ export function QuickCatalogModal({ open, onClose, isbn, bookData, suggestedPric
         <DialogHeader>
           <DialogTitle>Catalogar Libro Rápidamente</DialogTitle>
           <DialogDescription>
+            {isDuplicate && (
+              <div className="mt-2 bg-yellow-50 border border-yellow-300 rounded-lg p-3 mb-3">
+                <p className="text-sm font-semibold text-yellow-900">
+                  ⚠️ Libro Duplicado - Ya existen {existingCount} unidad(es) en inventario
+                </p>
+                <p className="text-xs text-yellow-800 mt-1">
+                  Se agregará una nueva unidad con la ubicación sugerida. Puedes cambiarla si lo deseas.
+                </p>
+              </div>
+            )}
             {bookData && (
               <div className="mt-3 bg-white rounded-lg p-3 border border-gray-200">
                 <div className="flex gap-3">

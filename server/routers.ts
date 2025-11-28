@@ -30,6 +30,7 @@ import {
   getAnalyticsByPublisher,
   getAnalyticsByCategory,
   getAnalyticsByLocation,
+  getInventorySummaryByIsbn,
 } from "./db";
 
 export const appRouter = router({
@@ -86,6 +87,9 @@ export const appRouter = router({
         // Check if book exists in catalog (using normalized ISBN-13)
         let bookData = await getCatalogMasterByIsbn(isbn13);
         
+        // Check if book exists in inventory (for duplicate detection)
+        const inventorySummary = await getInventorySummaryByIsbn(isbn13);
+        
         // If book exists, check if price data is stale (>7 days)
         if (bookData) {
           const daysSinceCheck = bookData.lastPriceCheck 
@@ -96,11 +100,12 @@ export const appRouter = router({
           // In production, implement price refresh here
         }
         
-        // If book doesn't exist, return error (frontend should call fetchBookData)
+        // If book doesn't exist in catalog, return error (frontend should call fetchBookData)
         if (!bookData) {
           return {
             found: false,
             isbn: isbn13, // Return normalized ISBN-13
+            inventorySummary, // Include inventory info even if not in catalog
           };
         }
         
@@ -148,6 +153,7 @@ export const appRouter = router({
           color,
           bookData,
           marketplacePrices, // Include detailed marketplace prices
+          inventorySummary, // Include inventory summary for duplicate detection
         };
       }),
     
