@@ -115,7 +115,7 @@ export function IsbnImageUpload({ onIsbnExtracted, disabled }: IsbnImageUploadPr
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="user"
+        capture="environment"
         onChange={handleFileSelect}
         className="hidden"
       />

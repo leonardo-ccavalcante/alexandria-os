@@ -881,3 +881,31 @@
 - [x] QuickCatalogModal shows duplicate warning with existing count
 - [x] "Catalogar Rápido" button increments quantity by creating new inventory item
 - [x] Added 4 comprehensive tests - all passing
+
+## Bug Fix - Duplicate Detection Not Showing (URGENT - 2025-11-27)
+- [ ] Investigate why duplicate warning is not displaying for ISBN 9788401336560
+- [ ] Check if inventorySummary is being returned by backend checkIsbn procedure
+- [ ] Verify frontend is correctly checking result.inventorySummary
+- [ ] Debug why yellow alert is not rendering
+- [ ] Test with existing book to confirm fix
+
+## UX Improvement - Simplify Triage Interface (2025-11-27)
+- [ ] Remove RECICLAR/DONAR/ACEPTAR decision cards (not needed for donation model)
+- [ ] Remove profit calculation display (market price, estimated costs, projected benefit)
+- [ ] Make duplicate detection warning much more prominent (larger, clearer)
+- [ ] Redesign result to show only: book info + duplicate status + catalog button
+- [ ] Simplify cataloging flow for existing books (just add quantity)
+- [ ] Test simplified UI on mobile device
+
+## Bug Fix - Camera Direction (Front vs Back) (2025-11-27)
+- [x] Current: capture="user" opens front camera (wrong)
+- [x] Changed to capture="environment" for back camera
+- [x] Updated all three components: IsbnImageUpload, DepositoLegalCapture, CoverColophonCapture
+- [ ] Test if capture="environment" works on user's Android device
+- [ ] If not, implement custom camera interface with MediaDevices API
+- [ ] Add manual camera flip button as fallback
+
+## UI Cleanup - Remove Redundant Elements (2025-11-27)
+- [x] Remove second duplicate warning box (showing twice)
+- [x] Remove "Catalogar (Completo)" button (keep only "Catalogar Rápido")
+- [x] Simplify action buttons to just "Catalogar Rápido" and "Escanear Otro"

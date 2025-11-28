@@ -5,12 +5,12 @@ import { trpc } from '@/lib/trpc';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { IsbnImageUpload } from '@/components/IsbnImageUpload';
 import { DepositoLegalCapture } from '@/components/DepositoLegalCapture';
 import { CoverColophonCapture } from '@/components/CoverColophonCapture';
-import { Loader2, BookOpen, AlertCircle, CheckCircle, AlertTriangle, XCircle, ChevronRight } from 'lucide-react';
+import { Loader2, BookOpen, AlertCircle, CheckCircle, CheckCircle2, AlertTriangle, XCircle, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateSyntheticIsbn } from '@/../../shared/deposito-legal-utils';
 
@@ -355,62 +355,77 @@ export default function Triage() {
           </Card>
         )}
 
-        {/* Decision Result */}
+        {/* Simplified Book Result */}
         {result && result.found && (
-          <Card className={`border-4 ${getDecisionColor(result.decision)}`}>
+          <Card className="border-2 border-teal-500">
             <CardContent className="pt-6">
-              <div className="text-center space-y-6">
-                {/* Icon */}
-                <div className="flex justify-center">
-                  {getDecisionIcon(result.decision)}
-                </div>
-
-                {/* Decision */}
-                <div>
-                  <h2 className="text-2xl md:text-3xl font-bold mb-2">
-                    {result.decision === 'ACCEPT' && '✅ ACEPTAR'}
-                    {result.decision === 'DONATE' && '⚠️ DONAR'}
-                    {result.decision === 'RECYCLE' && '❌ RECICLAR'}
-                  </h2>
-                  <p className="text-base md:text-lg text-gray-700">{result.reason}</p>
-                </div>
-
+              <div className="space-y-6">
                 {/* Book Info */}
                 {result.bookData && (
-                  <div className="bg-white rounded-lg p-3 md:p-4 text-left space-y-2">
-                    <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
+                  <div className="bg-white rounded-lg p-4 text-left space-y-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
                       {result.bookData.coverImageUrl && (
                         <img
                           src={result.bookData.coverImageUrl}
                           alt={result.bookData.title}
-                          className="w-20 h-28 sm:w-24 sm:h-32 object-cover rounded mx-auto sm:mx-0"
+                          className="w-24 h-32 sm:w-28 sm:h-40 object-cover rounded mx-auto sm:mx-0 shadow-md"
                         />
                       )}
                       <div className="flex-1 text-center sm:text-left">
-                        <h3 className="font-bold text-base md:text-lg">{result.bookData.title}</h3>
-                        <p className="text-sm md:text-base text-gray-600">{result.bookData.author}</p>
-                        <p className="text-xs md:text-sm text-gray-500">ISBN: {result.bookData.isbn13}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs md:text-sm pt-2 border-t">
-                      <div>
-                        <span className="font-semibold">Precio Mercado:</span> €{result.marketPrice.toFixed(2)}
-                      </div>
-                      <div>
-                        <span className="font-semibold">Gastos Estimados:</span> €{result.estimatedFees.toFixed(2)}
-                      </div>
-                      <div className="col-span-2">
-                        <span className="font-semibold">Beneficio Proyectado:</span>{' '}
-                        <span className={result.projectedProfit > 0 ? 'text-green-600' : 'text-red-600'}>
-                          €{result.projectedProfit.toFixed(2)}
-                        </span>
+                        <h3 className="font-bold text-xl mb-2">{result.bookData.title}</h3>
+                        <p className="text-base text-gray-700 mb-1">{result.bookData.author}</p>
+                        <p className="text-sm text-gray-500 mb-2">ISBN: {result.bookData.isbn13}</p>
+                        {result.bookData.publisher && (
+                          <p className="text-sm text-gray-600">Editorial: {result.bookData.publisher}</p>
+                        )}
+                        {result.bookData.publicationYear && (
+                          <p className="text-sm text-gray-600">Año: {result.bookData.publicationYear}</p>
+                        )}
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Marketplace Price Comparison */}
-                {result.marketplacePrices && result.marketplacePrices.length > 0 && (
+                {/* Duplicate Warning - Prominent */}
+                {result.inventorySummary && result.inventorySummary.totalCount > 0 && (
+                  <Alert className="bg-amber-50 border-amber-400 border-2">
+                    <AlertCircle className="h-6 w-6 text-amber-600" />
+                    <AlertTitle className="text-lg font-bold text-amber-900">📦 Este libro ya está en el inventario</AlertTitle>
+                    <AlertDescription className="text-base text-amber-800 space-y-2">
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <div>
+                          <span className="font-semibold">Cantidad total:</span> {result.inventorySummary.totalCount}
+                        </div>
+                        <div>
+                          <span className="font-semibold">Disponibles:</span> {result.inventorySummary.availableCount}
+                        </div>
+                      </div>
+                      {result.inventorySummary.mostCommonAllocation && (
+                        <div className="mt-2">
+                          <span className="font-semibold">Ubicación más común:</span>{' '}
+                          <span className="text-lg font-bold">{result.inventorySummary.mostCommonAllocation}</span>
+                        </div>
+                      )}
+                      <p className="mt-3 text-sm">
+                        Al catalogar, se agregará una nueva unidad a esta ubicación.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* New Book Notice */}
+                {(!result.inventorySummary || result.inventorySummary.totalCount === 0) && (
+                  <Alert className="bg-green-50 border-green-400 border-2">
+                    <CheckCircle2 className="h-6 w-6 text-green-600" />
+                    <AlertTitle className="text-lg font-bold text-green-900">✨ Libro nuevo en el sistema</AlertTitle>
+                    <AlertDescription className="text-base text-green-800">
+                      Este libro no está en el inventario. Será catalogado como un nuevo título.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Marketplace Price Comparison - REMOVED */}
+                {false && result.marketplacePrices && result.marketplacePrices.length > 0 && (
                   <div className="bg-white rounded-lg p-3 md:p-4 text-left">
                     <h4 className="font-bold text-base md:text-lg mb-3">📊 Comparativa de Precios por Marketplace</h4>
                     <div className="overflow-x-auto">
@@ -496,55 +511,16 @@ export default function Triage() {
                   </div>
                 )}
 
-                {/* Duplicate Detection Alert */}
-                {result.inventorySummary && result.inventorySummary.totalCount > 0 && (
-                  <Alert className="bg-yellow-50 border-yellow-300">
-                    <AlertCircle className="h-5 w-5 text-yellow-600" />
-                    <AlertDescription>
-                      <div className="space-y-3">
-                        <p className="font-semibold text-yellow-900">
-                          ⚠️ Este libro ya existe en el inventario
-                        </p>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>
-                            <span className="text-gray-600">Cantidad total:</span>
-                            <span className="ml-2 font-bold">{result.inventorySummary.totalCount}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-600">Disponibles:</span>
-                            <span className="ml-2 font-bold">{result.inventorySummary.availableCount}</span>
-                          </div>
-                          {result.inventorySummary.mostCommonAllocation && (
-                            <div className="col-span-2">
-                              <span className="text-gray-600">Ubicación más común:</span>
-                              <span className="ml-2 font-bold text-blue-600">{result.inventorySummary.mostCommonAllocation}</span>
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-700">
-                          Puedes usar el botón "Catalogar Rápido" para agregar una nueva unidad a esta ubicación.
-                        </p>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
 
-                {/* Actions - Always show catalog options, let user decide */}
+
+                {/* Actions - Simplified */}
                 <div className="flex gap-3 justify-center flex-wrap">
                   <Button 
                     onClick={handleQuickCatalog} 
                     size="lg" 
-                    className={result.decision === 'ACCEPT' ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-8"
                   >
                     ⚡ Catalogar Rápido
-                  </Button>
-                  <Button 
-                    onClick={handleCatalog} 
-                    size="lg" 
-                    variant="outline" 
-                    className={result.decision === 'ACCEPT' ? 'border-green-600 text-green-600 hover:bg-green-50' : 'border-blue-600 text-blue-600 hover:bg-blue-50'}
-                  >
-                    Catalogar (Completo)
                   </Button>
                   <Button onClick={handleReset} variant="outline" size="lg">
                     Escanear Otro
