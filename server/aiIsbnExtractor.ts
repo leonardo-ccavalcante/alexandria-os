@@ -116,10 +116,14 @@ If no ISBN is found, return: {"found": false, "confidence": "none"}`,
     const cleanedIsbn = result.isbn.replace(/[-\s]/g, "");
 
     // Validate ISBN format (must be 10 or 13 digits)
-    if (!/^\d{10}$/.test(cleanedIsbn) && !/^\d{13}$/.test(cleanedIsbn)) {
+    // ISBN-10 can end with 'X' (represents check digit 10)
+    const isValidIsbn10 = /^\d{9}[\dX]$/i.test(cleanedIsbn);
+    const isValidIsbn13 = /^\d{13}$/.test(cleanedIsbn);
+    
+    if (!isValidIsbn10 && !isValidIsbn13) {
       return {
         success: false,
-        error: `ISBN extraído inválido: ${result.isbn}. Debe tener 10 o 13 dígitos.`,
+        error: `ISBN extraído inválido: ${result.isbn}. Debe tener 10 o 13 dígitos (ISBN-10 puede terminar en X).`,
       };
     }
 
@@ -127,6 +131,7 @@ If no ISBN is found, return: {"found": false, "confidence": "none"}`,
     let finalIsbn = cleanedIsbn;
     if (cleanedIsbn.length === 10) {
       // Convert ISBN-10 to ISBN-13 by adding 978 prefix and recalculating check digit
+      // Take only first 9 digits (ignore the ISBN-10 check digit, including X)
       const isbn13Base = "978" + cleanedIsbn.substring(0, 9);
       const checkDigit = calculateIsbn13CheckDigit(isbn13Base);
       finalIsbn = isbn13Base + checkDigit;

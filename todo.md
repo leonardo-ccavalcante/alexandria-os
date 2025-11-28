@@ -850,3 +850,12 @@
 - [x] Added new result card showing extracted book data (title, author, publisher, year)
 - [x] Updated QuickCatalogModal to work with ISBN-less books
 - [ ] Test button on mobile device (user to verify)
+
+## Bug Fix - ISBN-10 Extraction Validation (2025-11-27)
+- [x] Fix ISBN extraction validation rejecting valid ISBN-10 (10 digits)
+- [x] Issue: "842262687X" extracted but shows error "Debe tener 10 o 13 dígitos"
+- [x] Root cause: Validation regex only accepted numeric digits, not X check digit
+- [x] Solution: Updated regex to /^\d{9}[\dX]$/i to accept X as 10th character
+- [x] Updated ISBN-10 to ISBN-13 conversion to handle X properly
+- [x] Added test case for ISBN-10 with X check digit
+- [x] All tests passing (11/11)

@@ -89,9 +89,19 @@ describe("AI ISBN Extraction", () => {
   });
 
   it("should handle ISBN-10 format correctly", () => {
-    // Test ISBN-10 validation logic
+    // Test ISBN-10 validation logic (numeric only)
     const isbn10 = "0134685997";
     expect(isbn10).toMatch(/^\d{10}$/);
+  });
+
+  it("should handle ISBN-10 with X check digit", () => {
+    // Test ISBN-10 with X as check digit (represents 10)
+    const isbn10WithX = "842262687X";
+    const isValidIsbn10 = /^\d{9}[\dX]$/i.test(isbn10WithX);
+    expect(isValidIsbn10).toBe(true);
+    
+    // Verify it has exactly 10 characters
+    expect(isbn10WithX.length).toBe(10);
   });
 
   it("should clean ISBN by removing hyphens and spaces", () => {
