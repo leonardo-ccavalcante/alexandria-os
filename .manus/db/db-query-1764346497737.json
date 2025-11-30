@@ -1,0 +1,130 @@
+{
+  "query": "SELECT cm.isbn13, cm.title, COUNT(inv.uuid) as item_count, GROUP_CONCAT(inv.locationCode) as locations\nFROM catalog_masters cm\nLEFT JOIN inventory_items inv ON cm.isbn13 = inv.isbn13\nWHERE inv.uuid IS NOT NULL\nGROUP BY cm.isbn13\nHAVING item_count > 1\nORDER BY item_count DESC\nLIMIT 20",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xbcpjkj7urB6FV.123b8c0ef218 --database JSmQWHzFMNuBrpEm7nuLv4 --execute SELECT cm.isbn13, cm.title, COUNT(inv.uuid) as item_count, GROUP_CONCAT(inv.locationCode) as locations\nFROM catalog_masters cm\nLEFT JOIN inventory_items inv ON cm.isbn13 = inv.isbn13\nWHERE inv.uuid IS NOT NULL\nGROUP BY cm.isbn13\nHAVING item_count > 1\nORDER BY item_count DESC\nLIMIT 20",
+  "rows": [
+    {
+      "isbn13": "'8481302686",
+      "title": "La ruta",
+      "item_count": "40",
+      "locations": "10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E"
+    },
+    {
+      "isbn13": "'8420621749",
+      "title": "Antología de la literatura española de los siglos XI al XVI",
+      "item_count": "20",
+      "locations": "01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F"
+    },
+    {
+      "isbn13": "'8842793140",
+      "title": "Cita en la Cala Negra",
+      "item_count": "20",
+      "locations": "01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F"
+    },
+    {
+      "isbn13": "'8432240052",
+      "title": "El día del escorpión",
+      "item_count": "15",
+      "locations": "02E,02E,02E,02E,02E,02E,02E,02E,02E,02E,02E,02E,02E,02E,02E"
+    },
+    {
+      "isbn13": "'8424501691",
+      "title": "Obras Escogidas de Ernesto «Ché» Guevara. Tomo I",
+      "item_count": "15",
+      "locations": "12E,12E,12E,12E,12E,12E,12E,12E,12E,12E,12E,12E,12E,12E,12E"
+    },
+    {
+      "isbn13": "'8474814995",
+      "title": "Actas del V Seminario de Historia de la Filosofía Española",
+      "item_count": "15",
+      "locations": "11D,11D,11D,11D,11D,11D,11D,11D,11D,11D,11D,11D,11D,11D,11D"
+    },
+    {
+      "isbn13": "'0847491027",
+      "title": "Identidad, forma y diferencia en la obra de J. Duns Scoto",
+      "item_count": "10",
+      "locations": "11A,11A,11A,11A,11A,11A,11A,11A,11A,11A"
+    },
+    {
+      "isbn13": "'8432019768",
+      "title": "En el día de hoy",
+      "item_count": "10",
+      "locations": "01C,01C,01C,01C,01C,01C,01C,01C,01C,01C"
+    },
+    {
+      "isbn13": "9788401336560",
+      "title": "Un mundo sin fin (Saga Los pilares de la Tierra 2) (Spanish Edition)",
+      "item_count": "9",
+      "locations": "03B,03B,03B,03B,03B,03B,03B,03B,03B"
+    },
+    {
+      "isbn13": "8481302686",
+      "title": "La ruta",
+      "item_count": "8",
+      "locations": "10E,10E,10E,10E,10E,10E,10E,10E"
+    },
+    {
+      "isbn13": "9788467222562",
+      "title": "La canción de los misioneros",
+      "item_count": "6",
+      "locations": "05E,05E,05E,05E,05E,05E"
+    },
+    {
+      "isbn13": "'8498159868",
+      "title": "Chocolat",
+      "item_count": "5",
+      "locations": "02D,02D,02D,02D,02D"
+    },
+    {
+      "isbn13": "'8475302212",
+      "title": "El hombre que se mató a sí mismo",
+      "item_count": "5",
+      "locations": "02E,02E,02E,02E,02E"
+    },
+    {
+      "isbn13": "'8485776075",
+      "title": "Poesía completa",
+      "item_count": "5",
+      "locations": "12A,12A,12A,12A,12A"
+    },
+    {
+      "isbn13": "'842260020X",
+      "title": "El rey de hierro",
+      "item_count": "5",
+      "locations": "05b,05b,05b,05b,05b"
+    },
+    {
+      "isbn13": "'8423916671",
+      "title": "Lázaro en el laberinto",
+      "item_count": "5",
+      "locations": "01C,01C,01C,01C,01C"
+    },
+    {
+      "isbn13": "'8425904188",
+      "title": "Alienación: historia de una palabra",
+      "item_count": "5",
+      "locations": "11C,11C,11C,11C,11C"
+    },
+    {
+      "isbn13": "'8420617136",
+      "title": "Civilización",
+      "item_count": "5",
+      "locations": "12E,12E,12E,12E,12E"
+    },
+    {
+      "isbn13": "'8420612099",
+      "title": "Historia política de la España contemporánea",
+      "item_count": "5",
+      "locations": "02D,02D,02D,02D,02D"
+    },
+    {
+      "isbn13": "'8401377404",
+      "title": "Ricos por la Patria: Grandes Magnates de la Dictadura Altos Financieros de la Democracia",
+      "item_count": "5",
+      "locations": "07B,07B,07B,07B,07B"
+    }
+  ],
+  "messages": [],
+  "stdout": "isbn13\ttitle\titem_count\tlocations\n'8481302686\tLa ruta\t40\t10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E,10E\n'8420621749\tAntología de la literatura española de los siglos XI al XVI\t20\t01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F\n'8842793140\tCita en la Cala Negra\t20\t01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F,01F\n'8432240052\tEl día del escorpión\t15\t02E,02E,02E,02E,02E,02E,02E,02E,02E,02E,02E,02E,02E,02E,02E\n'8424501691\tObras Escogidas de Ernesto «Ché» Guevara. Tomo I\t15\t12E,12E,12E,12E,12E,12E,12E,12E,12E,12E,12E,12E,12E,12E,12E\n'8474814995\tActas del V Seminario de Historia de la Filosofía Española\t15\t11D,11D,11D,11D,11D,11D,11D,11D,11D,11D,11D,11D,11D,11D,11D\n'0847491027\tIdentidad, forma y diferencia en la obra de J. Duns Scoto\t10\t11A,11A,11A,11A,11A,11A,11A,11A,11A,11A\n'8432019768\tEn el día de hoy\t10\t01C,01C,01C,01C,01C,01C,01C,01C,01C,01C\n9788401336560\tUn mundo sin fin (Saga Los pilares de la Tierra 2) (Spanish Edition)\t9\t03B,03B,03B,03B,03B,03B,03B,03B,03B\n8481302686\tLa ruta\t8\t10E,10E,10E,10E,10E,10E,10E,10E\n9788467222562\tLa canción de los misioneros\t6\t05E,05E,05E,05E,05E,05E\n'8498159868\tChocolat\t5\t02D,02D,02D,02D,02D\n'8475302212\tEl hombre que se mató a sí mismo\t5\t02E,02E,02E,02E,02E\n'8485776075\tPoesía completa\t5\t12A,12A,12A,12A,12A\n'842260020X\tEl rey de hierro\t5\t05b,05b,05b,05b,05b\n'8423916671\tLázaro en el laberinto\t5\t01C,01C,01C,01C,01C\n'8425904188\tAlienación: historia de una palabra\t5\t11C,11C,11C,11C,11C\n'8420617136\tCivilización\t5\t12E,12E,12E,12E,12E\n'8420612099\tHistoria política de la España contemporánea\t5\t02D,02D,02D,02D,02D\n'8401377404\tRicos por la Patria: Grandes Magnates de la Dictadura Altos Financieros de la Democracia\t5\t07B,07B,07B,07B,07B\n",
+  "stderr": "",
+  "execution_time_ms": 2038
+}

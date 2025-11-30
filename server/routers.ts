@@ -1424,13 +1424,36 @@ export const appRouter = router({
         }).optional(),
       }))
       .mutation(async ({ input }) => {
-        // 1. Fetch Data
+        // 1. Fetch Data (grouped by ISBN like the UI)
         const { items } = await searchInventory({
           ...input.filters,
           limit: 10000, 
         });
         
-        // 2. Define Exact Headers (Order Matters)
+        // 2. Group items by ISBN and calculate total quantity
+        const groupedByIsbn = new Map<string, {
+          book: typeof items[0]['book'],
+          totalQuantity: number,
+          locations: string[]
+        }>();
+        
+        for (const { item, book } of items) {
+          const isbn = item.isbn13;
+          if (!groupedByIsbn.has(isbn)) {
+            groupedByIsbn.set(isbn, {
+              book,
+              totalQuantity: 0,
+              locations: []
+            });
+          }
+          const group = groupedByIsbn.get(isbn)!;
+          group.totalQuantity += 1;
+          if (item.locationCode) {
+            group.locations.push(item.locationCode);
+          }
+        }
+        
+        // 3. Define Exact Headers (Order Matters)
         const headers = [
           'ISBN',
           'Título',
@@ -1446,13 +1469,16 @@ export const appRouter = router({
           'Ubicación'
         ];
 
-        // 3. Map Data to Rows
-        const rows = items.map(({ item, book }) => {
+        // 4. Map Data to Rows (one row per ISBN with total quantity)
+        const rows = Array.from(groupedByIsbn.entries()).map(([isbn, { book, totalQuantity, locations }]) => {
           // Sanitize synopsis (remove newlines to prevent broken CSVs)
           const cleanSynopsis = (book?.synopsis || '').replace(/(\r\n|\n|\r)/gm, " ").substring(0, 800);
+          
+          // Combine all unique locations
+          const uniqueLocations = Array.from(new Set(locations)).sort().join('; ');
 
           return [
-            `'${item.isbn13}`,             // ISBN (quoted to prevent scientific notation)
+            `'${isbn}`,                     // ISBN (quoted to prevent scientific notation)
             book?.title || 'Sin Título',
             book?.author || 'Desconocido',
             book?.publisher || '',
@@ -1462,12 +1488,12 @@ export const appRouter = router({
             book?.pages || '',
             book?.edition || '',
             book?.language || '',
-            "1",                            // Quantity is always 1 for unique items
-            item.locationCode || ''
+            String(totalQuantity),          // Total quantity (sum of all copies)
+            uniqueLocations                 // All locations separated by semicolon
           ];
         });
         
-        // 4. Generate CSV String
+        // 5. Generate CSV String
         const csvContent = [
           headers.join(','), 
           ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))

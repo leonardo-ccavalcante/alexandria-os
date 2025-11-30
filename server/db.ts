@@ -474,22 +474,23 @@ export async function getDashboardKPIs() {
   const db = await getDb();
   if (!db) return null;
   
+  // Count unique books (ISBNs), not individual inventory items
   const [totalInventory] = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(DISTINCT ${inventoryItems.isbn13})` })
     .from(inventoryItems);
   
   const [availableCount] = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(DISTINCT ${inventoryItems.isbn13})` })
     .from(inventoryItems)
     .where(eq(inventoryItems.status, 'AVAILABLE'));
   
   const [listedCount] = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(DISTINCT ${inventoryItems.isbn13})` })
     .from(inventoryItems)
     .where(eq(inventoryItems.status, 'LISTED'));
   
   const [soldCount] = await db
-    .select({ count: sql<number>`count(*)` })
+    .select({ count: sql<number>`count(DISTINCT ${inventoryItems.isbn13})` })
     .from(inventoryItems)
     .where(eq(inventoryItems.status, 'SOLD'));
   

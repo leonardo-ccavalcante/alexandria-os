@@ -917,3 +917,27 @@
 - [x] Added onCatalogComplete callback to QuickCatalogModal
 - [x] Connected callback to handleReset in Triage page
 - [ ] Test workflow on mobile: catalog book → click "Catalogar Otro" → ISBN field should be empty and ready
+
+## Investigation - Enrichment Process Data Duplication (CRITICAL - 2025-11-28)
+- [ ] Audit enrichment process code for duplication bugs
+- [ ] Check if enrichment creates duplicate inventory items instead of updating existing ones
+- [ ] Verify data flow: triage → catalogMasters table (book metadata)
+- [ ] Verify data flow: cataloging → inventory table (physical items)
+- [ ] Confirm Google Books/ISBNDB data is stored in catalogMasters, not inventory
+- [ ] Check if createItem mutation properly links to existing catalogMasters
+- [ ] Test enrichment with books that have null/missing data
+- [ ] Fix any duplication issues found
+
+## Bug Fix - Android Camera Issue
+- [ ] Fix Android Chrome camera selection (front camera activating instead of back camera)
+- [ ] Replace capture="environment" attribute with MediaDevices API
+- [ ] Implement getUserMedia with facingMode: "environment" for back camera
+- [ ] Add fallback for browsers without MediaDevices support
+- [ ] Test on Android Chrome, Firefox, and Samsung Internet
+- [ ] Verify iPhone compatibility remains working
+
+## Bug Fix - CSV Export Quantity Issue
+- [x] Fix CSV inventory export showing quantity=1 instead of actual count (e.g., 88 copies shows as 1)
+
+## Bug Fix - Dashboard Counting Issue
+- [x] Fix dashboard KPIs counting individual inventory_items (2896) instead of unique books (ISBNs)

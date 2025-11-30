@@ -1,0 +1,30 @@
+{
+  "query": "SELECT \n  cm.isbn13,\n  cm.title,\n  cm.author,\n  cm.publisher,\n  inv.uuid,\n  inv.locationCode,\n  inv.status,\n  inv.createdAt\nFROM catalog_masters cm\nLEFT JOIN inventory_items inv ON cm.isbn13 = inv.isbn13\nWHERE cm.isbn13 = '9788420685083'\nORDER BY inv.createdAt DESC",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway02.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2xbcpjkj7urB6FV.123b8c0ef218 --database JSmQWHzFMNuBrpEm7nuLv4 --execute SELECT \n  cm.isbn13,\n  cm.title,\n  cm.author,\n  cm.publisher,\n  inv.uuid,\n  inv.locationCode,\n  inv.status,\n  inv.createdAt\nFROM catalog_masters cm\nLEFT JOIN inventory_items inv ON cm.isbn13 = inv.isbn13\nWHERE cm.isbn13 = '9788420685083'\nORDER BY inv.createdAt DESC",
+  "rows": [
+    {
+      "isbn13": "9788420685083",
+      "title": "La música en tiempos de Carlos III",
+      "author": "Walter, Bruno",
+      "publisher": "Alianza Editorial",
+      "uuid": "51faec56-6f61-473c-920a-c2ed2eca1b44",
+      "locationCode": "02a",
+      "status": "AVAILABLE",
+      "createdAt": "2025-11-27 12:52:01"
+    },
+    {
+      "isbn13": "9788420685083",
+      "title": "La música en tiempos de Carlos III",
+      "author": "Walter, Bruno",
+      "publisher": "Alianza Editorial",
+      "uuid": "8750c996-671b-43c9-b54d-800206e3848a",
+      "locationCode": "02a",
+      "status": "AVAILABLE",
+      "createdAt": "2025-11-27 12:52:01"
+    }
+  ],
+  "messages": [],
+  "stdout": "isbn13\ttitle\tauthor\tpublisher\tuuid\tlocationCode\tstatus\tcreatedAt\n9788420685083\tLa música en tiempos de Carlos III\tWalter, Bruno\tAlianza Editorial\t51faec56-6f61-473c-920a-c2ed2eca1b44\t02a\tAVAILABLE\t2025-11-27 12:52:01\n9788420685083\tLa música en tiempos de Carlos III\tWalter, Bruno\tAlianza Editorial\t8750c996-671b-43c9-b54d-800206e3848a\t02a\tAVAILABLE\t2025-11-27 12:52:01\n",
+  "stderr": "",
+  "execution_time_ms": 134
+}
