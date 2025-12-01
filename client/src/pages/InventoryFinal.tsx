@@ -140,6 +140,22 @@ export default function InventoryFinal() {
     },
   });
 
+  // Export to Iberlibro
+  const exportIberlibroMutation = trpc.batch.exportToIberlibro.useMutation({
+    onSuccess: (data: { tsv: string; stats: { totalItems: number; withPrice: number; withISBN: number } }) => {
+      const blob = new Blob([data.tsv], { type: "text/plain;charset=utf-8" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `iberlibro_${new Date().toISOString().split("T")[0]}.txt`;
+      a.click();
+      toast.success(`Iberlibro TSV exportado: ${data.stats.totalItems} libros, ${data.stats.withPrice} con precio, ${data.stats.withISBN} con ISBN`);
+    },
+    onError: (error: any) => {
+      toast.error(`Error al exportar: ${error.message}`);
+    },
+  });
+
   // Bulk enrichment mutation
   const bulkEnrichMutation = trpc.catalog.bulkEnrichMetadata.useMutation({
     onSuccess: (results) => {
@@ -260,7 +276,18 @@ export default function InventoryFinal() {
             >
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Exportar CSV</span>
-              <span className="sm:hidden">Exportar</span>
+              <span className="sm:hidden">CSV</span>
+            </Button>
+            <Button
+              onClick={() => exportIberlibroMutation.mutate({ filters: { searchTerm: searchText, publisher, author } })}
+              variant="outline"
+              className="gap-2 flex-1 sm:flex-none"
+              size="sm"
+              disabled={exportIberlibroMutation.isPending}
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Iberlibro</span>
+              <span className="sm:hidden">Iber</span>
             </Button>
             <Button
               onClick={handleBulkEnrich}

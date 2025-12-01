@@ -1527,6 +1527,140 @@ export const appRouter = router({
         
         return { csv: csvContent };
       }),
+
+    // Export inventory to Iberlibro/AbeBooks TSV format
+    exportToIberlibro: protectedProcedure
+      .input(z.object({
+        filters: z.object({
+          searchTerm: z.string().optional(),
+          publisher: z.string().optional(),
+          author: z.string().optional(),
+          locationCode: z.string().optional(),
+          yearFrom: z.number().optional(),
+          yearTo: z.number().optional(),
+        }).optional(),
+        shippingTemplateId: z.string().optional().default('ST-00001'),
+      }))
+      .mutation(async ({ input }) => {
+        // 1. Fetch inventory items with filters
+        const result = await searchInventory({
+          ...input.filters,
+          limit: 10000,
+        });
+        const items = result.items;
+
+        // 2. Helper functions for normalization
+        const generateListingId = () => {
+          const chars = '0123456789ABCDEF';
+          let id = '';
+          for (let i = 0; i < 8; i++) id += chars[Math.floor(Math.random() * 16)];
+          id += '-';
+          for (let i = 0; i < 3; i++) id += chars[Math.floor(Math.random() * 16)];
+          return id;
+        };
+
+        const normalizeCondition = (condition: string | null): string => {
+          if (!condition) return 'Good';
+          const c = condition.toUpperCase();
+          const map: Record<string, string> = {
+            'NUEVO': 'New',
+            'COMO_NUEVO': 'As New',
+            'BUENO': 'Good',
+            'ACEPTABLE': 'Fair',
+            'DEFECTUOSO': 'Poor',
+          };
+          return map[c] || 'Good';
+        };
+
+        const normalizeBinding = (binding: string | null): string => {
+          if (!binding) return 'Paperback';
+          const b = binding.toLowerCase();
+          if (b.includes('hardcover') || b.includes('tapa dura') || b.includes('cartoné')) {
+            return 'Hardcover';
+          }
+          return 'Paperback';
+        };
+
+        const escapeTSV = (value: any): string => {
+          if (value === null || value === undefined) return '';
+          const str = String(value);
+          // Escape tabs, newlines, and quotes for TSV format
+          if (str.includes('\t') || str.includes('\n') || str.includes('\r') || str.includes('"')) {
+            return '"' + str.replace(/"/g, '""') + '"';
+          }
+          return str;
+        };
+
+        // 3. Define Iberlibro field headers (English)
+        const headers = [
+          'listingid', 'title', 'author', 'illustrator', 'price', 'quantity',
+          'producttype', 'description', 'bindingtext', 'bookcondition',
+          'publishername', 'placepublished', 'yearpublished', 'isbn',
+          'sellercatalog1', 'sellercatalog2', 'sellercatalog3', 'abecategory',
+          'keywords', 'jacketcondition', 'editiontext', 'printingtext',
+          'signedtext', 'volume', 'size', 'imgurl', 'weight', 'weightunit',
+          'shippingtemplateid', 'language'
+        ];
+
+        // 4. Map items to Iberlibro format (one row per inventory item)
+        const rows = items.map(({ item, book }) => {
+          const price = item.listingPrice ? parseFloat(item.listingPrice.toString()).toFixed(2) : '0.00';
+          const isbn = item.isbn13?.replace(/[-\s]/g, '') || '';
+          
+          // Build description with Spanish content
+          const description = book?.synopsis 
+            ? `${book.synopsis.substring(0, 1000)}`
+            : book?.title || 'Sin descripción';
+
+          return [
+            escapeTSV(generateListingId()),                    // listingid
+            escapeTSV(book?.title || 'Sin Título'),            // title
+            escapeTSV(book?.author || ''),                     // author
+            escapeTSV(''),                                     // illustrator
+            escapeTSV(price),                                  // price
+            escapeTSV('1'),                                    // quantity (1 per item)
+            escapeTSV('Book'),                                 // producttype
+            escapeTSV(description),                            // description
+            escapeTSV(normalizeBinding(null)), // bindingtext (no binding field in schema)
+            escapeTSV(normalizeCondition(item.conditionGrade)),     // bookcondition
+            escapeTSV(book?.publisher || ''),                  // publishername
+            escapeTSV(''),                                     // placepublished
+            escapeTSV(book?.publicationYear || ''),            // yearpublished
+            escapeTSV(isbn),                                   // isbn
+            escapeTSV(book?.categoryLevel1 || ''),             // sellercatalog1
+            escapeTSV(''),                                     // sellercatalog2
+            escapeTSV(''),                                     // sellercatalog3
+            escapeTSV(''),                                     // abecategory
+            escapeTSV(''),                                     // keywords
+            escapeTSV(''),                                     // jacketcondition
+            escapeTSV(book?.edition || ''),                    // editiontext
+            escapeTSV(''),                                     // printingtext
+            escapeTSV(''),                                     // signedtext
+            escapeTSV(''),                                     // volume
+            escapeTSV(''),                                     // size
+            escapeTSV(book?.coverImageUrl || ''),              // imgurl
+            escapeTSV(''),                                     // weight
+            escapeTSV(''),                                     // weightunit
+            escapeTSV(input.shippingTemplateId || 'ST-00001'), // shippingtemplateid
+            escapeTSV(book?.language || 'SPA'),                // language
+          ];
+        });
+
+        // 5. Generate TSV content
+        const tsvContent = [
+          headers.join('\t'),
+          ...rows.map(row => row.join('\t'))
+        ].join('\n');
+
+        return { 
+          tsv: tsvContent,
+          stats: {
+            totalItems: items.length,
+            withPrice: items.filter(({ item }) => item.listingPrice && parseFloat(String(item.listingPrice)) > 0).length,
+            withISBN: items.filter(({ item }) => item.isbn13).length,
+          }
+        };
+      }),
   }),
 
   // ============================================================================

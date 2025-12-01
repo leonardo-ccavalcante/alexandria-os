@@ -948,3 +948,12 @@
 - [x] Update CSV template to include price column
 - [x] Update UI instructions to mention price fields
 - [x] Add robust error handling for price calculations
+
+## Feature - Iberlibro/AbeBooks Export
+- [x] Create backend tRPC procedure for Iberlibro TSV export
+- [x] Map Alexandria OS fields to Iberlibro required fields (30 columns)
+- [x] Normalize conditions (BUENO → Good, COMO_NUEVO → As New, etc.)
+- [x] Normalize bindings (Tapa Dura → Hardcover, Tapa Blanda → Paperback)
+- [x] Generate TSV file with English headers and Spanish content
+- [x] Add export button to Inventory page
+- [x] Write unit tests for field mapping and normalization (9/9 passing)
