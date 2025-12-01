@@ -1430,11 +1430,12 @@ export const appRouter = router({
           limit: 10000, 
         });
         
-        // 2. Group items by ISBN and calculate total quantity
+        // 2. Group items by ISBN and calculate total quantity + average price
         const groupedByIsbn = new Map<string, {
           book: typeof items[0]['book'],
           totalQuantity: number,
-          locations: string[]
+          locations: string[],
+          prices: number[]
         }>();
         
         for (const { item, book } of items) {
@@ -1443,13 +1444,21 @@ export const appRouter = router({
             groupedByIsbn.set(isbn, {
               book,
               totalQuantity: 0,
-              locations: []
+              locations: [],
+              prices: []
             });
           }
           const group = groupedByIsbn.get(isbn)!;
           group.totalQuantity += 1;
           if (item.locationCode) {
             group.locations.push(item.locationCode);
+          }
+          // Safely parse price with validation
+          if (item.listingPrice) {
+            const priceNum = Number(item.listingPrice);
+            if (!isNaN(priceNum) && isFinite(priceNum) && priceNum >= 0) {
+              group.prices.push(priceNum);
+            }
           }
         }
         
@@ -1466,16 +1475,32 @@ export const appRouter = router({
           'Edición',
           'Idioma',
           'Cantidad',
-          'Ubicación'
+          'Ubicación',
+          'Precio'
         ];
 
-        // 4. Map Data to Rows (one row per ISBN with total quantity)
-        const rows = Array.from(groupedByIsbn.entries()).map(([isbn, { book, totalQuantity, locations }]) => {
+        // 4. Map Data to Rows (one row per ISBN with total quantity and average price)
+        const rows = Array.from(groupedByIsbn.entries()).map(([isbn, { book, totalQuantity, locations, prices }]) => {
           // Sanitize synopsis (remove newlines to prevent broken CSVs)
           const cleanSynopsis = (book?.synopsis || '').replace(/(\r\n|\n|\r)/gm, " ").substring(0, 800);
           
           // Combine all unique locations
           const uniqueLocations = Array.from(new Set(locations)).sort().join('; ');
+          
+          // Calculate average price with error handling
+          let avgPrice = '';
+          try {
+            if (prices.length > 0) {
+              const sum = prices.reduce((acc, p) => acc + p, 0);
+              const avg = sum / prices.length;
+              if (!isNaN(avg) && isFinite(avg)) {
+                avgPrice = avg.toFixed(2);
+              }
+            }
+          } catch (error) {
+            // If calculation fails, leave price empty
+            avgPrice = '';
+          }
 
           return [
             `'${isbn}`,                     // ISBN (quoted to prevent scientific notation)
@@ -1489,7 +1514,8 @@ export const appRouter = router({
             book?.edition || '',
             book?.language || '',
             String(totalQuantity),          // Total quantity (sum of all copies)
-            uniqueLocations                 // All locations separated by semicolon
+            uniqueLocations,                // All locations separated by semicolon
+            avgPrice                        // Average listing price
           ];
         });
         

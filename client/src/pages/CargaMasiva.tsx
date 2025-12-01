@@ -156,6 +156,7 @@ export default function CargaMasiva() {
       "Idioma",
       "Cantidad",
       "Ubicación",
+      "Precio",
     ];
     const example = [
       "9780061120084",
@@ -170,6 +171,7 @@ export default function CargaMasiva() {
       "EN",
       "5",
       "01A",
+      "12.50",
     ];
     const csv = [headers.join(","), example.join(",")].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -320,7 +322,7 @@ export default function CargaMasiva() {
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                El archivo CSV debe contener: ISBN, Título, Autor, Editorial, Año, Categoría, Sinopsis, Páginas, Edición, Idioma, Cantidad, Ubicación
+                El archivo CSV debe contener: ISBN, Título, Autor, Editorial, Año, Categoría, Sinopsis, Páginas, Edición, Idioma, Cantidad, Ubicación, Precio (opcional)
               </AlertDescription>
             </Alert>
 

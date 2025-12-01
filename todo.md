@@ -941,3 +941,10 @@
 
 ## Bug Fix - Dashboard Counting Issue
 - [x] Fix dashboard KPIs counting individual inventory_items (2896) instead of unique books (ISBNs)
+
+## Feature - CSV Price Import/Export
+- [x] Add optional price columns to CSV export (Precio)
+- [x] Add price column support to CSV import (optional, not mandatory)
+- [x] Update CSV template to include price column
+- [x] Update UI instructions to mention price fields
+- [x] Add robust error handling for price calculations
