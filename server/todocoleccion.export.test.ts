@@ -30,8 +30,8 @@ function createAuthContext(): TrpcContext {
   };
 }
 
-describe("Iberlibro/AbeBooks TSV Export", () => {
-  const testIsbn = "9780000000444";
+describe("Todocolección CSV Export", () => {
+  const testIsbn = "9780000000555";
 
   beforeEach(async () => {
     const db = await getDb();
@@ -46,7 +46,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
     }
   });
 
-  it("should export TSV with 30 columns and English headers", async () => {
+  it("should export CSV with 11 columns and Spanish headers", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
     const db = await getDb();
@@ -55,11 +55,11 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
     // Create test book
     await db.insert(catalogMasters).values({
       isbn13: testIsbn,
-      title: "Test Book for Iberlibro",
+      title: "Test Book for Todocolección",
       author: "Test Author",
       publisher: "Test Publisher",
       publicationYear: 2020,
-      synopsis: "This is a test book for Iberlibro export",
+      synopsis: "This is a test book for Todocolección export",
       language: "ES",
     });
 
@@ -73,35 +73,35 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       listingPrice: "15.00",
     });
 
-    // Export to Iberlibro
-    const result = await caller.batch.exportToIberlibro({ filters: {} });
+    // Export to Todocolección
+    const result = await caller.batch.exportToTodocoleccion({ filters: {} });
 
-    // Parse TSV
-    const lines = result.tsv.split("\n");
-    const headers = lines[0].split("\t");
+    // Parse CSV
+    const lines = result.csv.split("\n");
+    const headers = lines[0].split(",");
     
-    // Verify 30 columns
-    expect(headers.length).toBe(30);
+    // Verify 11 columns
+    expect(headers.length).toBe(11);
 
-    // Verify English headers
-    expect(headers[0]).toBe("listingid");
-    expect(headers[1]).toBe("title");
-    expect(headers[2]).toBe("author");
-    expect(headers[4]).toBe("price");
-    expect(headers[9]).toBe("bookcondition");
-    expect(headers[29]).toBe("language");
+    // Verify Spanish headers
+    expect(headers[0]).toBe("referencia");
+    expect(headers[1]).toBe("título");
+    expect(headers[2]).toBe("precio");
+    expect(headers[3]).toBe("descripción");
+    expect(headers[4]).toBe("sección");
+    expect(headers[5]).toBe("stock");
+    expect(headers[6]).toBe("estado");
+    expect(headers[7]).toBe("autor");
+    expect(headers[8]).toBe("editorial");
+    expect(headers[9]).toBe("año");
+    expect(headers[10]).toBe("imagen_1");
 
     // Verify data row exists
-    const dataRow = lines.find(line => line.includes(testIsbn));
+    const dataRow = lines.find(line => line.includes(testIsbn) || line.includes("Test Book for Todocolección"));
     expect(dataRow).toBeDefined();
-    
-    // Verify first field is a UUID (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-    const firstField = dataRow!.split('\t')[0];
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    expect(firstField).toMatch(uuidRegex);
   });
 
-  it("should normalize conditions correctly (BUENO → Good)", async () => {
+  it("should normalize conditions correctly (BUENO → 4)", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
     const db = await getDb();
@@ -122,21 +122,21 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       listingPrice: "10.00",
     });
 
-    const result = await caller.batch.exportToIberlibro({ filters: {} });
-    const lines = result.tsv.split("\n");
-    const headers = lines[0].split("\t");
-    const dataRow = lines.find(line => line.includes(testIsbn));
+    const result = await caller.batch.exportToTodocoleccion({ filters: {} });
+    const lines = result.csv.split("\n");
+    const headers = lines[0].split(",");
+    const dataRow = lines.find(line => line.includes(testIsbn) || line.includes("Condition Test Book"));
     
     expect(dataRow).toBeDefined();
     
-    // Parse the row (handle quoted fields)
-    const values = dataRow!.split("\t");
-    const conditionIndex = headers.indexOf("bookcondition");
+    // Parse the row (simple split for non-quoted fields)
+    const values = dataRow!.split(",");
+    const estadoIndex = headers.indexOf("estado");
     
-    expect(values[conditionIndex]).toBe("Good");
+    expect(values[estadoIndex]).toBe("4");
   });
 
-  it("should normalize conditions: COMO_NUEVO → As New", async () => {
+  it("should normalize conditions: COMO_NUEVO → 5", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
     const db = await getDb();
@@ -157,18 +157,18 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       listingPrice: "20.00",
     });
 
-    const result = await caller.batch.exportToIberlibro({ filters: {} });
-    const lines = result.tsv.split("\n");
-    const headers = lines[0].split("\t");
-    const dataRow = lines.find(line => line.includes(testIsbn));
+    const result = await caller.batch.exportToTodocoleccion({ filters: {} });
+    const lines = result.csv.split("\n");
+    const headers = lines[0].split(",");
+    const dataRow = lines.find(line => line.includes(testIsbn) || line.includes("As New Test"));
     
-    const values = dataRow!.split("\t");
-    const conditionIndex = headers.indexOf("bookcondition");
+    const values = dataRow!.split(",");
+    const estadoIndex = headers.indexOf("estado");
     
-    expect(values[conditionIndex]).toBe("As New");
+    expect(values[estadoIndex]).toBe("5");
   });
 
-  it("should normalize conditions: ACEPTABLE → Fair", async () => {
+  it("should normalize conditions: ACEPTABLE → 3", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
     const db = await getDb();
@@ -189,15 +189,15 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       listingPrice: "8.00",
     });
 
-    const result = await caller.batch.exportToIberlibro({ filters: {} });
-    const lines = result.tsv.split("\n");
-    const headers = lines[0].split("\t");
-    const dataRow = lines.find(line => line.includes(testIsbn));
+    const result = await caller.batch.exportToTodocoleccion({ filters: {} });
+    const lines = result.csv.split("\n");
+    const headers = lines[0].split(",");
+    const dataRow = lines.find(line => line.includes(testIsbn) || line.includes("Fair Condition Test"));
     
-    const values = dataRow!.split("\t");
-    const conditionIndex = headers.indexOf("bookcondition");
+    const values = dataRow!.split(",");
+    const estadoIndex = headers.indexOf("estado");
     
-    expect(values[conditionIndex]).toBe("Fair");
+    expect(values[estadoIndex]).toBe("3");
   });
 
   it("should format price with 2 decimal places", async () => {
@@ -221,18 +221,18 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       listingPrice: "12.50",
     });
 
-    const result = await caller.batch.exportToIberlibro({ filters: {} });
-    const lines = result.tsv.split("\n");
-    const headers = lines[0].split("\t");
-    const dataRow = lines.find(line => line.includes(testIsbn));
+    const result = await caller.batch.exportToTodocoleccion({ filters: {} });
+    const lines = result.csv.split("\n");
+    const headers = lines[0].split(",");
+    const dataRow = lines.find(line => line.includes(testIsbn) || line.includes("Price Format Test"));
     
-    const values = dataRow!.split("\t");
-    const priceIndex = headers.indexOf("price");
+    const values = dataRow!.split(",");
+    const priceIndex = headers.indexOf("precio");
     
     expect(values[priceIndex]).toBe("12.50");
   });
 
-  it("should include Spanish language code (SPA)", async () => {
+  it("should include stock=1 for each item", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
     const db = await getDb();
@@ -240,41 +240,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
 
     await db.insert(catalogMasters).values({
       isbn13: testIsbn,
-      title: "Language Test",
-      author: "Test Author",
-      language: "ES",
-    });
-
-    await db.insert(inventoryItems).values({
-      isbn13: testIsbn,
-      status: "AVAILABLE",
-      conditionGrade: "BUENO",
-      locationCode: "01A",
-      acquisitionDate: new Date(),
-      listingPrice: "10.00",
-    });
-
-    const result = await caller.batch.exportToIberlibro({ filters: {} });
-    const lines = result.tsv.split("\n");
-    const headers = lines[0].split("\t");
-    const dataRow = lines.find(line => line.includes(testIsbn));
-    
-    const values = dataRow!.split("\t");
-    const languageIndex = headers.indexOf("language");
-    
-    // Should default to SPA if not set or use stored value
-    expect(values[languageIndex]).toMatch(/SPA|ES/);
-  });
-
-  it("should include shipping template ID", async () => {
-    const ctx = createAuthContext();
-    const caller = appRouter.createCaller(ctx);
-    const db = await getDb();
-    if (!db) throw new Error("Database not available");
-
-    await db.insert(catalogMasters).values({
-      isbn13: testIsbn,
-      title: "Shipping Template Test",
+      title: "Stock Test",
       author: "Test Author",
     });
 
@@ -287,19 +253,15 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       listingPrice: "10.00",
     });
 
-    const result = await caller.batch.exportToIberlibro({ 
-      filters: {}, 
-      shippingTemplateId: "ST-00001" 
-    });
+    const result = await caller.batch.exportToTodocoleccion({ filters: {} });
+    const lines = result.csv.split("\n");
+    const headers = lines[0].split(",");
+    const dataRow = lines.find(line => line.includes(testIsbn) || line.includes("Stock Test"));
     
-    const lines = result.tsv.split("\n");
-    const headers = lines[0].split("\t");
-    const dataRow = lines.find(line => line.includes(testIsbn));
+    const values = dataRow!.split(",");
+    const stockIndex = headers.indexOf("stock");
     
-    const values = dataRow!.split("\t");
-    const templateIndex = headers.indexOf("shippingtemplateid");
-    
-    expect(values[templateIndex]).toBe("ST-00001");
+    expect(values[stockIndex]).toBe("1");
   });
 
   it("should return correct stats", async () => {
@@ -308,11 +270,11 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
 
-    // Create 3 books: 2 with prices, 2 with ISBNs
+    // Create 3 books: 2 with prices, 1 with image
     await db.insert(catalogMasters).values([
       { isbn13: testIsbn, title: "Book 1", author: "Author 1" },
-      { isbn13: "9780000000445", title: "Book 2", author: "Author 2" },
-      { isbn13: "9780000000446", title: "Book 3", author: "Author 3" },
+      { isbn13: "9780000000556", title: "Book 2", author: "Author 2", coverImageUrl: "https://example.com/image.jpg" },
+      { isbn13: "9780000000557", title: "Book 3", author: "Author 3" },
     ]);
 
     await db.insert(inventoryItems).values([
@@ -324,14 +286,14 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
         listingPrice: "10.00",
       },
       {
-        isbn13: "9780000000445",
+        isbn13: "9780000000556",
         status: "AVAILABLE",
         conditionGrade: "BUENO",
         acquisitionDate: new Date(),
         listingPrice: "15.00",
       },
       {
-        isbn13: "9780000000446",
+        isbn13: "9780000000557",
         status: "AVAILABLE",
         conditionGrade: "BUENO",
         acquisitionDate: new Date(),
@@ -339,20 +301,20 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       },
     ]);
 
-    const result = await caller.batch.exportToIberlibro({ filters: {} });
+    const result = await caller.batch.exportToTodocoleccion({ filters: {} });
 
     expect(result.stats.totalItems).toBeGreaterThanOrEqual(3);
     expect(result.stats.withPrice).toBeGreaterThanOrEqual(2);
-    expect(result.stats.withISBN).toBeGreaterThanOrEqual(3);
+    expect(result.stats.withImages).toBeGreaterThanOrEqual(1);
 
     // Cleanup
-    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, "9780000000445"));
-    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, "9780000000446"));
-    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, "9780000000445"));
-    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, "9780000000446"));
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, "9780000000556"));
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, "9780000000557"));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, "9780000000556"));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, "9780000000557"));
   });
 
-  it("should handle special characters in description (TSV escaping)", async () => {
+  it("should handle special characters in description (CSV escaping)", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
     const db = await getDb();
@@ -362,7 +324,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       isbn13: testIsbn,
       title: "Special Chars Test",
       author: "Test Author",
-      synopsis: 'Description with "quotes" and\ttabs and\nnewlines',
+      synopsis: 'Description with "quotes", commas, and\nnewlines',
     });
 
     await db.insert(inventoryItems).values({
@@ -374,14 +336,14 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       listingPrice: "10.00",
     });
 
-    const result = await caller.batch.exportToIberlibro({ filters: {} });
+    const result = await caller.batch.exportToTodocoleccion({ filters: {} });
 
     // Should not crash and should escape properly
-    expect(result.tsv).toBeDefined();
-    expect(result.tsv.length).toBeGreaterThan(0);
+    expect(result.csv).toBeDefined();
+    expect(result.csv.length).toBeGreaterThan(0);
     
-    const lines = result.tsv.split("\n");
-    const dataRow = lines.find(line => line.includes(testIsbn));
+    const lines = result.csv.split("\n");
+    const dataRow = lines.find(line => line.includes(testIsbn) || line.includes("Special Chars Test"));
     expect(dataRow).toBeDefined();
   });
 });

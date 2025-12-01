@@ -1550,14 +1550,6 @@ export const appRouter = router({
         const items = result.items;
 
         // 2. Helper functions for normalization
-        const generateListingId = () => {
-          const chars = '0123456789ABCDEF';
-          let id = '';
-          for (let i = 0; i < 8; i++) id += chars[Math.floor(Math.random() * 16)];
-          id += '-';
-          for (let i = 0; i < 3; i++) id += chars[Math.floor(Math.random() * 16)];
-          return id;
-        };
 
         const normalizeCondition = (condition: string | null): string => {
           if (!condition) return 'Good';
@@ -1613,7 +1605,7 @@ export const appRouter = router({
             : book?.title || 'Sin descripción';
 
           return [
-            escapeTSV(generateListingId()),                    // listingid
+            escapeTSV(item.uuid),                              // listingid (use Alexandria OS UUID)
             escapeTSV(book?.title || 'Sin Título'),            // title
             escapeTSV(book?.author || ''),                     // author
             escapeTSV(''),                                     // illustrator
@@ -1658,6 +1650,108 @@ export const appRouter = router({
             totalItems: items.length,
             withPrice: items.filter(({ item }) => item.listingPrice && parseFloat(String(item.listingPrice)) > 0).length,
             withISBN: items.filter(({ item }) => item.isbn13).length,
+          }
+        };
+      }),
+
+    // Export inventory to Todocolección CSV format
+    exportToTodocoleccion: protectedProcedure
+      .input(z.object({
+        filters: z.object({
+          searchTerm: z.string().optional(),
+          publisher: z.string().optional(),
+          author: z.string().optional(),
+          locationCode: z.string().optional(),
+          yearFrom: z.number().optional(),
+          yearTo: z.number().optional(),
+        }).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // 1. Fetch inventory items with filters
+        const result = await searchInventory({
+          ...input.filters,
+          limit: 10000,
+        });
+        const items = result.items;
+
+        // 2. Helper functions for Todocolección
+        const normalizeConditionToTC = (condition: string | null): string => {
+          if (!condition) return '4'; // Default to "Bueno"
+          const c = condition.toUpperCase();
+          const map: Record<string, string> = {
+            'NUEVO': '5',
+            'COMO_NUEVO': '5',
+            'BUENO': '4',
+            'ACEPTABLE': '3',
+            'DEFECTUOSO': '1',
+          };
+          return map[c] || '4';
+        };
+
+        const escapeCSV = (value: any): string => {
+          if (value === null || value === undefined) return '';
+          const str = String(value);
+          // Escape quotes and wrap in quotes if contains comma, quote, or newline
+          if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+            return '"' + str.replace(/"/g, '""') + '"';
+          }
+          return str;
+        };
+
+        // 3. Define Todocolección field headers (Spanish)
+        const headers = [
+          'referencia',      // Unique reference (UUID)
+          'título',          // Title
+          'precio',          // Price in euros
+          'descripción',     // Description
+          'sección',         // Category/Section
+          'stock',           // Quantity
+          'estado',          // Condition (1-5)
+          'autor',           // Author
+          'editorial',       // Publisher
+          'año',             // Publication year
+          'imagen_1',        // Cover image URL
+        ];
+
+        // 4. Map items to Todocolección format (one row per inventory item)
+        const rows = items.map(({ item, book }) => {
+          const price = item.listingPrice ? parseFloat(item.listingPrice.toString()).toFixed(2) : '0.00';
+          
+          // Build description (max 1000 chars recommended)
+          const description = book?.synopsis 
+            ? book.synopsis.substring(0, 1000)
+            : book?.title || 'Sin descripción';
+
+          // Map category to section (use categoryLevel1 or default to "Libros")
+          const section = book?.categoryLevel1 || 'Libros';
+
+          return [
+            escapeCSV(item.uuid),                              // referencia (UUID)
+            escapeCSV(book?.title || 'Sin Título'),            // título
+            escapeCSV(price),                                  // precio
+            escapeCSV(description),                            // descripción
+            escapeCSV(section),                                // sección
+            escapeCSV('1'),                                    // stock (1 per item)
+            escapeCSV(normalizeConditionToTC(item.conditionGrade)), // estado (1-5)
+            escapeCSV(book?.author || ''),                     // autor
+            escapeCSV(book?.publisher || ''),                  // editorial
+            escapeCSV(book?.publicationYear || ''),            // año
+            escapeCSV(book?.coverImageUrl || ''),              // imagen_1
+          ];
+        });
+
+        // 5. Generate CSV content
+        const csvContent = [
+          headers.join(','),
+          ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        return { 
+          csv: csvContent,
+          stats: {
+            totalItems: items.length,
+            withPrice: items.filter(({ item }) => item.listingPrice && parseFloat(String(item.listingPrice)) > 0).length,
+            withImages: items.filter(({ book }) => book?.coverImageUrl).length,
           }
         };
       }),

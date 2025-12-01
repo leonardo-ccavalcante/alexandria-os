@@ -156,6 +156,22 @@ export default function InventoryFinal() {
     },
   });
 
+  // Export to Todocolección
+  const exportTodocoleccionMutation = trpc.batch.exportToTodocoleccion.useMutation({
+    onSuccess: (data: { csv: string; stats: { totalItems: number; withPrice: number; withImages: number } }) => {
+      const blob = new Blob([data.csv], { type: "text/csv;charset=utf-8" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `todocoleccion_${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      toast.success(`Todocolección CSV exportado: ${data.stats.totalItems} libros, ${data.stats.withPrice} con precio, ${data.stats.withImages} con imagen`);
+    },
+    onError: (error: any) => {
+      toast.error(`Error al exportar: ${error.message}`);
+    },
+  });
+
   // Bulk enrichment mutation
   const bulkEnrichMutation = trpc.catalog.bulkEnrichMetadata.useMutation({
     onSuccess: (results) => {
@@ -288,6 +304,17 @@ export default function InventoryFinal() {
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Iberlibro</span>
               <span className="sm:hidden">Iber</span>
+            </Button>
+            <Button
+              onClick={() => exportTodocoleccionMutation.mutate({ filters: { searchTerm: searchText, publisher, author } })}
+              variant="outline"
+              className="gap-2 flex-1 sm:flex-none"
+              size="sm"
+              disabled={exportTodocoleccionMutation.isPending}
+            >
+              <Download className="h-4 w-4" />
+              <span className="hidden sm:inline">Todocol.</span>
+              <span className="sm:hidden">TC</span>
             </Button>
             <Button
               onClick={handleBulkEnrich}

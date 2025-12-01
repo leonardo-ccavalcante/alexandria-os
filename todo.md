@@ -957,3 +957,14 @@
 - [x] Generate TSV file with English headers and Spanish content
 - [x] Add export button to Inventory page
 - [x] Write unit tests for field mapping and normalization (9/9 passing)
+
+## Bug Fix - Iberlibro listingID
+- [x] Change listingID from random hex to use inventory item UUID
+- [x] Update unit tests to verify UUID usage (9/9 passing)
+
+## Feature - Todocolección Export
+- [x] Research Todocolección Importamatic CSV format requirements
+- [x] Create backend tRPC procedure for Todocolección CSV export
+- [x] Map Alexandria OS fields to Todocolección required fields (referencia, título, precio, descripción, sección)
+- [x] Add export button to Inventory page
+- [x] Write unit tests for Todocolección export (8/8 passing)
