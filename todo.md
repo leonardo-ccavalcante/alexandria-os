@@ -968,3 +968,13 @@
 - [x] Map Alexandria OS fields to Todocolección required fields (referencia, título, precio, descripción, sección)
 - [x] Add export button to Inventory page
 - [x] Write unit tests for Todocolección export (8/8 passing)
+
+## Feature - Casa del Libro Export Integration
+- [x] Create materia_mapping.json with 946 category mappings
+- [x] Add Materia code mapping helper functions
+- [x] Integrate Casa del Libro CSV export backend procedure (27 columns, semicolon separator)
+- [x] Create unified ExportarDatos page with dropdown selector
+- [x] Add route for /exportar page (already exists in App.tsx)
+- [x] Update navigation to include ExportarDatos
+- [x] Write unit tests for Casa del Libro export (10/10 passing)
+- [x] Verify numeric Materia codes in exported CSV

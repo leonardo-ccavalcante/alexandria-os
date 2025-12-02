@@ -1755,6 +1755,168 @@ export const appRouter = router({
           }
         };
       }),
+
+    // ============================================================================
+    // CASA DEL LIBRO EXPORT
+    // ============================================================================
+    exportToCasaDelLibro: protectedProcedure
+      .input(z.object({
+        filters: z.object({
+          searchTerm: z.string().optional(),
+          publisher: z.string().optional(),
+          author: z.string().optional(),
+          locationCode: z.string().optional(),
+          yearFrom: z.number().optional(),
+          yearTo: z.number().optional(),
+        }).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // 1. Fetch inventory items with filters
+        const result = await searchInventory({
+          ...input.filters,
+          limit: 10000,
+        });
+        const items = result.items;
+
+        // 2. Load Materia code mappings from JSON
+        const materiaData = await import('../shared/materia_mapping.json');
+        const materiaMappings = materiaData.mappings as Array<{
+          nivel1: string;
+          nivel2: string;
+          nivel3: string;
+          materia: number;
+        }>;
+
+        // 3. Build lookup map for fast access
+        const materiaMap = new Map<string, number>();
+        for (const mapping of materiaMappings) {
+          const key = `${mapping.nivel1}|${mapping.nivel2}|${mapping.nivel3}`;
+          materiaMap.set(key, mapping.materia);
+        }
+
+        // 4. Helper function to lookup Materia code
+        const lookupMateriaCode = (book: typeof items[0]['book']): string => {
+          if (!book) return '';
+          
+          const nivel1 = book.categoryLevel1 || '';
+          const nivel2 = book.categoryLevel2 || '';
+          const nivel3 = book.categoryLevel3 || '';
+          
+          // Try exact match (nivel1|nivel2|nivel3)
+          let key = `${nivel1}|${nivel2}|${nivel3}`;
+          let materia = materiaMap.get(key);
+          if (materia) return String(materia);
+          
+          // Try nivel1|nivel2 (empty nivel3)
+          if (nivel2) {
+            key = `${nivel1}|${nivel2}|`;
+            materia = materiaMap.get(key);
+            if (materia) return String(materia);
+          }
+          
+          // Try nivel1 only (empty nivel2 and nivel3)
+          if (nivel1) {
+            key = `${nivel1}||`;
+            materia = materiaMap.get(key);
+            if (materia) return String(materia);
+          }
+          
+          return ''; // No match found
+        };
+
+        // 5. Normalize condition to Casa del Libro scale (5-11)
+        const normalizeConditionToCDL = (condition: string | null): string => {
+          if (!condition) return '10'; // Default to "Bueno"
+          const c = condition.toUpperCase();
+          const map: Record<string, string> = {
+            'NUEVO': '11',
+            'COMO_NUEVO': '11',
+            'BUENO': '10',
+            'ACEPTABLE': '8',
+            'DEFECTUOSO': '5',
+          };
+          return map[c] || '10';
+        };
+
+        // 6. CSV escape function (semicolon separator)
+        const escapeCSV = (value: any): string => {
+          if (value === null || value === undefined) return '';
+          const str = String(value);
+          if (str.includes(';') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+            return '"' + str.replace(/"/g, '""') + '"';
+          }
+          return str;
+        };
+
+        // 7. Define Casa del Libro field headers (English)
+        const headers = [
+          'Category', 'ean13', 'EAN13', 'IdProductoTienda', 'resumen', 'Resumen',
+          'Titulo', 'Año', 'Autor1', 'Editorial', 'sku', 'product-id',
+          'product-id-type', 'description', 'internal-description', 'price',
+          'price-additional-info', 'quantity', 'min-quantity-alert', 'state',
+          'available-start-date', 'available-end-date', 'logistic-class',
+          'discount-price', 'discount-start-date', 'discount-end-date', 'update-delete'
+        ];
+
+        // 8. Map items to Casa del Libro format (one row per inventory item)
+        const rows = items.map(({ item, book }) => {
+          const price = item.listingPrice ? parseFloat(item.listingPrice.toString()).toFixed(2) : '0.00';
+          const isbn = item.isbn13?.replace(/[-\s]/g, '') || '';
+          const description = book?.synopsis 
+            ? book.synopsis.substring(0, 1000)
+            : book?.title || 'Sin descripción';
+          const materiaCode = lookupMateriaCode(book);
+
+          return [
+            escapeCSV(materiaCode),                            // Category (numeric Materia code)
+            escapeCSV(isbn),                                   // ean13
+            escapeCSV(isbn),                                   // EAN13
+            escapeCSV(item.uuid),                              // IdProductoTienda
+            escapeCSV(description),                            // resumen
+            escapeCSV(description),                            // Resumen
+            escapeCSV(book?.title || 'Sin Título'),            // Titulo
+            escapeCSV(book?.publicationYear || ''),            // Año
+            escapeCSV(book?.author || ''),                     // Autor1
+            escapeCSV(book?.publisher || ''),                  // Editorial
+            escapeCSV(item.uuid),                              // sku
+            escapeCSV(item.uuid),                              // product-id
+            escapeCSV('SHOP_SKU'),                             // product-id-type
+            escapeCSV(description),                            // description
+            escapeCSV(item.conditionNotes || ''),              // internal-description
+            escapeCSV(price),                                  // price
+            escapeCSV('Precio con impuestos incluidos'),       // price-additional-info
+            escapeCSV('1'),                                    // quantity (1 per item)
+            escapeCSV(''),                                     // min-quantity-alert
+            escapeCSV(normalizeConditionToCDL(item.conditionGrade)), // state
+            escapeCSV(''),                                     // available-start-date
+            escapeCSV(''),                                     // available-end-date
+            escapeCSV(''),                                     // logistic-class
+            escapeCSV(''),                                     // discount-price
+            escapeCSV(''),                                     // discount-start-date
+            escapeCSV(''),                                     // discount-end-date
+            escapeCSV('ACTUALIZACIÓN'),                        // update-delete
+          ];
+        });
+
+        // 9. Generate CSV content with semicolon separator
+        const csvContent = [
+          headers.join(';'),
+          ...rows.map(row => row.join(';'))
+        ].join('\n');
+
+        // 10. Calculate statistics
+        const withMateriaCode = items.filter(({ book }) => lookupMateriaCode(book) !== '').length;
+
+        return { 
+          csv: csvContent,
+          stats: {
+            totalItems: items.length,
+            withPrice: items.filter(({ item }) => item.listingPrice && parseFloat(String(item.listingPrice)) > 0).length,
+            withISBN: items.filter(({ item }) => item.isbn13).length,
+            withMateriaCode: withMateriaCode,
+          }
+        };
+      }),
   }),
 
   // ============================================================================
