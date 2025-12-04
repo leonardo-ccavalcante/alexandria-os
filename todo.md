@@ -978,3 +978,13 @@
 - [x] Update navigation to include ExportarDatos
 - [x] Write unit tests for Casa del Libro export (10/10 passing)
 - [x] Verify numeric Materia codes in exported CSV
+
+## Code Review Fixes - CRITICAL
+- [x] Fix database JOIN error: st.uuid → st.inventoryItemUuid in sales_transactions (NOT FOUND - already correct)
+- [x] Fix column name error: ii.suggestedPrice → ii.listingPrice (NOT FOUND - suggestedPrice is only used as return value, not DB column)
+- [x] Clean ISBNs with leading apostrophes in database (0 rows affected - already clean)
+- [x] Add .manus/ to .gitignore and remove from git
+- [x] Fix missing semicolon in useAuth.ts line 70
+- [x] Implement empty avatar.tsx component (ALREADY IMPLEMENTED - not empty)
+- [ ] Add database performance indexes
+- [ ] Run data quality checks

@@ -105,3 +105,7 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+
+# Manus query logs (contains sensitive database info)
+.manus/
+db-query-*.json
