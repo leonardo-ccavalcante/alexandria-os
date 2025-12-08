@@ -988,3 +988,23 @@
 - [x] Implement empty avatar.tsx component (ALREADY IMPLEMENTED - not empty)
 - [ ] Add database performance indexes
 - [ ] Run data quality checks
+
+## eBay File Exchange Export Implementation
+- [x] Create exportToEbay tRPC procedure in server/routers.ts
+- [x] Implement eBay File Exchange CSV format with 19 columns
+- [x] Add title truncation to 80 characters maximum
+- [x] Implement condition normalization (BUENO→Very Good, COMO_NUEVO→Like New, ACEPTABLE→Good, DEFECTUOSO→Acceptable)
+- [x] Add format normalization (default to Paperback since binding field doesn't exist in schema)
+- [x] Implement CSV escaping for commas, quotes, and newlines
+- [x] Use UUID as CustomLabel (SKU) for tracking
+- [x] Set Category ID to 267 (Books)
+- [x] Use FixedPrice format with GTC (Good 'Til Cancelled) duration
+- [x] Add item specifics (C:ISBN, C:Author, C:Publisher, C:Publication Year, C:Language, C:Format, C:Number of Pages)
+- [x] Map Spanish language code (ES) to English for eBay
+- [x] Add eBay export mutation to ExportarDatos.tsx frontend
+- [x] Add eBay option to platform selector dropdown
+- [x] Update getPlatformInfo to include eBay details
+- [x] Write comprehensive unit tests (10/10 passing)
+- [x] Test eBay export in browser (2,278 books exported successfully)
+- [x] Verify CSV download with correct filename (ebay_YYYY-MM-DD.csv)
+- [x] Verify statistics display (totalItems, withPrice, withISBN)

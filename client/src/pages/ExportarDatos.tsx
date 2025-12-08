@@ -8,7 +8,7 @@ import { Download, FileSpreadsheet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
-type ExportPlatform = "general" | "iberlibro" | "casadellibro" | "todocoleccion";
+type ExportPlatform = "general" | "iberlibro" | "casadellibro" | "todocoleccion" | "ebay";
 
 export default function ExportarDatos() {
   const [filters, setFilters] = useState({
@@ -102,6 +102,25 @@ export default function ExportarDatos() {
     },
   });
 
+  const exportEbayMutation = trpc.batch.exportToEbay.useMutation({
+    onSuccess: (data) => {
+      const blob = new Blob([data.csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `ebay_${new Date().toISOString().split("T")[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      toast.success(`eBay: ${data.stats.totalItems} libros exportados (${data.stats.withPrice} con precio, ${data.stats.withISBN} con ISBN)`);
+      setIsExporting(false);
+    },
+    onError: (error) => {
+      toast.error(`Error al exportar a eBay: ${error.message}`);
+      setIsExporting(false);
+    },
+  });
+
   const handleExport = async () => {
     setIsExporting(true);
 
@@ -125,6 +144,10 @@ export default function ExportarDatos() {
         
         case "todocoleccion":
           exportTodocoleccionMutation.mutate({ filters: filterParams });
+          break;
+        
+        case "ebay":
+          exportEbayMutation.mutate({ filters: filterParams });
           break;
         
         case "general":
@@ -160,6 +183,13 @@ export default function ExportarDatos() {
           format: "CSV (Comma-separated)",
           columns: "11 columnas en español",
           description: "Formato compatible con Todocolección Importamatic",
+        };
+      case "ebay":
+        return {
+          name: "eBay",
+          format: "CSV (Comma-separated)",
+          columns: "19 columnas File Exchange",
+          description: "Formato compatible con eBay File Exchange (títulos 80 caracteres, item specifics)",
         };
       case "general":
       default:
@@ -228,6 +258,12 @@ export default function ExportarDatos() {
                     <div className="flex flex-col items-start">
                       <span className="font-medium">Todocolección</span>
                       <span className="text-xs text-gray-500">CSV con 11 columnas en español</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="ebay">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">eBay</span>
+                      <span className="text-xs text-gray-500">CSV File Exchange con 19 columnas</span>
                     </div>
                   </SelectItem>
                 </SelectContent>

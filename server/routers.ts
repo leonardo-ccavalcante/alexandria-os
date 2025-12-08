@@ -1917,6 +1917,162 @@ export const appRouter = router({
           }
         };
       }),
+
+    // ============================================================================
+    // EBAY FILE EXCHANGE EXPORT
+    // ============================================================================
+    exportToEbay: protectedProcedure
+      .input(z.object({
+        filters: z.object({
+          searchTerm: z.string().optional(),
+          publisher: z.string().optional(),
+          author: z.string().optional(),
+          yearFrom: z.number().optional(),
+          yearTo: z.number().optional(),
+        }).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        // 1. Fetch inventory items
+        const items = await searchInventory({
+          searchText: input.filters?.searchTerm || '',
+          limit: 10000,
+        });
+
+        // 2. Normalize condition to eBay standards
+        const normalizeConditionToEbay = (condition: string | null): string => {
+          if (!condition) return 'Good';
+          const c = condition.toUpperCase();
+          const map: Record<string, string> = {
+            'NUEVO': 'Brand New',
+            'COMO_NUEVO': 'Like New',
+            'BUENO': 'Very Good',
+            'ACEPTABLE': 'Good',
+            'DEFECTUOSO': 'Acceptable',
+          };
+          return map[c] || 'Good';
+        };
+
+        // 3. Normalize binding/format
+        const normalizeFormat = (format: string | null | undefined): string => {
+          if (!format) return 'Paperback';
+          const f = format.toLowerCase();
+          if (f.includes('dura') || f.includes('hard')) return 'Hardcover';
+          if (f.includes('blanda') || f.includes('paper')) return 'Paperback';
+          return 'Paperback';
+        };
+
+        // 4. Truncate title to 80 characters smartly
+        const truncateTitle = (title: string, author: string | null | undefined, format: string | null | undefined): string => {
+          // Format: "Author - Title - Format" within 80 chars
+          const authorPart = author ? `${author.substring(0, 30)} - ` : '';
+          const formatPart = format ? ` - ${normalizeFormat(format)}` : '';
+          const availableForTitle = 80 - authorPart.length - formatPart.length;
+          
+          let titlePart = title;
+          if (titlePart.length > availableForTitle) {
+            titlePart = titlePart.substring(0, availableForTitle - 3) + '...';
+          }
+          
+          return (authorPart + titlePart + formatPart).substring(0, 80);
+        };
+
+        // 5. CSV escape function (comma separator)
+        const escapeCSV = (value: any): string => {
+          if (value === null || value === undefined) return '';
+          const str = String(value);
+          if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
+            return '"' + str.replace(/"/g, '""') + '"';
+          }
+          return str;
+        };
+
+        // 6. Define CSV headers (eBay File Exchange format)
+        const headers = [
+          'Action',           // Add, Revise, Delete
+          'CustomLabel',      // SKU (our UUID)
+          'Title',            // 80 char max
+          'Description',      // Product description
+          'CategoryID',       // 267 for Books
+          'Condition',        // Brand New, Like New, Very Good, Good, Acceptable
+          'ConditionDescription', // Condition notes
+          'Format',           // FixedPrice
+          'Duration',         // GTC (Good 'Til Cancelled)
+          'StartPrice',       // Buy It Now price
+          'Quantity',         // Always 1 for used books
+          'C:ISBN',           // ISBN item specific
+          'C:Author',         // Author item specific
+          'C:Publisher',      // Publisher item specific
+          'C:Publication Year', // Year item specific
+          'C:Language',       // Language item specific
+          'C:Format',         // Hardcover/Paperback item specific
+          'C:Number of Pages', // Pages item specific
+          'Location',         // Item location (city)
+        ];
+
+        // 7. Map inventory items to eBay CSV rows
+        const rows = items.items.map(({ item, book }) => {
+          // Null safety: provide defaults if book is null
+          const bookTitle = book?.title || 'Untitled';
+          const bookAuthor = book?.author || null;
+          const bookSynopsis = book?.synopsis || null;
+          const bookPublisher = book?.publisher || null;
+          const bookYear = book?.publicationYear || null;
+          const bookLanguage = book?.language || 'ES';
+          const bookPages = book?.pages || null;
+
+          const title = truncateTitle(bookTitle, bookAuthor, null);
+
+          const description = bookSynopsis
+            ? bookSynopsis.substring(0, 1000) // Limit to 1000 chars for performance
+            : `${bookTitle} by ${bookAuthor || 'Unknown Author'}`;
+
+          const condition = normalizeConditionToEbay(item.conditionGrade);
+          const conditionNotes = item.conditionNotes || '';
+          const price = item.listingPrice ? parseFloat(String(item.listingPrice)).toFixed(2) : '';
+          const isbn = item.isbn13 || '';
+          const language = bookLanguage === 'ES' ? 'Spanish' : 'English';
+          const format = normalizeFormat(null); // Default to Paperback since schema has no binding field
+          const pages = bookPages ? String(bookPages) : '';
+
+          return [
+            escapeCSV('Add'),                    // Action
+            escapeCSV(item.uuid),                // CustomLabel (SKU)
+            escapeCSV(title),                    // Title
+            escapeCSV(description),              // Description
+            escapeCSV('267'),                    // CategoryID (Books)
+            escapeCSV(condition),                // Condition
+            escapeCSV(conditionNotes),           // ConditionDescription
+            escapeCSV('FixedPrice'),             // Format
+            escapeCSV('GTC'),                    // Duration
+            escapeCSV(price),                    // StartPrice
+            escapeCSV('1'),                      // Quantity
+            escapeCSV(isbn),                     // C:ISBN
+            escapeCSV(bookAuthor || ''),         // C:Author
+            escapeCSV(bookPublisher || ''),      // C:Publisher
+            escapeCSV(bookYear || ''),           // C:Publication Year
+            escapeCSV(language),                 // C:Language
+            escapeCSV(format),                   // C:Format
+            escapeCSV(pages),                    // C:Number of Pages
+            escapeCSV(item.locationCode || ''),  // Location
+          ];
+        });
+
+        // 8. Generate CSV content
+        const csvContent = [
+          headers.join(','),
+          ...rows.map(row => row.join(','))
+        ].join('\n');
+
+        // 9. Calculate statistics
+        return { 
+          csv: csvContent,
+          stats: {
+            totalItems: items.items.length,
+            withPrice: items.items.filter(({ item }) => item.listingPrice && parseFloat(String(item.listingPrice)) > 0).length,
+            withISBN: items.items.filter(({ item }) => item.isbn13).length,
+          }
+        };
+      }),
   }),
 
   // ============================================================================
