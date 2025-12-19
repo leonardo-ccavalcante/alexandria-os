@@ -1314,7 +1314,12 @@ export const appRouter = router({
             // Ensure language is 2 characters (e.g., "ES", "EN")
             const language = languageRaw && languageRaw.trim() !== '' ? languageRaw.substring(0, 2).toUpperCase() : undefined;
             
-            const quantityStr = row['Cantidad'] || row['Quantity'] || row['quantity'] || '0';
+            // Use Disponible if present (from exported CSV), otherwise fall back to Cantidad (old format)
+            const disponibleStr = row['Disponible'] || row['Available'] || row['available'] || '';
+            const cantidadStr = row['Cantidad'] || row['Quantity'] || row['quantity'] || '0';
+            
+            // Prioritize Disponible to prevent duplication when re-importing exported CSV
+            const quantityStr = disponibleStr || cantidadStr;
             const quantity = quantityStr && !isNaN(parseInt(quantityStr)) ? parseInt(quantityStr) : 0;
             
             const locationCode = row['Ubicación'] || row['Ubicacion'] || row['Location'] || row['location'] || undefined;

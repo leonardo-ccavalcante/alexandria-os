@@ -155,6 +155,7 @@ export default function CargaMasiva() {
       "Edición",
       "Idioma",
       "Cantidad",
+      "Disponible",
       "Ubicación",
       "Precio",
     ];
@@ -169,6 +170,7 @@ export default function CargaMasiva() {
       "324",
       "1st Edition",
       "EN",
+      "5",
       "5",
       "01A",
       "12.50",
@@ -322,7 +324,7 @@ export default function CargaMasiva() {
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                El archivo CSV debe contener: ISBN, Título, Autor, Editorial, Año, Categoría, Sinopsis, Páginas, Edición, Idioma, Cantidad, Ubicación, Precio (opcional)
+                El archivo CSV debe contener: ISBN, Título, Autor, Editorial, Año, Categoría, Sinopsis, Páginas, Edición, Idioma, Cantidad, Disponible, Ubicación, Precio (opcional)
               </AlertDescription>
             </Alert>
 

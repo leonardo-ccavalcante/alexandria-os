@@ -1070,3 +1070,21 @@
 - [x] Verify Disponible count matches actual available inventory
 - [x] Confirmed CSV headers include both Cantidad and Disponible columns
 - [x] Verified CSV data shows correct counts (e.g., Cantidad=1, Disponible=1 for available books)
+
+## Carga Masiva - Update for Disponible Column
+- [x] Analyze current CSV parsing logic in CargaMasiva page
+- [x] Update CSV column description to include "Disponible" between Cantidad and Ubicación
+- [x] Update CSV template download to include Disponible column (example: Cantidad=5, Disponible=5)
+- [x] CSV parser already handles variable columns via header-based mapping (no code changes needed)
+- [x] Parser automatically ignores Disponible column (not referenced in import logic)
+- [x] Import uses "Cantidad" to create inventory items with status='AVAILABLE'
+- [x] Disponible is calculated field, correctly ignored during import
+- [x] **CRITICAL FIX**: Change import to use Disponible instead of Cantidad
+- [x] Add fallback: if Disponible missing, use Cantidad (backward compatibility)
+- [x] Prevent duplicate items when re-importing exported CSV (uses Disponible instead of Cantidad)
+- [x] Write unit tests for import with Disponible column (5/5 passing)
+- [x] Test bulk upload with exported CSV containing Disponible column
+- [x] Verified: Disponible=0 creates catalog master but no inventory items
+- [x] Verified: Disponible=null/empty falls back to Cantidad
+- [x] Confirmed no duplication when re-importing exported CSV
+- [x] Backward compatibility confirmed: parser works with both 13 and 14 column formats
