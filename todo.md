@@ -1058,3 +1058,15 @@
 - [x] Add toggle state to show/hide editable fields (button changes to "Guardar Cambios")
 - [x] Test manual editing functionality in browser
 - [x] Verify edited data is saved correctly and displayed in summary view
+
+## CSV Export Fix - Show Available Quantity
+- [x] Analyze current CSV export logic in routers.ts
+- [x] Understand difference between Cantidad (total cataloged) vs Disponible (currently available)
+- [x] Add "Disponible" column to CSV export showing only available copies
+- [x] Update inventory aggregation to calculate available quantity (status='AVAILABLE')
+- [x] Ensure available quantity excludes sold/donated/rejected/missing items
+- [x] Update inventory table UI to show both Cantidad and Disponible (already showing DISPONIBLE and TOTAL columns)
+- [x] Test CSV export with books that have sold/donated copies
+- [x] Verify Disponible count matches actual available inventory
+- [x] Confirmed CSV headers include both Cantidad and Disponible columns
+- [x] Verified CSV data shows correct counts (e.g., Cantidad=1, Disponible=1 for available books)

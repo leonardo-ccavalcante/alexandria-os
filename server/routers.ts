@@ -1457,10 +1457,11 @@ export const appRouter = router({
           limit: 10000, 
         });
         
-        // 2. Group items by ISBN and calculate total quantity + average price
+        // 2. Group items by ISBN and calculate total quantity + available quantity + average price
         const groupedByIsbn = new Map<string, {
           book: typeof items[0]['book'],
           totalQuantity: number,
+          availableQuantity: number,
           locations: string[],
           prices: number[]
         }>();
@@ -1471,12 +1472,19 @@ export const appRouter = router({
             groupedByIsbn.set(isbn, {
               book,
               totalQuantity: 0,
+              availableQuantity: 0,
               locations: [],
               prices: []
             });
           }
           const group = groupedByIsbn.get(isbn)!;
           group.totalQuantity += 1;
+          
+          // Count only AVAILABLE items for disponible quantity
+          if (item.status === 'AVAILABLE') {
+            group.availableQuantity += 1;
+          }
+          
           if (item.locationCode) {
             group.locations.push(item.locationCode);
           }
@@ -1502,12 +1510,13 @@ export const appRouter = router({
           'Edición',
           'Idioma',
           'Cantidad',
+          'Disponible',
           'Ubicación',
           'Precio'
         ];
 
-        // 4. Map Data to Rows (one row per ISBN with total quantity and average price)
-        const rows = Array.from(groupedByIsbn.entries()).map(([isbn, { book, totalQuantity, locations, prices }]) => {
+        // 4. Map Data to Rows (one row per ISBN with total quantity, available quantity, and average price)
+        const rows = Array.from(groupedByIsbn.entries()).map(([isbn, { book, totalQuantity, availableQuantity, locations, prices }]) => {
           // Sanitize synopsis (remove newlines to prevent broken CSVs)
           const cleanSynopsis = (book?.synopsis || '').replace(/(\r\n|\n|\r)/gm, " ").substring(0, 800);
           
@@ -1540,7 +1549,8 @@ export const appRouter = router({
             book?.pages || '',
             book?.edition || '',
             book?.language || '',
-            String(totalQuantity),          // Total quantity (sum of all copies)
+            String(totalQuantity),          // Total quantity (sum of all copies ever cataloged)
+            String(availableQuantity),      // Available quantity (only AVAILABLE status)
             uniqueLocations,                // All locations separated by semicolon
             avgPrice                        // Average listing price
           ];
