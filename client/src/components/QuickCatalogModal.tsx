@@ -28,6 +28,12 @@ export function QuickCatalogModal({ open, onClose, onCatalogComplete, isbn, book
   const [listingPrice, setListingPrice] = useState(suggestedPrice?.toFixed(2) || '');
   const [success, setSuccess] = useState(false);
   const [createdItem, setCreatedItem] = useState<any>(null);
+  const [isEditingData, setIsEditingData] = useState(false);
+  const [editableIsbn, setEditableIsbn] = useState(isbn);
+  const [editableTitle, setEditableTitle] = useState(bookData?.title || '');
+  const [editableAuthor, setEditableAuthor] = useState(bookData?.author || '');
+  const [editablePublisher, setEditablePublisher] = useState(bookData?.publisher || '');
+  const [editableYear, setEditableYear] = useState(bookData?.publicationYear?.toString() || '');
 
   const createItemMutation = trpc.catalog.createItem.useMutation();
 
@@ -54,17 +60,17 @@ export function QuickCatalogModal({ open, onClose, onCatalogComplete, isbn, book
 
     try {
       const result = await createItemMutation.mutateAsync({
-        isbn13: isbn,
+        isbn13: editableIsbn, // Use edited ISBN
         conditionGrade: condition,
         conditionNotes: conditionNotes || undefined,
         locationCode: locationCode.toUpperCase(),
         listingPrice: listingPrice,
-        // Pass bookData for synthetic ISBNs (books without ISBN)
+        // Pass edited bookData for synthetic ISBNs (books without ISBN)
         bookData: bookData && !bookData.found ? {
-          title: bookData.title || 'Sin Título',
-          author: bookData.author,
-          publisher: bookData.publisher,
-          publicationYear: bookData.publishedYear,
+          title: editableTitle || 'Sin Título',
+          author: editableAuthor || undefined,
+          publisher: editablePublisher || undefined,
+          publicationYear: editableYear ? parseInt(editableYear) : undefined,
         } : undefined,
       });
 
@@ -165,20 +171,87 @@ export function QuickCatalogModal({ open, onClose, onCatalogComplete, isbn, book
             )}
             {bookData && (
               <div className="mt-3 bg-white rounded-lg p-3 border border-gray-200">
-                <div className="flex gap-3">
-                  {bookData.coverImageUrl && (
-                    <img
-                      src={bookData.coverImageUrl}
-                      alt={bookData.title}
-                      className="w-16 h-20 object-cover rounded"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-sm text-gray-900 truncate">{bookData.title}</h3>
-                    <p className="text-xs text-gray-600 truncate">{bookData.author}</p>
-                    <p className="text-xs text-gray-500">ISBN: {bookData.isbn13}</p>
-                  </div>
+                <div className="flex items-start justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-gray-700">Datos del Libro</h4>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsEditingData(!isEditingData)}
+                    className="h-7 text-xs"
+                  >
+                    {isEditingData ? 'Guardar Cambios' : 'Editar Datos'}
+                  </Button>
                 </div>
+                
+                {isEditingData ? (
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="text-xs">Título</Label>
+                      <Input
+                        value={editableTitle}
+                        onChange={(e) => setEditableTitle(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Autor</Label>
+                      <Input
+                        value={editableAuthor}
+                        onChange={(e) => setEditableAuthor(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">ISBN</Label>
+                      <Input
+                        value={editableIsbn}
+                        onChange={(e) => setEditableIsbn(e.target.value)}
+                        className="h-8 text-sm font-mono"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">Editorial</Label>
+                        <Input
+                          value={editablePublisher}
+                          onChange={(e) => setEditablePublisher(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Año</Label>
+                        <Input
+                          value={editableYear}
+                          onChange={(e) => setEditableYear(e.target.value)}
+                          type="number"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-3">
+                    {bookData.coverImageUrl && (
+                      <img
+                        src={bookData.coverImageUrl}
+                        alt={editableTitle}
+                        className="w-16 h-20 object-cover rounded"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <h3 className="font-bold text-sm text-gray-900">{editableTitle}</h3>
+                      <p className="text-xs text-gray-600">{editableAuthor}</p>
+                      <p className="text-xs text-gray-500">ISBN: {editableIsbn}</p>
+                      {editablePublisher && (
+                        <p className="text-xs text-gray-500">Editorial: {editablePublisher}</p>
+                      )}
+                      {editableYear && (
+                        <p className="text-xs text-gray-500">Año: {editableYear}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </DialogDescription>

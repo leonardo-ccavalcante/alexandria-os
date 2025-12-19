@@ -1046,3 +1046,15 @@
 - [x] Verify inventory items are being created with synthetic ISBNs
 - [x] Write unit tests for synthetic ISBN catalog creation (5/5 passing)
 - [x] Test UI improvements in browser (simplified, clear button labels)
+
+## UI Improvements - ISBN-less Books & Catalog Modal
+- [x] Change "Libros sin Depósito Legal" to "Libros sin ISBN" in CoverColophonCapture card title
+- [x] Change "Libros sin Depósito Legal" to "Libros sin ISBN" in card description
+- [x] Add "Editar Datos" button to QuickCatalogModal
+- [x] Make ISBN field editable in QuickCatalogModal
+- [x] Make author field editable in QuickCatalogModal
+- [x] Make publisher field editable in QuickCatalogModal
+- [x] Make year field editable in QuickCatalogModal
+- [x] Add toggle state to show/hide editable fields (button changes to "Guardar Cambios")
+- [x] Test manual editing functionality in browser
+- [x] Verify edited data is saved correctly and displayed in summary view

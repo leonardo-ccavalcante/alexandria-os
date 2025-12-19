@@ -68,10 +68,10 @@ export function CoverColophonCapture({ onExtracted }: CoverColophonCaptureProps)
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BookOpen className="h-5 w-5" />
-          Libros sin Depósito Legal
+          Libros sin ISBN
         </CardTitle>
         <CardDescription>
-          Para libros muy antiguos (pre-1900) o sin Depósito Legal, captura la portada o colofón
+          Para libros muy antiguos (pre-1900) o sin ISBN, captura la portada o colofón
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
