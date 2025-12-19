@@ -78,18 +78,40 @@ export function CoverColophonCapture({ onExtracted }: CoverColophonCaptureProps)
         {/* Photo Upload */}
         <div className="space-y-2">
           <Label>Tomar foto de la portada o colofón</Label>
-          <Input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            onChange={handleFileSelect}
-            disabled={isExtracting}
-          />
-          {isExtracting && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Extrayendo información del libro...
-            </div>
+          <div className="relative">
+            <input
+              id="cover-photo-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileSelect}
+              disabled={isExtracting}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={isExtracting}
+              onClick={() => document.getElementById('cover-photo-input')?.click()}
+            >
+              {isExtracting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Extrayendo información...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Tomar Foto
+                </>
+              )}
+            </Button>
+          </div>
+          {imageFile && (
+            <p className="text-sm text-muted-foreground">
+              {imageFile.name}
+            </p>
           )}
         </div>
 

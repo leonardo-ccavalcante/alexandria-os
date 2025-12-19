@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { IsbnImageUpload } from '@/components/IsbnImageUpload';
-import { DepositoLegalCapture } from '@/components/DepositoLegalCapture';
 import { CoverColophonCapture } from '@/components/CoverColophonCapture';
 import { Loader2, BookOpen, AlertCircle, CheckCircle, CheckCircle2, AlertTriangle, XCircle, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
@@ -219,36 +218,7 @@ export default function Triage() {
               
               {showPre1970Section && (
                 <div className="mt-4 space-y-4">
-                  <DepositoLegalCapture
-                    onExtracted={(depositoLegal) => {
-                      // Generate synthetic ISBN and proceed with triage
-                      const syntheticIsbn = generateSyntheticIsbn(depositoLegal);
-                      setIsbn(syntheticIsbn);
-                      
-                      // Create a result object for books with Depósito Legal
-                      const bookResult = {
-                        found: false,
-                        isbn: syntheticIsbn,
-                        title: '', // Will be filled in catalog modal
-                        author: '',
-                        publisher: '',
-                        publishedYear: undefined,
-                        decision: 'ACCEPT' as const,
-                        reason: 'Libro sin ISBN con Depósito Legal: ' + depositoLegal,
-                        marketPrice: null,
-                        estimatedFees: null,
-                        profitEstimate: null
-                      };
-                      
-                      setResult(bookResult);
-                      toast.success(`ISBN sintético generado: ${syntheticIsbn}`);
-                      
-                      // Open quick catalog modal
-                      setShowQuickCatalog(true);
-                    }}
-                  />
-                  
-                  {/* Alternative: Cover/Colophon capture for books without Depósito Legal */}
+                  {/* Cover/Colophon capture for books without ISBN */}
                   <CoverColophonCapture
                     onExtracted={(bookData) => {
                       // For books without Depósito Legal, generate ISBN from title

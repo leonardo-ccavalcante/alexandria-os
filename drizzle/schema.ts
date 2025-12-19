@@ -148,3 +148,48 @@ export const systemSettings = mysqlTable("system_settings", {
 
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = typeof systemSettings.$inferInsert;
+
+
+// Export History Tracking
+export const exportHistory = mysqlTable("export_history", {
+  id: int("id").autoincrement().primaryKey(),
+  platform: varchar("platform", { length: 50 }).notNull(), // 'general', 'iberlibro', 'casadellibro', 'todocoleccion', 'ebay'
+  exportDate: timestamp("exportDate").defaultNow().notNull(),
+  itemCount: int("itemCount").notNull(),
+  withPrice: int("withPrice").default(0),
+  withISBN: int("withISBN").default(0),
+  filters: text("filters"), // JSON string of applied filters
+  status: mysqlEnum("status", ["success", "failed", "partial"]).default("success").notNull(),
+  errorMessage: text("errorMessage"),
+  userId: int("userId"),
+  userName: text("userName"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  platformIdx: index("idx_export_platform").on(table.platform),
+  dateIdx: index("idx_export_date").on(table.exportDate),
+  userIdx: index("idx_export_user").on(table.userId),
+}));
+
+export type ExportHistory = typeof exportHistory.$inferSelect;
+export type InsertExportHistory = typeof exportHistory.$inferInsert;
+
+// Database Activity Logging
+export const databaseActivityLog = mysqlTable("database_activity_log", {
+  id: int("id").autoincrement().primaryKey(),
+  action: mysqlEnum("action", ["insert", "update", "delete", "bulk_update", "bulk_delete"]).notNull(),
+  tableName: varchar("tableName", { length: 100 }).notNull(),
+  recordId: text("recordId"), // ISBN or UUID depending on table
+  changes: text("changes"), // JSON string of changed fields
+  recordCount: int("recordCount").default(1), // For bulk operations
+  userId: int("userId"),
+  userName: text("userName"),
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+}, (table) => ({
+  actionIdx: index("idx_activity_action").on(table.action),
+  tableIdx: index("idx_activity_table").on(table.tableName),
+  userIdx: index("idx_activity_user").on(table.userId),
+  timestampIdx: index("idx_activity_timestamp").on(table.timestamp),
+}));
+
+export type DatabaseActivityLog = typeof databaseActivityLog.$inferSelect;
+export type InsertDatabaseActivityLog = typeof databaseActivityLog.$inferInsert;

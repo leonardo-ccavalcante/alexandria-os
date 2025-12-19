@@ -1008,3 +1008,41 @@
 - [x] Test eBay export in browser (2,278 books exported successfully)
 - [x] Verify CSV download with correct filename (ebay_YYYY-MM-DD.csv)
 - [x] Verify statistics display (totalItems, withPrice, withISBN)
+
+## Export History Tracking & Audit Logging
+- [ ] Create export_history table (platform, date, itemCount, userId, filters, status)
+- [ ] Create database_activity_log table (action, table, recordId, userId, timestamp, changes)
+- [ ] Add export history logging to all marketplace export procedures
+- [ ] Add database activity logging to catalog update procedures
+- [ ] Add database activity logging to inventory update procedures
+- [ ] Add database activity logging to bulk delete operations
+- [ ] Create backend procedures to query export history
+- [ ] Create backend procedures to query database activity logs
+- [ ] Build frontend UI to view export history with filters
+- [ ] Build frontend UI to view database activity logs with filters
+- [ ] Write unit tests for export history logging
+- [ ] Write unit tests for database activity logging
+
+## Daily Automated Email Export
+- [ ] Create email service integration using Manus notification API
+- [ ] Create scheduled job procedure to export inventory CSV
+- [ ] Implement email sending with CSV attachment
+- [ ] Configure daily schedule (time: 9:00 AM)
+- [ ] Add email recipient configuration (hola@espacioalalimon.org)
+- [ ] Add email template with export summary
+- [ ] Test email delivery with sample data
+- [ ] Add error handling and retry logic
+- [ ] Create backend procedure to manually trigger email export
+- [ ] Build frontend UI to configure email schedule and recipients
+- [ ] Write unit tests for email export automation
+
+## CRITICAL BUG FIXES - ISBN-less Book Workflow
+- [x] Remove "Depósito Legal" section from Triage page (only keep cover/colophon capture)
+- [x] Fix camera button to show "Tomar Foto" with camera icon instead of "Choose File" on mobile
+- [x] Fix cataloging bug: books without ISBN not appearing in inventory after Quick Catalog
+- [x] Updated createItem procedure to create catalog_master for synthetic ISBNs
+- [x] Updated QuickCatalogModal to pass bookData to backend
+- [x] Verify synthetic ISBN generation is working correctly
+- [x] Verify inventory items are being created with synthetic ISBNs
+- [x] Write unit tests for synthetic ISBN catalog creation (5/5 passing)
+- [x] Test UI improvements in browser (simplified, clear button labels)

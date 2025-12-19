@@ -59,6 +59,13 @@ export function QuickCatalogModal({ open, onClose, onCatalogComplete, isbn, book
         conditionNotes: conditionNotes || undefined,
         locationCode: locationCode.toUpperCase(),
         listingPrice: listingPrice,
+        // Pass bookData for synthetic ISBNs (books without ISBN)
+        bookData: bookData && !bookData.found ? {
+          title: bookData.title || 'Sin Título',
+          author: bookData.author,
+          publisher: bookData.publisher,
+          publicationYear: bookData.publishedYear,
+        } : undefined,
       });
 
       setCreatedItem(result.item);

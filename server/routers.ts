@@ -9,6 +9,7 @@ import { catalogMasters, inventoryItems, salesTransactions, InsertCatalogMaster 
 import { getDb } from "./db";
 import { extractIsbnFromImage } from "./aiIsbnExtractor";
 import { fetchExternalBookMetadata } from "./_core/externalBookApi";
+import { logExport, logDatabaseActivity } from "./auditLog";
 import {
   getCatalogMasterByIsbn,
   upsertCatalogMaster,
@@ -406,8 +407,34 @@ export const appRouter = router({
         conditionNotes: z.string().optional(),
         locationCode: z.string().regex(/^[0-9]{2}[A-Z]$/).optional(),
         listingPrice: z.string(),
+        // Optional book data for synthetic ISBNs (books without ISBN)
+        bookData: z.object({
+          title: z.string(),
+          author: z.string().optional(),
+          publisher: z.string().optional(),
+          publicationYear: z.number().optional(),
+        }).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        // Check if catalog master exists
+        const existingBook = await getCatalogMasterByIsbn(input.isbn13);
+        
+        // If book doesn't exist and we have bookData (synthetic ISBN case), create catalog master
+        if (!existingBook && input.bookData) {
+          const catalogData: InsertCatalogMaster = {
+            isbn13: input.isbn13,
+            title: input.bookData.title,
+            author: input.bookData.author || 'Autor Desconocido',
+            publisher: input.bookData.publisher || null,
+            publicationYear: input.bookData.publicationYear || null,
+            language: 'ES',
+            categoryLevel1: 'OTROS',
+          };
+          
+          await upsertCatalogMaster(catalogData);
+          console.log(`[Catalog] Created catalog master for synthetic ISBN: ${input.isbn13}`);
+        }
+        
         const item = await createInventoryItem({
           isbn13: input.isbn13,
           status: 'AVAILABLE',
@@ -1423,7 +1450,7 @@ export const appRouter = router({
           author: z.string().optional(),
         }).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         // 1. Fetch Data (grouped by ISBN like the UI)
         const { items } = await searchInventory({
           ...input.filters,
@@ -1525,6 +1552,21 @@ export const appRouter = router({
           ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
         ].join('\n');
         
+        // 6. Log export to audit trail
+        const withPrice = Array.from(groupedByIsbn.values()).filter(g => g.prices.length > 0).length;
+        const withISBN = groupedByIsbn.size;
+        
+        await logExport({
+          platform: 'general',
+          itemCount: groupedByIsbn.size,
+          withPrice,
+          withISBN,
+          filters: input.filters,
+          status: 'success',
+          userId: ctx.user?.id,
+          userName: ctx.user?.name || undefined,
+        });
+        
         return { csv: csvContent };
       }),
 
@@ -1541,7 +1583,7 @@ export const appRouter = router({
         }).optional(),
         shippingTemplateId: z.string().optional().default('ST-00001'),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         // 1. Fetch inventory items with filters
         const result = await searchInventory({
           ...input.filters,
@@ -1644,13 +1686,27 @@ export const appRouter = router({
           ...rows.map(row => row.join('\t'))
         ].join('\n');
 
+        const stats = {
+          totalItems: items.length,
+          withPrice: items.filter(({ item }) => item.listingPrice && parseFloat(String(item.listingPrice)) > 0).length,
+          withISBN: items.filter(({ item }) => item.isbn13).length,
+        };
+
+        // 6. Log export to audit trail
+        await logExport({
+          platform: 'iberlibro',
+          itemCount: stats.totalItems,
+          withPrice: stats.withPrice,
+          withISBN: stats.withISBN,
+          filters: input.filters,
+          status: 'success',
+          userId: ctx.user?.id,
+          userName: ctx.user?.name || undefined,
+        });
+
         return { 
           tsv: tsvContent,
-          stats: {
-            totalItems: items.length,
-            withPrice: items.filter(({ item }) => item.listingPrice && parseFloat(String(item.listingPrice)) > 0).length,
-            withISBN: items.filter(({ item }) => item.isbn13).length,
-          }
+          stats
         };
       }),
 
