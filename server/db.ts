@@ -804,12 +804,12 @@ export async function getAnalyticsByLocation(params: {
   const query = sql`
     SELECT 
       COALESCE(locationCode, 'No Location') as location,
-      COUNT(*) as totalItems,
+      COUNT(CASE WHEN status IN ('AVAILABLE', 'LISTED') THEN 1 END) as totalItems,
       COUNT(CASE WHEN status = 'AVAILABLE' THEN 1 END) as availableItems,
       COUNT(CASE WHEN status = 'LISTED' THEN 1 END) as listedItems,
       COUNT(CASE WHEN status = 'SOLD' THEN 1 END) as soldItems,
       COALESCE(SUM(CASE WHEN status IN ('AVAILABLE', 'LISTED') THEN CAST(listingPrice AS DECIMAL(10,2)) END), 0) as inventoryValue,
-      COALESCE(AVG(CAST(listingPrice AS DECIMAL(10,2))), 0) as avgPrice
+      COALESCE(AVG(CASE WHEN status IN ('AVAILABLE', 'LISTED') THEN CAST(listingPrice AS DECIMAL(10,2)) END), 0) as avgPrice
     FROM inventory_items
     GROUP BY location
     ORDER BY totalItems DESC

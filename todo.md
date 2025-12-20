@@ -1088,3 +1088,14 @@
 - [x] Verified: Disponible=null/empty falls back to Cantidad
 - [x] Confirmed no duplication when re-importing exported CSV
 - [x] Backward compatibility confirmed: parser works with both 13 and 14 column formats
+
+## Dashboard Location Capacity Fix
+- [x] Find dashboard location capacity query in backend (server/db.ts getAnalyticsByLocation)
+- [x] Update query to count only status IN ('AVAILABLE', 'LISTED') books per location
+- [x] Fix "X libros" count to show only available inventory (not sold/donated)
+- [x] Update avgPrice calculation to only consider available/listed items
+- [x] Verify capacity calculations use available count, not total count
+- [x] Write unit tests for location capacity with sold/donated books (5/5 passing)
+- [x] Test dashboard in browser to verify correct available counts
+- [x] Confirmed: Location counts decreased (e.g., 10D: 75→71, 01E: 66→62)
+- [x] Verified: Counts now exclude sold/donated books, showing only available inventory
