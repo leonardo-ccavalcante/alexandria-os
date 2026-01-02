@@ -1099,3 +1099,19 @@
 - [x] Test dashboard in browser to verify correct available counts
 - [x] Confirmed: Location counts decreased (e.g., 10D: 75→71, 01E: 66→62)
 - [x] Verified: Counts now exclude sold/donated books, showing only available inventory
+
+## AbeBooks/Iberlibro Filtered Export
+- [x] Analyze database schema for marketplace assignment storage (salesChannels JSON field)
+- [x] Identify how AbeBooks listings are tracked (salesChannels contains "Iberlibro")
+- [x] Locate existing Iberlibro export function in routers.ts (line 1589)
+- [x] Add filter to exclude books already listed on AbeBooks (excludeSalesChannel parameter)
+- [x] Implement query-level filtering with SQL NOT LIKE (not post-processing)
+- [x] Add export summary: "Exported X books (excluded Y already on Iberlibro)"
+- [x] Write unit tests for filtering scenarios (13/13 passing)
+- [x] Test: Excludes books already on Iberlibro
+- [x] Test: Excludes books with Iberlibro among multiple marketplaces
+- [x] Test: Returns correct excluded count in stats
+- [x] Test: Includes books with null salesChannels
+- [x] Test export in browser to verify correct filtering
+- [x] Update frontend to display excluded count in toast notification
+- [x] Verify export file format remains unchanged (TSV with 30 columns)

@@ -1599,12 +1599,21 @@ export const appRouter = router({
         shippingTemplateId: z.string().optional().default('ST-00001'),
       }))
       .mutation(async ({ input, ctx }) => {
-        // 1. Fetch inventory items with filters
+        // 1. Fetch inventory items with filters, excluding books already on Iberlibro
         const result = await searchInventory({
           ...input.filters,
           limit: 10000,
+          excludeSalesChannel: 'Iberlibro',
         });
         const items = result.items;
+        
+        // Count total available items (for comparison)
+        const totalResult = await searchInventory({
+          ...input.filters,
+          limit: 10000,
+        });
+        const totalAvailable = totalResult.items.length;
+        const excludedCount = totalAvailable - items.length;
 
         // 2. Helper functions for normalization
 
@@ -1705,6 +1714,8 @@ export const appRouter = router({
           totalItems: items.length,
           withPrice: items.filter(({ item }) => item.listingPrice && parseFloat(String(item.listingPrice)) > 0).length,
           withISBN: items.filter(({ item }) => item.isbn13).length,
+          excludedCount,
+          totalAvailable,
         };
 
         // 6. Log export to audit trail
@@ -1721,7 +1732,8 @@ export const appRouter = router({
 
         return { 
           tsv: tsvContent,
-          stats
+          stats,
+          message: `Exported ${items.length} books (excluded ${excludedCount} already on Iberlibro)`
         };
       }),
 

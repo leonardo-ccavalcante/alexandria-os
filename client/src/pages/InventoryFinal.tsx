@@ -142,14 +142,15 @@ export default function InventoryFinal() {
 
   // Export to Iberlibro
   const exportIberlibroMutation = trpc.batch.exportToIberlibro.useMutation({
-    onSuccess: (data: { tsv: string; stats: { totalItems: number; withPrice: number; withISBN: number } }) => {
+    onSuccess: (data: { tsv: string; stats: { totalItems: number; withPrice: number; withISBN: number; excludedCount?: number } }) => {
       const blob = new Blob([data.tsv], { type: "text/plain;charset=utf-8" });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `iberlibro_${new Date().toISOString().split("T")[0]}.txt`;
       a.click();
-      toast.success(`Iberlibro TSV exportado: ${data.stats.totalItems} libros, ${data.stats.withPrice} con precio, ${data.stats.withISBN} con ISBN`);
+      const excludedMsg = data.stats.excludedCount ? ` (excluidos ${data.stats.excludedCount} ya en Iberlibro)` : '';
+      toast.success(`Iberlibro TSV exportado: ${data.stats.totalItems} libros, ${data.stats.withPrice} con precio, ${data.stats.withISBN} con ISBN${excludedMsg}`);
     },
     onError: (error: any) => {
       toast.error(`Error al exportar: ${error.message}`);

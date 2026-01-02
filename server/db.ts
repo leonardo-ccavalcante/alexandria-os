@@ -270,6 +270,7 @@ export async function searchInventory(filters: {
   dateTo?: Date;
   limit?: number;
   offset?: number;
+  excludeSalesChannel?: string;
 }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
@@ -290,6 +291,11 @@ export async function searchInventory(filters: {
   }
   if (filters.dateTo) {
     conditions.push(lte(inventoryItems.createdAt, filters.dateTo));
+  }
+  if (filters.excludeSalesChannel) {
+    // Exclude items where salesChannels JSON array contains the specified channel
+    // Using NOT LIKE to check if the channel name appears in the JSON array
+    conditions.push(sql`(${inventoryItems.salesChannels} IS NULL OR ${inventoryItems.salesChannels} NOT LIKE ${`%"${filters.excludeSalesChannel}"%`})`);
   }
   
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;

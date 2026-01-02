@@ -385,3 +385,207 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
     expect(dataRow).toBeDefined();
   });
 });
+
+describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
+  const testIsbn1 = "9780000000501";
+  const testIsbn2 = "9780000000502";
+  const testIsbn3 = "9780000000503";
+
+  beforeEach(async () => {
+    const db = await getDb();
+    if (!db) return;
+
+    // Clean up test data
+    try {
+      await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn1));
+      await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn2));
+      await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn3));
+      await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn1));
+      await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn2));
+      await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn3));
+    } catch (error) {
+      // Ignore errors if records don't exist
+    }
+  });
+
+  it("should exclude books already listed on Iberlibro", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    // Create 3 books: 1 on Iberlibro, 1 on Wallapop, 1 with no marketplace
+    await db.insert(catalogMasters).values([
+      { isbn13: testIsbn1, title: "Book on Iberlibro", author: "Author 1" },
+      { isbn13: testIsbn2, title: "Book on Wallapop", author: "Author 2" },
+      { isbn13: testIsbn3, title: "Book not listed", author: "Author 3" },
+    ]);
+
+    await db.insert(inventoryItems).values([
+      {
+        isbn13: testIsbn1,
+        status: "AVAILABLE",
+        conditionGrade: "BUENO",
+        acquisitionDate: new Date(),
+        listingPrice: "10.00",
+        salesChannels: JSON.stringify(["Iberlibro"]),
+      },
+      {
+        isbn13: testIsbn2,
+        status: "AVAILABLE",
+        conditionGrade: "BUENO",
+        acquisitionDate: new Date(),
+        listingPrice: "15.00",
+        salesChannels: JSON.stringify(["Wallapop"]),
+      },
+      {
+        isbn13: testIsbn3,
+        status: "AVAILABLE",
+        conditionGrade: "BUENO",
+        acquisitionDate: new Date(),
+        listingPrice: "12.00",
+        salesChannels: null,
+      },
+    ]);
+
+    const result = await caller.batch.exportToIberlibro({ filters: {} });
+
+    // Should include books 2 and 3, but NOT book 1
+    expect(result.tsv).not.toContain(testIsbn1); // Excluded (on Iberlibro)
+    expect(result.tsv).toContain(testIsbn2); // Included (on Wallapop)
+    expect(result.tsv).toContain(testIsbn3); // Included (not listed)
+
+    // Cleanup
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn1));
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn2));
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn3));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn1));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn2));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn3));
+  });
+
+  it("should exclude books with Iberlibro among multiple marketplaces", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    await db.insert(catalogMasters).values({
+      isbn13: testIsbn1,
+      title: "Book on Multiple Marketplaces",
+      author: "Author 1",
+    });
+
+    await db.insert(inventoryItems).values({
+      isbn13: testIsbn1,
+      status: "AVAILABLE",
+      conditionGrade: "BUENO",
+      acquisitionDate: new Date(),
+      listingPrice: "10.00",
+      salesChannels: JSON.stringify(["Iberlibro", "Wallapop", "Vinted"]),
+    });
+
+    const result = await caller.batch.exportToIberlibro({ filters: {} });
+
+    // Should NOT include book 1 (has Iberlibro in the list)
+    expect(result.tsv).not.toContain(testIsbn1);
+
+    // Cleanup
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn1));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn1));
+  });
+
+  it("should return correct excluded count in stats", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    // Create 3 books: 2 on Iberlibro, 1 not listed
+    await db.insert(catalogMasters).values([
+      { isbn13: testIsbn1, title: "Book 1 on Iberlibro", author: "Author 1" },
+      { isbn13: testIsbn2, title: "Book 2 on Iberlibro", author: "Author 2" },
+      { isbn13: testIsbn3, title: "Book 3 not listed", author: "Author 3" },
+    ]);
+
+    await db.insert(inventoryItems).values([
+      {
+        isbn13: testIsbn1,
+        status: "AVAILABLE",
+        conditionGrade: "BUENO",
+        acquisitionDate: new Date(),
+        listingPrice: "10.00",
+        salesChannels: JSON.stringify(["Iberlibro"]),
+      },
+      {
+        isbn13: testIsbn2,
+        status: "AVAILABLE",
+        conditionGrade: "BUENO",
+        acquisitionDate: new Date(),
+        listingPrice: "15.00",
+        salesChannels: JSON.stringify(["Iberlibro"]),
+      },
+      {
+        isbn13: testIsbn3,
+        status: "AVAILABLE",
+        conditionGrade: "BUENO",
+        acquisitionDate: new Date(),
+        listingPrice: "12.00",
+        salesChannels: null,
+      },
+    ]);
+
+    const result = await caller.batch.exportToIberlibro({ filters: {} });
+
+    // Should report correct excluded count
+    expect(result.stats.excludedCount).toBeGreaterThanOrEqual(2);
+    expect(result.stats.totalAvailable).toBeGreaterThanOrEqual(3);
+    expect(result.stats.totalItems).toBe(
+      result.stats.totalAvailable - result.stats.excludedCount
+    );
+
+    // Should include summary message
+    expect(result.message).toContain("Exported");
+    expect(result.message).toContain("excluded");
+    expect(result.message).toContain("Iberlibro");
+
+    // Cleanup
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn1));
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn2));
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn3));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn1));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn2));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn3));
+  });
+
+  it("should include books with null salesChannels", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    await db.insert(catalogMasters).values({
+      isbn13: testIsbn1,
+      title: "Book with no marketplace",
+      author: "Author 1",
+    });
+
+    await db.insert(inventoryItems).values({
+      isbn13: testIsbn1,
+      status: "AVAILABLE",
+      conditionGrade: "BUENO",
+      acquisitionDate: new Date(),
+      listingPrice: "10.00",
+      salesChannels: null,
+    });
+
+    const result = await caller.batch.exportToIberlibro({ filters: {} });
+
+    // Should include book 1 (null salesChannels means not listed anywhere)
+    expect(result.tsv).toContain(testIsbn1);
+
+    // Cleanup
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn1));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn1));
+  });
+});
