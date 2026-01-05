@@ -1617,6 +1617,43 @@ export const appRouter = router({
 
         // 2. Helper functions for normalization
 
+        // Condition descriptions for Al Alimón format
+        const conditionDescriptions: Record<string, string> = {
+          'NUEVO': 'NUEVO. Ejemplar que mantiene el aspecto y funcionalidad de un ejemplar nuevo. Muestra signos mínimos de manipulación externa. Ejemplar apto para quienes buscan la mejor calidad sin pagar precio de nuevo.',
+          'COMO_NUEVO': 'COMO NUEVO. Ejemplar que mantiene el aspecto y funcionalidad de un ejemplar nuevo. Muestra signos mínimos de manipulación externa. Ejemplar apto para quienes buscan la mejor calidad sin pagar precio de nuevo.',
+          'BUENO': 'BUENO. Presenta el desgaste normal de un libro leído, con posibles marcas ligeras, pero páginas limpias y encuadernación sólida, asegurando una lectura cómoda y satisfactoria.',
+          'ACEPTABLE': 'ACEPTABLE. Presenta el desgaste normal de un libro leído, con posibles marcas ligeras, pero páginas limpias y encuadernación sólida, asegurando una lectura cómoda y satisfactoria.',
+          'DEFECTUOSO': 'DEFECTUOSO. Presenta señales visibles de uso como subrayados, anotaciones o desperfectos en portada/contraportada, pero sigue siendo completamente legible.'
+        };
+
+        // Build description with Al Alimón mission prefix and condition suffix
+        const buildDescription = (book: any, condition: string | null): string => {
+          const prefix = 'Descripción: Este libro tiene una doble misión: inspirarte a ti y dar una oportunidad a un estudiante. Gracias por cumplirla Al Alimón. SINOPSIS: ';
+          const synopsis = book?.synopsis ? book.synopsis.replace(/[\r\n]+/g, ' ').substring(0, 800) : '';
+          const statusPrefix = 'Status del libro: ';
+          const conditionDesc = conditionDescriptions[condition?.toUpperCase() || 'BUENO'] || conditionDescriptions['BUENO'];
+          
+          return `${prefix}${synopsis}${statusPrefix}${conditionDesc}`;
+        };
+
+        // Normalize language codes to ISO 639-2 (three-letter codes)
+        const normalizeLanguage = (lang: string | null): string => {
+          if (!lang) return 'SPA'; // Default Spanish
+          const langMap: Record<string, string> = {
+            'ES': 'SPA', 'SPANISH': 'SPA', 'ESPAÑOL': 'SPA', 'CASTELLANO': 'SPA',
+            'EN': 'ENG', 'ENGLISH': 'ENG', 'INGLÉS': 'ENG',
+            'FR': 'FRA', 'FRENCH': 'FRA', 'FRANCÉS': 'FRA',
+            'DE': 'GER', 'GERMAN': 'GER', 'ALEMÁN': 'GER',
+            'IT': 'ITA', 'ITALIAN': 'ITA', 'ITALIANO': 'ITA',
+            'PT': 'POR', 'PORTUGUESE': 'POR', 'PORTUGUÉS': 'POR',
+            'CA': 'CAT', 'CATALAN': 'CAT', 'CATALÁN': 'CAT',
+            'EU': 'BAQ', 'BASQUE': 'BAQ', 'EUSKERA': 'BAQ',
+            'GL': 'GLG', 'GALICIAN': 'GLG', 'GALLEGO': 'GLG',
+          };
+          const normalized = lang.toUpperCase().trim();
+          return langMap[normalized] || (normalized.length === 3 ? normalized : 'SPA');
+        };
+
         const normalizeCondition = (condition: string | null): string => {
           if (!condition) return 'Good';
           const c = condition.toUpperCase();
@@ -1641,9 +1678,11 @@ export const appRouter = router({
 
         const escapeTSV = (value: any): string => {
           if (value === null || value === undefined) return '';
-          const str = String(value);
-          // Escape tabs, newlines, and quotes for TSV format
-          if (str.includes('\t') || str.includes('\n') || str.includes('\r') || str.includes('"')) {
+          let str = String(value);
+          // Replace tabs and newlines with spaces to prevent column misalignment
+          str = str.replace(/[\t\r\n]+/g, ' ');
+          // Escape quotes for TSV format
+          if (str.includes('"')) {
             return '"' + str.replace(/"/g, '""') + '"';
           }
           return str;
@@ -1665,10 +1704,8 @@ export const appRouter = router({
           const price = item.listingPrice ? parseFloat(item.listingPrice.toString()).toFixed(2) : '0.00';
           const isbn = item.isbn13?.replace(/[-\s]/g, '') || '';
           
-          // Build description with Spanish content
-          const description = book?.synopsis 
-            ? `${book.synopsis.substring(0, 1000)}`
-            : book?.title || 'Sin descripción';
+          // Build description with Al Alimón format
+          const description = buildDescription(book, item.conditionGrade);
 
           return [
             escapeTSV(item.uuid),                              // listingid (use Alexandria OS UUID)
@@ -1700,7 +1737,7 @@ export const appRouter = router({
             escapeTSV(''),                                     // weight
             escapeTSV(''),                                     // weightunit
             escapeTSV(input.shippingTemplateId || 'ST-00001'), // shippingtemplateid
-            escapeTSV(book?.language || 'SPA'),                // language
+            escapeTSV(normalizeLanguage(book?.language || null)), // language
           ];
         });
 

@@ -558,6 +558,173 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
     await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn3));
   });
 
+  it("should format description with Al Alimón prefix and condition suffix", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    await db.insert(catalogMasters).values({
+      isbn13: testIsbn1,
+      title: "Description Format Test",
+      author: "Test Author",
+      synopsis: "This is a test synopsis for the book.",
+    });
+
+    await db.insert(inventoryItems).values({
+      isbn13: testIsbn1,
+      status: "AVAILABLE",
+      conditionGrade: "BUENO",
+      acquisitionDate: new Date(),
+      listingPrice: "10.00",
+    });
+
+    const result = await caller.batch.exportToIberlibro({ filters: {} });
+    const lines = result.tsv.split("\n");
+    const headers = lines[0].split("\t");
+    const dataRow = lines.find(line => line.includes(testIsbn1));
+    
+    expect(dataRow).toBeDefined();
+    
+    const values = dataRow!.split("\t");
+    const descIndex = headers.indexOf("description");
+    const description = values[descIndex];
+    
+    // Check Al Alimón prefix
+    expect(description).toContain("Descripción: Este libro tiene una doble misión");
+    expect(description).toContain("inspirarte a ti y dar una oportunidad a un estudiante");
+    expect(description).toContain("Gracias por cumplirla Al Alimón");
+    
+    // Check SINOPSIS section
+    expect(description).toContain("SINOPSIS:");
+    expect(description).toContain("This is a test synopsis");
+    
+    // Check Status del libro suffix
+    expect(description).toContain("Status del libro:");
+    expect(description).toContain("BUENO. Presenta el desgaste normal");
+
+    // Cleanup
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn1));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn1));
+  });
+
+  it("should convert ES to SPA language code (ISO 639-2)", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    await db.insert(catalogMasters).values({
+      isbn13: testIsbn1,
+      title: "Spanish Language Test",
+      author: "Test Author",
+      language: "ES", // Two-letter code
+    });
+
+    await db.insert(inventoryItems).values({
+      isbn13: testIsbn1,
+      status: "AVAILABLE",
+      conditionGrade: "BUENO",
+      acquisitionDate: new Date(),
+      listingPrice: "10.00",
+    });
+
+    const result = await caller.batch.exportToIberlibro({ filters: {} });
+    const lines = result.tsv.split("\n");
+    const headers = lines[0].split("\t");
+    const dataRow = lines.find(line => line.includes(testIsbn1));
+    
+    expect(dataRow).toBeDefined();
+    
+    const values = dataRow!.split("\t");
+    const langIndex = headers.indexOf("language");
+    
+    // Should convert ES → SPA
+    expect(values[langIndex]).toBe("SPA");
+
+    // Cleanup
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn1));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn1));
+  });
+
+  it("should convert EN to ENG language code (ISO 639-2)", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    await db.insert(catalogMasters).values({
+      isbn13: testIsbn1,
+      title: "English Language Test",
+      author: "Test Author",
+      language: "EN",
+    });
+
+    await db.insert(inventoryItems).values({
+      isbn13: testIsbn1,
+      status: "AVAILABLE",
+      conditionGrade: "BUENO",
+      acquisitionDate: new Date(),
+      listingPrice: "10.00",
+    });
+
+    const result = await caller.batch.exportToIberlibro({ filters: {} });
+    const lines = result.tsv.split("\n");
+    const headers = lines[0].split("\t");
+    const dataRow = lines.find(line => line.includes(testIsbn1));
+    
+    expect(dataRow).toBeDefined();
+    
+    const values = dataRow!.split("\t");
+    const langIndex = headers.indexOf("language");
+    
+    // Should convert EN → ENG
+    expect(values[langIndex]).toBe("ENG");
+
+    // Cleanup
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn1));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn1));
+  });
+
+  it("should default to SPA when language is null", async () => {
+    const ctx = createAuthContext();
+    const caller = appRouter.createCaller(ctx);
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+
+    await db.insert(catalogMasters).values({
+      isbn13: testIsbn1,
+      title: "No Language Test",
+      author: "Test Author",
+      language: null,
+    });
+
+    await db.insert(inventoryItems).values({
+      isbn13: testIsbn1,
+      status: "AVAILABLE",
+      conditionGrade: "BUENO",
+      acquisitionDate: new Date(),
+      listingPrice: "10.00",
+    });
+
+    const result = await caller.batch.exportToIberlibro({ filters: {} });
+    const lines = result.tsv.split("\n");
+    const headers = lines[0].split("\t");
+    const dataRow = lines.find(line => line.includes(testIsbn1));
+    
+    expect(dataRow).toBeDefined();
+    
+    const values = dataRow!.split("\t");
+    const langIndex = headers.indexOf("language");
+    
+    // Should default to SPA
+    expect(values[langIndex]).toBe("SPA");
+
+    // Cleanup
+    await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn1));
+    await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn1));
+  });
+
   it("should include books with null salesChannels", async () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);

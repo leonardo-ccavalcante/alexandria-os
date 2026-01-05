@@ -1115,3 +1115,20 @@
 - [x] Test export in browser to verify correct filtering
 - [x] Update frontend to display excluded count in toast notification
 - [x] Verify export file format remains unchanged (TSV with 30 columns)
+
+
+## Iberlibro/AbeBooks Export Format Fix (COMPLETED)
+- [x] Add buildDescription helper function with Al Alimón prefix and condition descriptions
+- [x] Add normalizeLanguage helper function for ISO 639-2 language codes (ES→SPA, EN→ENG, etc.)
+- [x] Update exportToIberlibro row mapping to use new helper functions
+- [x] Update description field format: "Descripción: Este libro tiene una doble misión... SINOPSIS: {synopsis} Status del libro: {condition}"
+- [x] Update language field to use ISO 639-2 three-letter codes (SPA, ENG, FRA, GER, ITA, etc.)
+- [x] Change file extension from .tsv to .txt in ExportarDatos.tsx (line 51)
+- [x] Change MIME type from text/tab-separated-values to text/plain (line 47)
+- [x] Fix escapeTSV to replace tabs/newlines with spaces (prevent column misalignment)
+- [x] Fix download issue by adding appendChild before click (browser compatibility)
+- [x] Write unit tests for description format (Al Alimón prefix + synopsis + condition suffix)
+- [x] Write unit tests for language code normalization (ES→SPA, EN→ENG, FR→FRA, etc.)
+- [x] Test export in browser and verify 30-column TSV structure
+- [x] Verify output matches AbeBooks reference file format
+- [ ] Manual test: Upload generated file to AbeBooks to verify acceptance

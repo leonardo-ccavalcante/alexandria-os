@@ -31,7 +31,7 @@ export default function ExportarDatos() {
       a.href = url;
       a.download = `inventario_${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
       
       toast.success(`Inventario exportado correctamente`);
       setIsExporting(false);
@@ -44,13 +44,15 @@ export default function ExportarDatos() {
 
   const exportIberlibroMutation = trpc.batch.exportToIberlibro.useMutation({
     onSuccess: (data) => {
-      const blob = new Blob([data.tsv], { type: "text/tab-separated-values;charset=utf-8;" });
+      const blob = new Blob([data.tsv], { type: "text/plain;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `iberlibro_${new Date().toISOString().split("T")[0]}.tsv`;
+      a.download = `iberlibro_${new Date().toISOString().split("T")[0]}.txt`;
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
       
       toast.success(`Iberlibro: ${data.stats.totalItems} libros exportados (${data.stats.withPrice} con precio)`);
       setIsExporting(false);
@@ -69,7 +71,7 @@ export default function ExportarDatos() {
       a.href = url;
       a.download = `casadellibro_${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
       
       const materiaInfo = data.stats.withMateriaCode 
         ? `, ${data.stats.withMateriaCode} con código Materia`
@@ -91,7 +93,7 @@ export default function ExportarDatos() {
       a.href = url;
       a.download = `todocoleccion_${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
       
       toast.success(`Todocolección: ${data.stats.totalItems} libros exportados (${data.stats.withPrice} con precio)`);
       setIsExporting(false);
@@ -110,7 +112,7 @@ export default function ExportarDatos() {
       a.href = url;
       a.download = `ebay_${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
       
       toast.success(`eBay: ${data.stats.totalItems} libros exportados (${data.stats.withPrice} con precio, ${data.stats.withISBN} con ISBN)`);
       setIsExporting(false);
