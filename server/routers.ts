@@ -1453,12 +1453,18 @@ export const appRouter = router({
           searchText: z.string().optional(),
           publisher: z.string().optional(),
           author: z.string().optional(),
+          yearFrom: z.number().optional(),
+          yearTo: z.number().optional(),
+          createdFrom: z.date().optional(),
+          createdTo: z.date().optional(),
         }).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         // 1. Fetch Data (grouped by ISBN like the UI)
         const { items } = await searchInventory({
           ...input.filters,
+          dateFrom: input.filters?.createdFrom,
+          dateTo: input.filters?.createdTo,
           limit: 10000, 
         });
         
@@ -1595,6 +1601,8 @@ export const appRouter = router({
           locationCode: z.string().optional(),
           yearFrom: z.number().optional(),
           yearTo: z.number().optional(),
+          createdFrom: z.date().optional(),
+          createdTo: z.date().optional(),
         }).optional(),
         shippingTemplateId: z.string().optional().default('ST-00001'),
       }))
@@ -1602,6 +1610,8 @@ export const appRouter = router({
         // 1. Fetch inventory items with filters, excluding books already on Iberlibro
         const result = await searchInventory({
           ...input.filters,
+          dateFrom: input.filters?.createdFrom,
+          dateTo: input.filters?.createdTo,
           limit: 10000,
           excludeSalesChannel: 'Iberlibro',
         });
@@ -1784,12 +1794,16 @@ export const appRouter = router({
           locationCode: z.string().optional(),
           yearFrom: z.number().optional(),
           yearTo: z.number().optional(),
+          createdFrom: z.date().optional(),
+          createdTo: z.date().optional(),
         }).optional(),
       }))
       .mutation(async ({ input }) => {
         // 1. Fetch inventory items with filters
         const result = await searchInventory({
           ...input.filters,
+          dateFrom: input.filters?.createdFrom,
+          dateTo: input.filters?.createdTo,
           limit: 10000,
         });
         const items = result.items;
@@ -1888,12 +1902,16 @@ export const appRouter = router({
           locationCode: z.string().optional(),
           yearFrom: z.number().optional(),
           yearTo: z.number().optional(),
+          createdFrom: z.date().optional(),
+          createdTo: z.date().optional(),
         }).optional(),
       }))
       .mutation(async ({ input }) => {
         // 1. Fetch inventory items with filters
         const result = await searchInventory({
           ...input.filters,
+          dateFrom: input.filters?.createdFrom,
+          dateTo: input.filters?.createdTo,
           limit: 10000,
         });
         const items = result.items;
@@ -2049,12 +2067,16 @@ export const appRouter = router({
           author: z.string().optional(),
           yearFrom: z.number().optional(),
           yearTo: z.number().optional(),
+          createdFrom: z.date().optional(),
+          createdTo: z.date().optional(),
         }).optional(),
       }))
       .mutation(async ({ input }) => {
         // 1. Fetch inventory items
         const items = await searchInventory({
-          searchText: input.filters?.searchTerm || '',
+          ...input.filters,
+          dateFrom: input.filters?.createdFrom,
+          dateTo: input.filters?.createdTo,
           limit: 10000,
         });
 

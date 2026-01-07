@@ -1132,3 +1132,17 @@
 - [x] Test export in browser and verify 30-column TSV structure
 - [x] Verify output matches AbeBooks reference file format
 - [ ] Manual test: Upload generated file to AbeBooks to verify acceptance
+
+
+## Date Range Filtering for Exports (COMPLETED)
+- [x] Update frontend ExportarDatos.tsx to add date picker UI (createdFrom/createdTo)
+- [x] Add Calendar component from shadcn/ui for date selection
+- [x] Update exportToCsv procedure to accept createdFrom/createdTo parameters
+- [x] Update exportToIberlibro procedure to accept createdFrom/createdTo parameters
+- [x] Update exportToCasaDelLibro procedure to accept createdFrom/createdTo parameters
+- [x] Update exportToTodocoleccion procedure to accept createdFrom/createdTo parameters
+- [x] Update exportToEbay procedure to accept createdFrom/createdTo parameters
+- [x] Map createdFrom/createdTo to dateFrom/dateTo in searchInventory calls
+- [x] Verify date-fns dependency is installed (v4.1.0)
+- [x] Test date filtering in browser for all 5 export platforms
+- [x] Write comprehensive unit tests (6 tests passing: 5 exports + backward compatibility)

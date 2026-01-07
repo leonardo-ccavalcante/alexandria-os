@@ -4,9 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Download, FileSpreadsheet, Loader2, CalendarIcon, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 type ExportPlatform = "general" | "iberlibro" | "casadellibro" | "todocoleccion" | "ebay";
 
@@ -17,6 +22,8 @@ export default function ExportarDatos() {
     author: "",
     yearFrom: "",
     yearTo: "",
+    createdFrom: undefined as Date | undefined,
+    createdTo: undefined as Date | undefined,
   });
 
   const [selectedPlatform, setSelectedPlatform] = useState<ExportPlatform>("general");
@@ -31,7 +38,7 @@ export default function ExportarDatos() {
       a.href = url;
       a.download = `inventario_${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      URL.revokeObjectURL(url);
       
       toast.success(`Inventario exportado correctamente`);
       setIsExporting(false);
@@ -44,15 +51,13 @@ export default function ExportarDatos() {
 
   const exportIberlibroMutation = trpc.batch.exportToIberlibro.useMutation({
     onSuccess: (data) => {
-      const blob = new Blob([data.tsv], { type: "text/plain;charset=utf-8;" });
+      const blob = new Blob([data.tsv], { type: "text/tab-separated-values;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `iberlibro_${new Date().toISOString().split("T")[0]}.txt`;
-      document.body.appendChild(a);
+      a.download = `iberlibro_${new Date().toISOString().split("T")[0]}.tsv`;
       a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      URL.revokeObjectURL(url);
       
       toast.success(`Iberlibro: ${data.stats.totalItems} libros exportados (${data.stats.withPrice} con precio)`);
       setIsExporting(false);
@@ -71,7 +76,7 @@ export default function ExportarDatos() {
       a.href = url;
       a.download = `casadellibro_${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      URL.revokeObjectURL(url);
       
       const materiaInfo = data.stats.withMateriaCode 
         ? `, ${data.stats.withMateriaCode} con código Materia`
@@ -93,7 +98,7 @@ export default function ExportarDatos() {
       a.href = url;
       a.download = `todocoleccion_${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      URL.revokeObjectURL(url);
       
       toast.success(`Todocolección: ${data.stats.totalItems} libros exportados (${data.stats.withPrice} con precio)`);
       setIsExporting(false);
@@ -112,7 +117,7 @@ export default function ExportarDatos() {
       a.href = url;
       a.download = `ebay_${new Date().toISOString().split("T")[0]}.csv`;
       a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      URL.revokeObjectURL(url);
       
       toast.success(`eBay: ${data.stats.totalItems} libros exportados (${data.stats.withPrice} con precio, ${data.stats.withISBN} con ISBN)`);
       setIsExporting(false);
@@ -132,6 +137,8 @@ export default function ExportarDatos() {
       author: filters.author || undefined,
       yearFrom: filters.yearFrom ? parseInt(filters.yearFrom) : undefined,
       yearTo: filters.yearTo ? parseInt(filters.yearTo) : undefined,
+      createdFrom: filters.createdFrom,
+      createdTo: filters.createdTo,
     };
 
     try {
@@ -205,6 +212,10 @@ export default function ExportarDatos() {
   };
 
   const platformInfo = getPlatformInfo();
+
+  const clearDateFilters = () => {
+    setFilters({ ...filters, createdFrom: undefined, createdTo: undefined });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -282,9 +293,136 @@ export default function ExportarDatos() {
               </div>
             </div>
 
-            {/* Filters Section */}
+            {/* Date Range Filters - NEW FEATURE */}
             <div className="space-y-4 pt-4 border-t">
-              <h3 className="text-sm font-medium">Filtros de Búsqueda (Opcional)</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Filtrar por Fecha de Ingreso</h3>
+                {(filters.createdFrom || filters.createdTo) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearDateFilters}
+                    className="h-8 text-xs"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Limpiar fechas
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">
+                Exporta solo los artículos añadidos al inventario en un rango de fechas específico
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Date From */}
+                <div className="space-y-2">
+                  <Label>Fecha desde</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !filters.createdFrom && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {filters.createdFrom ? (
+                          format(filters.createdFrom, "PPP", { locale: es })
+                        ) : (
+                          <span>Seleccionar fecha inicial</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={filters.createdFrom}
+                        onSelect={(date) => setFilters({ ...filters, createdFrom: date })}
+                        initialFocus
+                        locale={es}
+                        disabled={(date) =>
+                          date > new Date() || (filters.createdTo ? date > filters.createdTo : false)
+                        }
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Date To */}
+                <div className="space-y-2">
+                  <Label>Fecha hasta</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !filters.createdTo && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {filters.createdTo ? (
+                          format(filters.createdTo, "PPP", { locale: es })
+                        ) : (
+                          <span>Seleccionar fecha final</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={filters.createdTo}
+                        onSelect={(date) => setFilters({ ...filters, createdTo: date })}
+                        initialFocus
+                        locale={es}
+                        disabled={(date) =>
+                          date > new Date() || (filters.createdFrom ? date < filters.createdFrom : false)
+                        }
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Date Range Info */}
+              {(filters.createdFrom || filters.createdTo) && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+                  <p className="text-xs text-green-700">
+                    {filters.createdFrom && filters.createdTo ? (
+                      <>
+                        📅 Exportando artículos añadidos entre{" "}
+                        <span className="font-medium">
+                          {format(filters.createdFrom, "dd/MM/yyyy")}
+                        </span>
+                        {" y "}
+                        <span className="font-medium">
+                          {format(filters.createdTo, "dd/MM/yyyy")}
+                        </span>
+                      </>
+                    ) : filters.createdFrom ? (
+                      <>
+                        📅 Exportando artículos añadidos desde{" "}
+                        <span className="font-medium">
+                          {format(filters.createdFrom, "dd/MM/yyyy")}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        📅 Exportando artículos añadidos hasta{" "}
+                        <span className="font-medium">
+                          {format(filters.createdTo!, "dd/MM/yyyy")}
+                        </span>
+                      </>
+                    )}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Other Filters Section */}
+            <div className="space-y-4 pt-4 border-t">
+              <h3 className="text-sm font-medium">Otros Filtros (Opcional)</h3>
               
               <div>
                 <Label htmlFor="searchQuery">Búsqueda</Label>
@@ -326,7 +464,7 @@ export default function ExportarDatos() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="yearFrom">Año desde</Label>
+                  <Label htmlFor="yearFrom">Año de publicación desde</Label>
                   <Input
                     id="yearFrom"
                     type="number"
@@ -339,7 +477,7 @@ export default function ExportarDatos() {
                 </div>
 
                 <div>
-                  <Label htmlFor="yearTo">Año hasta</Label>
+                  <Label htmlFor="yearTo">Año de publicación hasta</Label>
                   <Input
                     id="yearTo"
                     type="number"
