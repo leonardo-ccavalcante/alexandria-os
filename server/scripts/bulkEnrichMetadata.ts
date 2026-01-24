@@ -64,6 +64,10 @@ async function enrichAllBooks() {
       const updateData: any = {};
       let fieldsUpdated: string[] = [];
 
+      if (!book.author && metadata.author) {
+        updateData.author = metadata.author;
+        fieldsUpdated.push("author");
+      }
       if (!book.publisher && metadata.publisher) {
         updateData.publisher = metadata.publisher;
         fieldsUpdated.push("publisher");

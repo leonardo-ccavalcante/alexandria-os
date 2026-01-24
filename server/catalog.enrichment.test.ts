@@ -40,6 +40,43 @@ describe("catalog.enrichMetadata", () => {
     const { ctx } = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
+    const enrichedBook = {
+      isbn13: "9780134685991",
+      title: "Effective Java",
+      author: "Joshua Bloch",
+      publisher: "Addison-Wesley Professional",
+      pages: 416,
+      publicationYear: 2018,
+      language: "EN",
+      edition: "3rd Edition",
+      synopsis: "The Definitive Guide to Java Platform Best Practices",
+      categoryLevel1: "Ciencias",
+      categoryLevel2: null,
+      categoryLevel3: null,
+      materia: null,
+      coverImageUrl: "https://example.com/cover.jpg",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Mock database operations
+    const mockDb = {
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockResolvedValue(undefined),
+        }),
+      }),
+      select: vi.fn().mockReturnValue({
+        from: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue([enrichedBook]),
+          }),
+        }),
+      }),
+    };
+
+    vi.spyOn(db, "getDb").mockResolvedValue(mockDb as any);
+
     // Mock getBookByIsbn to return book with missing metadata
     vi.spyOn(db, "getCatalogMasterByIsbn").mockResolvedValue({
       isbn13: "9780134685991",
@@ -63,14 +100,13 @@ describe("catalog.enrichMetadata", () => {
     // Mock fetchExternalBookMetadata to return complete metadata
     vi.spyOn(externalBookApi, "fetchExternalBookMetadata").mockResolvedValue({
       found: true,
-      source: "google",
       title: "Effective Java",
-      authors: ["Joshua Bloch"],
+      author: "Joshua Bloch",
       publisher: "Addison-Wesley Professional",
-      publishedDate: "2018-01-06",
+      publishedDate: "2018",
       description: "The Definitive Guide to Java Platform Best Practices",
       pageCount: 416,
-      language: "en",
+      language: "EN",
       coverImageUrl: "https://example.com/cover.jpg",
       edition: "3rd Edition",
     });
