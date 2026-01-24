@@ -520,7 +520,7 @@ export const appRouter = router({
         if (!existing) throw new Error("Book not found in catalog");
         
         // Check if enrichment is needed (pages can be 0 or null)
-        const needsEnrichment = !existing.publisher || !existing.pages || existing.pages === 0;
+        const needsEnrichment = !existing.author || !existing.publisher || !existing.pages || existing.pages === 0;
         if (!needsEnrichment) {
           return { success: true, enriched: false, message: "Book already has complete metadata" };
         }
@@ -533,9 +533,10 @@ export const appRouter = router({
         
         // Update only missing fields or fix bad data
         const updateData: Partial<InsertCatalogMaster> = {};
+        if (!existing.author && metadata.author) updateData.author = metadata.author;
         if (!existing.publisher && metadata.publisher) updateData.publisher = metadata.publisher;
         if ((!existing.pages || existing.pages === 0) && metadata.pageCount) updateData.pages = metadata.pageCount;
-        
+
         // Fix bad edition values ("preview", "full_public_domain", etc.) by clearing them
         const badEditionValues = ['preview', 'full_public_domain', 'full', 'partial', 'sample'];
         if (existing.edition && badEditionValues.some(bad => existing.edition?.toLowerCase().includes(bad))) {
@@ -581,11 +582,13 @@ export const appRouter = router({
           .from(catalogMasters)
           .where(
             or(
+              isNull(catalogMasters.author),
               isNull(catalogMasters.publisher),
               isNull(catalogMasters.pages),
               eq(catalogMasters.pages, 0),
               isNull(catalogMasters.edition),
-              isNull(catalogMasters.language)
+              isNull(catalogMasters.language),
+              isNull(catalogMasters.synopsis)
             )
           );
         
@@ -608,7 +611,7 @@ export const appRouter = router({
             }
             
             // Check if enrichment is needed
-            const needsEnrichment = !existing.publisher || !existing.pages || existing.pages === 0 || !existing.edition || !existing.language;
+            const needsEnrichment = !existing.author || !existing.publisher || !existing.pages || existing.pages === 0 || !existing.edition || !existing.language || !existing.synopsis;
             if (!needsEnrichment) {
               results.skipped++;
               continue;
@@ -624,6 +627,7 @@ export const appRouter = router({
             
             // Update only missing fields or fix bad data
             const updateData: Partial<InsertCatalogMaster> = {};
+            if (!existing.author && metadata.author) updateData.author = metadata.author;
             if (!existing.publisher && metadata.publisher) updateData.publisher = metadata.publisher;
             if ((!existing.pages || existing.pages === 0) && metadata.pageCount) updateData.pages = metadata.pageCount;
             

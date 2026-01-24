@@ -48,7 +48,8 @@ describe('External Book API', () => {
       expect(result.language).toBe('ES');
       expect(result.category).toBe('Ficción');
       expect(result.coverImageUrl).toBe('https://books.google.com/books/content?id=test&printsec=frontcover&img=1');
-      expect(result.edition).toBe('1.2.3.4');
+      // Google Books doesn't provide edition info - contentVersion is NOT edition
+      expect(result.edition).toBeUndefined();
     });
 
     it('should handle ISBN-10 format', async () => {
@@ -162,7 +163,7 @@ describe('External Book API', () => {
       expect(result.language).toBe('ES'); // Default
       expect(result.category).toBe('OTROS'); // Default
       expect(result.coverImageUrl).toBeNull();
-      expect(result.edition).toBe('');
+      expect(result.edition).toBeUndefined(); // Google Books doesn't provide edition
     });
 
     it('should normalize language to 2-char uppercase', async () => {

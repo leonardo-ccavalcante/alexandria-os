@@ -81,7 +81,9 @@ async function enrichAllBooks() {
         fieldsUpdated.push("language");
       }
       if (!book.synopsis && metadata.description) {
-        updateData.synopsis = metadata.description.substring(0, 2000);
+        // Store full synopsis - TEXT type supports up to 65,535 bytes
+        // Frontend can truncate for display if needed
+        updateData.synopsis = metadata.description;
         fieldsUpdated.push("synopsis");
       }
       if (!book.coverImageUrl && metadata.coverImageUrl) {
