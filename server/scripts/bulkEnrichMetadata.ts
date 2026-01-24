@@ -21,15 +21,24 @@ async function enrichAllBooks() {
     process.exit(1);
   }
 
-  // Find all books with missing publisher or pages
+  // Find all books with missing metadata or "Autor Desconocido"
   const booksNeedingEnrichment = await db.select()
     .from(catalogMasters)
     .where(
       or(
+        isNull(catalogMasters.author),
+        eq(catalogMasters.author, ""),
+        eq(catalogMasters.author, "Autor Desconocido"),
         isNull(catalogMasters.publisher),
         eq(catalogMasters.publisher, ""),
         isNull(catalogMasters.pages),
-        eq(catalogMasters.pages, 0)
+        eq(catalogMasters.pages, 0),
+        isNull(catalogMasters.edition),
+        eq(catalogMasters.edition, ""),
+        isNull(catalogMasters.language),
+        eq(catalogMasters.language, ""),
+        isNull(catalogMasters.synopsis),
+        eq(catalogMasters.synopsis, "")
       )
     );
 
@@ -64,7 +73,7 @@ async function enrichAllBooks() {
       const updateData: any = {};
       let fieldsUpdated: string[] = [];
 
-      if (!book.author && metadata.author) {
+      if ((!book.author || book.author === "Autor Desconocido") && metadata.author) {
         updateData.author = metadata.author;
         fieldsUpdated.push("author");
       }

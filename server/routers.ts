@@ -519,21 +519,21 @@ export const appRouter = router({
         const existing = await getCatalogMasterByIsbn(input.isbn13);
         if (!existing) throw new Error("Book not found in catalog");
         
-        // Check if enrichment is needed (pages can be 0 or null)
-        const needsEnrichment = !existing.author || !existing.publisher || !existing.pages || existing.pages === 0;
+        // Check if enrichment is needed (pages can be 0 or null, author can be "Autor Desconocido")
+        const needsEnrichment = !existing.author || existing.author === "Autor Desconocido" || !existing.publisher || !existing.pages || existing.pages === 0;
         if (!needsEnrichment) {
           return { success: true, enriched: false, message: "Book already has complete metadata" };
         }
-        
+
         // Fetch metadata from external APIs
         const metadata = await fetchExternalBookMetadata(input.isbn13);
         if (!metadata.found) {
           return { success: false, enriched: false, message: "Metadata not found in external APIs" };
         }
-        
+
         // Update only missing fields or fix bad data
         const updateData: Partial<InsertCatalogMaster> = {};
-        if (!existing.author && metadata.author) updateData.author = metadata.author;
+        if ((!existing.author || existing.author === "Autor Desconocido") && metadata.author) updateData.author = metadata.author;
         if (!existing.publisher && metadata.publisher) updateData.publisher = metadata.publisher;
         if ((!existing.pages || existing.pages === 0) && metadata.pageCount) updateData.pages = metadata.pageCount;
 
@@ -572,25 +572,45 @@ export const appRouter = router({
     
     // Bulk enrich all books with missing metadata
     bulkEnrichMetadata: protectedProcedure
-      .mutation(async () => {
+      .input(z.object({
+        enrichFields: z.array(z.enum(['author', 'publisher', 'pages', 'edition', 'language', 'synopsis', 'coverImageUrl'])).optional(),
+      }).optional())
+      .mutation(async ({ input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
-        
-        // Find all books with missing metadata
+
+        // Determine which fields to enrich (default: all)
+        const fieldsToEnrich = input?.enrichFields || ['author', 'publisher', 'pages', 'edition', 'language', 'synopsis', 'coverImageUrl'];
+
+        // Build dynamic WHERE clause based on selected fields
+        const conditions: any[] = [];
+        if (fieldsToEnrich.includes('author')) {
+          conditions.push(isNull(catalogMasters.author), eq(catalogMasters.author, ""), eq(catalogMasters.author, "Autor Desconocido"));
+        }
+        if (fieldsToEnrich.includes('publisher')) {
+          conditions.push(isNull(catalogMasters.publisher), eq(catalogMasters.publisher, ""));
+        }
+        if (fieldsToEnrich.includes('pages')) {
+          conditions.push(isNull(catalogMasters.pages), eq(catalogMasters.pages, 0));
+        }
+        if (fieldsToEnrich.includes('edition')) {
+          conditions.push(isNull(catalogMasters.edition), eq(catalogMasters.edition, ""));
+        }
+        if (fieldsToEnrich.includes('language')) {
+          conditions.push(isNull(catalogMasters.language), eq(catalogMasters.language, ""));
+        }
+        if (fieldsToEnrich.includes('synopsis')) {
+          conditions.push(isNull(catalogMasters.synopsis), eq(catalogMasters.synopsis, ""));
+        }
+        if (fieldsToEnrich.includes('coverImageUrl')) {
+          conditions.push(isNull(catalogMasters.coverImageUrl), eq(catalogMasters.coverImageUrl, ""));
+        }
+
+        // Find all books with missing metadata in selected fields
         const booksNeedingEnrichment = await db
           .select({ isbn13: catalogMasters.isbn13 })
           .from(catalogMasters)
-          .where(
-            or(
-              isNull(catalogMasters.author),
-              isNull(catalogMasters.publisher),
-              isNull(catalogMasters.pages),
-              eq(catalogMasters.pages, 0),
-              isNull(catalogMasters.edition),
-              isNull(catalogMasters.language),
-              isNull(catalogMasters.synopsis)
-            )
-          );
+          .where(or(...conditions));
         
         const results = {
           total: booksNeedingEnrichment.length,
@@ -598,22 +618,79 @@ export const appRouter = router({
           failed: 0,
           skipped: 0,
           errors: [] as string[],
+          detailedReport: [] as Array<{
+            isbn13: string;
+            title: string;
+            status: 'enriched' | 'failed' | 'skipped';
+            fieldsUpdated: string[];
+            beforeValues: Record<string, any>;
+            afterValues: Record<string, any>;
+            source: string | null;
+            error: string | null;
+            timestamp: string;
+          }>,
         };
-        
+
         // Process each book
         for (const book of booksNeedingEnrichment) {
+          const startTime = new Date();
           try {
             // Get current book data
             const existing = await getCatalogMasterByIsbn(book.isbn13);
             if (!existing) {
               results.skipped++;
+              results.detailedReport.push({
+                isbn13: book.isbn13,
+                title: 'Unknown',
+                status: 'skipped',
+                fieldsUpdated: [],
+                beforeValues: {},
+                afterValues: {},
+                source: null,
+                error: 'Book not found in catalog',
+                timestamp: startTime.toISOString(),
+              });
               continue;
             }
-            
-            // Check if enrichment is needed
-            const needsEnrichment = !existing.author || !existing.publisher || !existing.pages || existing.pages === 0 || !existing.edition || !existing.language || !existing.synopsis;
+
+            // Check if enrichment is needed for selected fields only
+            const needsEnrichmentChecks: boolean[] = [];
+            if (fieldsToEnrich.includes('author')) {
+              needsEnrichmentChecks.push(!existing.author || existing.author === "" || existing.author === "Autor Desconocido");
+            }
+            if (fieldsToEnrich.includes('publisher')) {
+              needsEnrichmentChecks.push(!existing.publisher || existing.publisher === "");
+            }
+            if (fieldsToEnrich.includes('pages')) {
+              needsEnrichmentChecks.push(!existing.pages || existing.pages === 0);
+            }
+            if (fieldsToEnrich.includes('edition')) {
+              needsEnrichmentChecks.push(!existing.edition || existing.edition === "");
+            }
+            if (fieldsToEnrich.includes('language')) {
+              needsEnrichmentChecks.push(!existing.language || existing.language === "");
+            }
+            if (fieldsToEnrich.includes('synopsis')) {
+              needsEnrichmentChecks.push(!existing.synopsis || existing.synopsis === "");
+            }
+            if (fieldsToEnrich.includes('coverImageUrl')) {
+              needsEnrichmentChecks.push(!existing.coverImageUrl || existing.coverImageUrl === "");
+            }
+
+            const needsEnrichment = needsEnrichmentChecks.some(check => check);
             if (!needsEnrichment) {
               results.skipped++;
+              results.detailedReport.push({
+                isbn13: book.isbn13,
+                title: existing.title || 'Unknown',
+                status: 'skipped',
+                fieldsUpdated: [],
+                beforeValues: {},
+                afterValues: {},
+                source: null,
+                error: 'All selected fields already complete',
+                timestamp: startTime.toISOString(),
+              });
               continue;
             }
             
@@ -622,41 +699,133 @@ export const appRouter = router({
             if (!metadata.found) {
               results.failed++;
               results.errors.push(`${book.isbn13}: Metadata not found`);
+              results.detailedReport.push({
+                isbn13: book.isbn13,
+                title: existing.title || 'Unknown',
+                status: 'failed',
+                fieldsUpdated: [],
+                beforeValues: {},
+                afterValues: {},
+                source: null,
+                error: 'Metadata not found in external APIs',
+                timestamp: startTime.toISOString(),
+              });
               continue;
             }
-            
-            // Update only missing fields or fix bad data
+
+            // Track before/after values for report
+            const beforeValues: Record<string, any> = {};
+            const afterValues: Record<string, any> = {};
+            const fieldsUpdated: string[] = [];
+
+            // Update only missing fields for selected field types
             const updateData: Partial<InsertCatalogMaster> = {};
-            if (!existing.author && metadata.author) updateData.author = metadata.author;
-            if (!existing.publisher && metadata.publisher) updateData.publisher = metadata.publisher;
-            if ((!existing.pages || existing.pages === 0) && metadata.pageCount) updateData.pages = metadata.pageCount;
-            
-            // Fix bad edition values ("preview", "full_public_domain", etc.) by clearing them
-            const badEditionValues = ['preview', 'full_public_domain', 'full', 'partial', 'sample'];
-            if (existing.edition && badEditionValues.some(bad => existing.edition?.toLowerCase().includes(bad))) {
-              updateData.edition = null; // Clear bad edition data
-            } else if (!existing.edition && metadata.edition) {
-              updateData.edition = metadata.edition;
+
+            if (fieldsToEnrich.includes('author') && (!existing.author || existing.author === "" || existing.author === "Autor Desconocido") && metadata.author) {
+              beforeValues.author = existing.author || null;
+              updateData.author = metadata.author;
+              afterValues.author = metadata.author;
+              fieldsUpdated.push('author');
             }
-            
-            if (!existing.language && metadata.language) updateData.language = metadata.language;
-            if (!existing.synopsis && metadata.description) updateData.synopsis = metadata.description;
-            if (!existing.coverImageUrl && metadata.coverImageUrl) updateData.coverImageUrl = metadata.coverImageUrl;
-            
+
+            if (fieldsToEnrich.includes('publisher') && (!existing.publisher || existing.publisher === "") && metadata.publisher) {
+              beforeValues.publisher = existing.publisher || null;
+              updateData.publisher = metadata.publisher;
+              afterValues.publisher = metadata.publisher;
+              fieldsUpdated.push('publisher');
+            }
+
+            if (fieldsToEnrich.includes('pages') && (!existing.pages || existing.pages === 0) && metadata.pageCount) {
+              beforeValues.pages = existing.pages || null;
+              updateData.pages = metadata.pageCount;
+              afterValues.pages = metadata.pageCount;
+              fieldsUpdated.push('pages');
+            }
+
+            // Fix bad edition values ("preview", "full_public_domain", etc.) by clearing them
+            if (fieldsToEnrich.includes('edition')) {
+              const badEditionValues = ['preview', 'full_public_domain', 'full', 'partial', 'sample'];
+              if (existing.edition && badEditionValues.some(bad => existing.edition?.toLowerCase().includes(bad))) {
+                beforeValues.edition = existing.edition;
+                updateData.edition = null; // Clear bad edition data
+                afterValues.edition = null;
+                fieldsUpdated.push('edition');
+              } else if ((!existing.edition || existing.edition === "") && metadata.edition) {
+                beforeValues.edition = existing.edition || null;
+                updateData.edition = metadata.edition;
+                afterValues.edition = metadata.edition;
+                fieldsUpdated.push('edition');
+              }
+            }
+
+            if (fieldsToEnrich.includes('language') && (!existing.language || existing.language === "") && metadata.language) {
+              beforeValues.language = existing.language || null;
+              updateData.language = metadata.language;
+              afterValues.language = metadata.language;
+              fieldsUpdated.push('language');
+            }
+
+            if (fieldsToEnrich.includes('synopsis') && (!existing.synopsis || existing.synopsis === "") && metadata.description) {
+              beforeValues.synopsis = existing.synopsis || null;
+              updateData.synopsis = metadata.description;
+              afterValues.synopsis = metadata.description.substring(0, 100) + '...'; // Truncate for report
+              fieldsUpdated.push('synopsis');
+            }
+
+            if (fieldsToEnrich.includes('coverImageUrl') && (!existing.coverImageUrl || existing.coverImageUrl === "") && metadata.coverImageUrl) {
+              beforeValues.coverImageUrl = existing.coverImageUrl || null;
+              updateData.coverImageUrl = metadata.coverImageUrl;
+              afterValues.coverImageUrl = metadata.coverImageUrl;
+              fieldsUpdated.push('coverImageUrl');
+            }
+
             if (Object.keys(updateData).length === 0) {
               results.skipped++;
+              results.detailedReport.push({
+                isbn13: book.isbn13,
+                title: existing.title || 'Unknown',
+                status: 'skipped',
+                fieldsUpdated: [],
+                beforeValues: {},
+                afterValues: {},
+                source: null,
+                error: 'No new metadata available from APIs',
+                timestamp: startTime.toISOString(),
+              });
               continue;
             }
-            
+
             // Update database
             await db.update(catalogMasters)
               .set({ ...updateData, updatedAt: new Date() })
               .where(eq(catalogMasters.isbn13, book.isbn13));
-            
+
             results.enriched++;
+            results.detailedReport.push({
+              isbn13: book.isbn13,
+              title: existing.title || 'Unknown',
+              status: 'enriched',
+              fieldsUpdated,
+              beforeValues,
+              afterValues,
+              source: metadata.found ? 'Google Books/ISBNdb' : null,
+              error: null,
+              timestamp: startTime.toISOString(),
+            });
           } catch (error: any) {
             results.failed++;
             results.errors.push(`${book.isbn13}: ${error.message}`);
+            results.detailedReport.push({
+              isbn13: book.isbn13,
+              title: 'Unknown',
+              status: 'failed',
+              fieldsUpdated: [],
+              beforeValues: {},
+              afterValues: {},
+              source: null,
+              error: error.message,
+              timestamp: startTime.toISOString(),
+            });
           }
         }
         

@@ -173,9 +173,17 @@ export default function InventoryFinal() {
     },
   });
 
+  // Enrichment state
+  const [showEnrichmentDialog, setShowEnrichmentDialog] = useState(false);
+  const [selectedEnrichFields, setSelectedEnrichFields] = useState<string[]>([
+    'author', 'publisher', 'pages', 'edition', 'language', 'synopsis', 'coverImageUrl'
+  ]);
+  const [enrichmentReport, setEnrichmentReport] = useState<any>(null);
+
   // Bulk enrichment mutation
   const bulkEnrichMutation = trpc.catalog.bulkEnrichMetadata.useMutation({
     onSuccess: (results) => {
+      setEnrichmentReport(results);
       toast.success(
         `Enriquecimiento completado: ${results.enriched} exitosos, ${results.failed} fallidos, ${results.skipped} omitidos de ${results.total} total`
       );
@@ -185,14 +193,58 @@ export default function InventoryFinal() {
       toast.error(`Error en enriquecimiento: ${error.message}`);
     },
   });
-  
+
   // Record sale mutation
   const recordSaleMutation = trpc.sales.recordSale.useMutation();
 
   const handleBulkEnrich = () => {
-    if (confirm('¿Deseas enriquecer todos los libros con metadata faltante? Esto puede tardar varios minutos.')) {
-      bulkEnrichMutation.mutate();
+    setShowEnrichmentDialog(true);
+  };
+
+  const handleStartEnrichment = () => {
+    setShowEnrichmentDialog(false);
+    if (selectedEnrichFields.length === 0) {
+      toast.error('Por favor selecciona al menos un campo para enriquecer');
+      return;
     }
+    bulkEnrichMutation.mutate({ enrichFields: selectedEnrichFields as any });
+  };
+
+  const handleDownloadReport = () => {
+    if (!enrichmentReport?.detailedReport) return;
+
+    // Convert detailed report to CSV
+    const headers = ['ISBN', 'Título', 'Estado', 'Campos Actualizados', 'Valores Anteriores', 'Valores Nuevos', 'Fuente', 'Error', 'Fecha/Hora'];
+    const rows = enrichmentReport.detailedReport.map((item: any) => [
+      item.isbn13,
+      item.title,
+      item.status,
+      item.fieldsUpdated.join(', '),
+      JSON.stringify(item.beforeValues),
+      JSON.stringify(item.afterValues),
+      item.source || 'N/A',
+      item.error || 'N/A',
+      new Date(item.timestamp).toLocaleString('es-ES')
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row: any[]) => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `enrichment_report_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleEnrichField = (field: string) => {
+    setSelectedEnrichFields(prev =>
+      prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]
+    );
   };
 
   // ✅ NO CLIENT-SIDE FILTERING - All filtering now happens on backend
@@ -964,6 +1016,196 @@ export default function InventoryFinal() {
               }
             }}
           />
+        )}
+
+        {/* Enrichment Configuration Dialog */}
+        {showEnrichmentDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Configurar Enriquecimiento</h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Selecciona los campos que deseas enriquecer con datos de Google Books e ISBNdb
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowEnrichmentDialog(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  <p className="text-sm font-medium text-gray-700">Campos a enriquecer:</p>
+                  {[
+                    { id: 'author', label: 'Autor', description: 'Incluye libros con "Autor Desconocido"' },
+                    { id: 'publisher', label: 'Editorial', description: 'Nombre de la editorial' },
+                    { id: 'pages', label: 'Páginas', description: 'Número de páginas' },
+                    { id: 'edition', label: 'Edición', description: 'Información de edición' },
+                    { id: 'language', label: 'Idioma', description: 'Código de idioma (ES, EN, etc.)' },
+                    { id: 'synopsis', label: 'Sinopsis', description: 'Descripción del libro' },
+                    { id: 'coverImageUrl', label: 'Imagen de portada', description: 'URL de la portada' },
+                  ].map((field) => (
+                    <label
+                      key={field.id}
+                      className="flex items-start gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedEnrichFields.includes(field.id)}
+                        onChange={() => toggleEnrichField(field.id)}
+                        className="mt-1 h-4 w-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">{field.label}</div>
+                        <div className="text-sm text-gray-600">{field.description}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => setShowEnrichmentDialog(false)}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={handleStartEnrichment}
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                    disabled={selectedEnrichFields.length === 0}
+                  >
+                    Iniciar Enriquecimiento
+                  </Button>
+                </div>
+
+                {selectedEnrichFields.length === 0 && (
+                  <p className="text-sm text-red-600 mt-3 text-center">
+                    Por favor selecciona al menos un campo
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Enrichment Report Dialog */}
+        {enrichmentReport && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Reporte de Enriquecimiento</h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Resumen detallado del proceso de enriquecimiento
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setEnrichmentReport(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Summary Stats */}
+                <div className="grid grid-cols-4 gap-4 mb-6">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">{enrichmentReport.total}</div>
+                    <div className="text-sm text-blue-700">Total</div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">{enrichmentReport.enriched}</div>
+                    <div className="text-sm text-green-700">Exitosos</div>
+                  </div>
+                  <div className="bg-yellow-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-yellow-600">{enrichmentReport.skipped}</div>
+                    <div className="text-sm text-yellow-700">Omitidos</div>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-red-600">{enrichmentReport.failed}</div>
+                    <div className="text-sm text-red-700">Fallidos</div>
+                  </div>
+                </div>
+
+                {/* Detailed Report Preview */}
+                {enrichmentReport.detailedReport && enrichmentReport.detailedReport.length > 0 && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold mb-3">Vista previa del reporte</h3>
+                    <div className="max-h-64 overflow-y-auto border rounded-lg">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">ISBN</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Título</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Campos</th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {enrichmentReport.detailedReport.slice(0, 10).map((item: any, index: number) => (
+                            <tr key={index}>
+                              <td className="px-3 py-2 text-sm text-gray-900">{item.isbn13}</td>
+                              <td className="px-3 py-2 text-sm text-gray-900">{item.title}</td>
+                              <td className="px-3 py-2 text-sm">
+                                <span
+                                  className={`px-2 py-1 rounded text-xs ${
+                                    item.status === 'enriched'
+                                      ? 'bg-green-100 text-green-800'
+                                      : item.status === 'failed'
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}
+                                >
+                                  {item.status}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-600">
+                                {item.fieldsUpdated.join(', ') || 'N/A'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    {enrichmentReport.detailedReport.length > 10 && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        Mostrando 10 de {enrichmentReport.detailedReport.length} registros. Descarga el CSV para ver el reporte completo.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => setEnrichmentReport(null)}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Cerrar
+                  </Button>
+                  <Button
+                    onClick={handleDownloadReport}
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Descargar Reporte CSV
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
