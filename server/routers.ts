@@ -670,6 +670,25 @@ export const appRouter = router({
               continue;
             }
 
+            // Validate ISBN format before attempting external API calls
+            const cleanIsbn = book.isbn13?.replace(/[^0-9X]/gi, '') || '';
+            if (!cleanIsbn || (cleanIsbn.length !== 10 && cleanIsbn.length !== 13)) {
+              results.failed++;
+              results.errors.push(`${book.isbn13}: Invalid ISBN format (length: ${cleanIsbn.length})`);
+              results.detailedReport.push({
+                isbn13: book.isbn13,
+                title: existing.title || 'Unknown',
+                status: 'failed',
+                fieldsUpdated: [],
+                beforeValues: {},
+                afterValues: {},
+                source: null,
+                error: `Invalid ISBN format - must be 10 or 13 digits (found: ${cleanIsbn.length || 0} digits)`,
+                timestamp: startTime.toISOString(),
+              });
+              continue;
+            }
+
             // Check if enrichment is needed for selected fields only
             const needsEnrichmentChecks: boolean[] = [];
             if (fieldsToEnrich.includes('author')) {
@@ -844,8 +863,15 @@ export const appRouter = router({
               timestamp: startTime.toISOString(),
             });
           }
+
+          // Add delay to avoid rate limiting from Google Books and ISBNdb APIs
+          // Google Books: 1000 requests/day, ~1 request/sec recommended
+          // ISBNdb Free Tier: 99 requests/day (~1 every 15 min for 24h usage)
+          // ISBNdb Premium: 5000 requests/month (~166/day)
+          // Using 1.5 second delay as conservative approach for both APIs
+          await new Promise(resolve => setTimeout(resolve, 1500));
         }
-        
+
         return results;
       }),
     
