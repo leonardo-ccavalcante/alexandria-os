@@ -174,8 +174,9 @@ export default function InventoryFinal() {
   });
 
   // Enrichment state
+  type EnrichField = 'author' | 'publisher' | 'pages' | 'edition' | 'language' | 'synopsis' | 'coverImageUrl';
   const [showEnrichmentDialog, setShowEnrichmentDialog] = useState(false);
-  const [selectedEnrichFields, setSelectedEnrichFields] = useState<string[]>([
+  const [selectedEnrichFields, setSelectedEnrichFields] = useState<EnrichField[]>([
     'author', 'publisher', 'pages', 'edition', 'language', 'synopsis', 'coverImageUrl'
   ]);
   const [enrichmentReport, setEnrichmentReport] = useState<any>(null);
@@ -207,7 +208,7 @@ export default function InventoryFinal() {
       toast.error('Por favor selecciona al menos un campo para enriquecer');
       return;
     }
-    bulkEnrichMutation.mutate({ enrichFields: selectedEnrichFields as any });
+    bulkEnrichMutation.mutate({ enrichFields: selectedEnrichFields });
   };
 
   const handleDownloadReport = () => {

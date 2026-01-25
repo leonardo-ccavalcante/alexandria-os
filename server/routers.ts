@@ -573,7 +573,7 @@ export const appRouter = router({
     // Bulk enrich all books with missing metadata
     bulkEnrichMetadata: protectedProcedure
       .input(z.object({
-        enrichFields: z.array(z.enum(['author', 'publisher', 'pages', 'edition', 'language', 'synopsis', 'coverImageUrl'])).optional(),
+        enrichFields: z.array(z.enum(['author', 'publisher', 'pages', 'edition', 'language', 'synopsis', 'coverImageUrl'])).min(1).optional(),
       }).optional())
       .mutation(async ({ input }) => {
         const db = await getDb();
@@ -581,6 +581,11 @@ export const appRouter = router({
 
         // Determine which fields to enrich (default: all)
         const fieldsToEnrich = input?.enrichFields || ['author', 'publisher', 'pages', 'edition', 'language', 'synopsis', 'coverImageUrl'];
+
+        // Validate that at least one field is selected
+        if (fieldsToEnrich.length === 0) {
+          throw new Error("At least one field must be selected for enrichment");
+        }
 
         // Build dynamic WHERE clause based on selected fields
         const conditions: any[] = [];
@@ -604,6 +609,18 @@ export const appRouter = router({
         }
         if (fieldsToEnrich.includes('coverImageUrl')) {
           conditions.push(isNull(catalogMasters.coverImageUrl), eq(catalogMasters.coverImageUrl, ""));
+        }
+
+        // Guard against empty conditions (should never happen but be safe)
+        if (conditions.length === 0) {
+          return {
+            total: 0,
+            enriched: 0,
+            failed: 0,
+            skipped: 0,
+            errors: [],
+            detailedReport: [],
+          };
         }
 
         // Find all books with missing metadata in selected fields
