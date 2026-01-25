@@ -1158,3 +1158,14 @@
 - [x] Add proper database mocking for enrichment tests
 - [x] All 17 external API tests passing
 - [x] All 6 enrichment tests passing
+
+
+## Enrichment System Enhancements (COMPLETED - GitHub commit 267b32e)
+- [x] Pull GitHub changes from user_github/main
+- [x] Review modified files: ENRICHMENT_FEATURES.md, InventoryFinal.tsx, routers.ts, bulkEnrichMetadata.ts
+- [x] Verify "Autor Desconocido" detection in WHERE clauses
+- [x] Verify selective field enrichment UI with 7 checkboxes (all working)
+- [x] Verify downloadable CSV reports with before/after values (implemented)
+- [x] Test enrichment dialog in browser (working perfectly)
+- [x] Run enrichment tests to ensure backward compatibility (23 tests passing)
+- [x] Verified "Autor Desconocido" books visible in inventory and will be enriched
