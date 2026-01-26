@@ -42,7 +42,7 @@ export async function fetchFromISBNDB(
   
   try {
     const response = await fetch(
-      `https://api2.isbndb.com/book/${cleanedIsbn}`,
+      `https://api.premium.isbndb.com/book/${cleanedIsbn}`,
       {
         headers: {
           'Authorization': apiKey,
@@ -88,7 +88,7 @@ export async function validateISBNDBApiKey(apiKey: string): Promise<boolean> {
     // Use a known ISBN for testing (The Great Gatsby)
     const testIsbn = '9780743273565';
     const response = await fetch(
-      `https://api2.isbndb.com/book/${testIsbn}`,
+      `https://api.premium.isbndb.com/book/${testIsbn}`,
       {
         headers: {
           'Authorization': apiKey,

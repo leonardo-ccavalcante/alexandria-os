@@ -866,10 +866,9 @@ export const appRouter = router({
 
           // Add delay to avoid rate limiting from Google Books and ISBNdb APIs
           // Google Books: 1000 requests/day, ~1 request/sec recommended
-          // ISBNdb Free Tier: 99 requests/day (~1 every 15 min for 24h usage)
-          // ISBNdb Premium: 5000 requests/month (~166/day)
-          // Using 1.5 second delay as conservative approach for both APIs
-          await new Promise(resolve => setTimeout(resolve, 1500));
+          // ISBNdb Premium: 3 requests/second, 5000 requests/day
+          // Using 334ms delay (3 req/sec) for premium tier
+          await new Promise(resolve => setTimeout(resolve, 334));
         }
 
         return results;

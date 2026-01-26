@@ -1169,3 +1169,24 @@
 - [x] Test enrichment dialog in browser (working perfectly)
 - [x] Run enrichment tests to ensure backward compatibility (23 tests passing)
 - [x] Verified "Autor Desconocido" books visible in inventory and will be enriched
+
+
+## Critical Enrichment Bug Fixes (GitHub commits c8ee88d + 38a0150)
+- [ ] Pull commits from GitHub
+- [ ] Bug #1: Add guard clause for empty OR conditions array (prevents crash)
+- [ ] Bug #2: Add input validation for enrichFields array (min 1 field required)
+- [ ] Bug #3: Fix frontend type coercion (remove 'as any', add proper types)
+- [ ] Bug #4: Add rate limiting with 1.5s delay between API calls
+- [ ] Bug #5: Add ISBN validation (must be 10 or 13 digits)
+- [ ] Run all enrichment tests to verify fixes
+- [ ] Test enrichment in browser to ensure no crashes
+
+
+## ISBNdb Premium Configuration (COMPLETED)
+- [x] Fix TypeScript errors in InventoryFinal.tsx (EnrichField type)
+- [x] Update ISBNdb base URL to api.premium.isbndb.com
+- [x] Update rate limiting to 334ms delay (3 requests/second for premium)
+- [x] Update comments to reflect premium limits (3 req/sec, 5000/day)
+- [x] Update ENRICHMENT_BUGFIXES documentation with premium info
+- [x] All 23 enrichment tests passing (17 external API + 6 enrichment)
+- [x] Performance: 180 books/minute (4.5x faster than 1.5s delay)

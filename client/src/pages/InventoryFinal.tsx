@@ -242,7 +242,7 @@ export default function InventoryFinal() {
     URL.revokeObjectURL(url);
   };
 
-  const toggleEnrichField = (field: string) => {
+  const toggleEnrichField = (field: EnrichField) => {
     setSelectedEnrichFields(prev =>
       prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]
     );
@@ -1043,15 +1043,15 @@ export default function InventoryFinal() {
 
                 <div className="space-y-3 mb-6">
                   <p className="text-sm font-medium text-gray-700">Campos a enriquecer:</p>
-                  {[
-                    { id: 'author', label: 'Autor', description: 'Incluye libros con "Autor Desconocido"' },
-                    { id: 'publisher', label: 'Editorial', description: 'Nombre de la editorial' },
-                    { id: 'pages', label: 'Páginas', description: 'Número de páginas' },
-                    { id: 'edition', label: 'Edición', description: 'Información de edición' },
-                    { id: 'language', label: 'Idioma', description: 'Código de idioma (ES, EN, etc.)' },
-                    { id: 'synopsis', label: 'Sinopsis', description: 'Descripción del libro' },
-                    { id: 'coverImageUrl', label: 'Imagen de portada', description: 'URL de la portada' },
-                  ].map((field) => (
+                  {([
+                    { id: 'author' as EnrichField, label: 'Autor', description: 'Incluye libros con "Autor Desconocido"' },
+                    { id: 'publisher' as EnrichField, label: 'Editorial', description: 'Nombre de la editorial' },
+                    { id: 'pages' as EnrichField, label: 'Páginas', description: 'Número de páginas' },
+                    { id: 'edition' as EnrichField, label: 'Edición', description: 'Información de edición' },
+                    { id: 'language' as EnrichField, label: 'Idioma', description: 'Código de idioma (ES, EN, etc.)' },
+                    { id: 'synopsis' as EnrichField, label: 'Sinopsis', description: 'Descripción del libro' },
+                    { id: 'coverImageUrl' as EnrichField, label: 'Imagen de portada', description: 'URL de la portada' },
+                  ] as const).map((field) => (
                     <label
                       key={field.id}
                       className="flex items-start gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"

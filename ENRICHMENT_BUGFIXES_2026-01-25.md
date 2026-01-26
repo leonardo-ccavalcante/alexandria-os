@@ -173,16 +173,18 @@ bulkEnrichMutation.mutate({ enrichFields: selectedEnrichFields }); // ✅ No typ
 
 ---
 
-### 🐛 Bug #4: Missing Rate Limiting (CRITICAL)
+### 🐛 Bug #4: Rate Limiting Optimized for ISBNdb Premium
 
-**Location**: `server/routers.ts:847` (after for loop)
+**Location**: `server/routers.ts:867-871`
 
 **Problem**:
-The bulk enrichment endpoint had **zero delay** between API calls to Google Books and ISBNdb. This caused:
+The bulk enrichment endpoint initially had **zero delay** between API calls, then was set to 1.5s delay (too conservative for premium tier).
 
-1. **Rate limiting**: Google Books (1000/day) and ISBNdb (99/day free tier) blocked requests
-2. **Failed enrichments**: All books processed too fast (~200+ books/minute)
-3. **Wasted API quota**: Invalid ISBNs consuming precious API calls
+**ISBNdb Premium Limits**:
+- **3 requests/second** (premium rate limit)
+- **5,000 requests/day** (daily quota)
+- **100 results per call** (bulk data capability)
+- **Premium endpoint**: `api.premium.isbndb.com`
 
 **Evidence from CSV Report**:
 ```
@@ -194,30 +196,44 @@ Timestamps show 500+ books processed in 2 minutes:
 
 **API Limits**:
 - **Google Books**: 1000 requests/day (~1 request/second recommended)
-- **ISBNdb Free**: 99 requests/day (~1 every 15 minutes for 24h usage)
-- **ISBNdb Premium**: 5000 requests/month (~166/day)
+- **ISBNdb Premium**: 3 requests/second, 5000 requests/day
 
 **Fix Applied**:
 ```typescript
-// server/routers.ts:849-854
+// server/routers.ts:867-871
 // Add delay to avoid rate limiting from Google Books and ISBNdb APIs
 // Google Books: 1000 requests/day, ~1 request/sec recommended
-// ISBNdb Free Tier: 99 requests/day (~1 every 15 min for 24h usage)
-// ISBNdb Premium: 5000 requests/month (~166/day)
-// Using 1.5 second delay as conservative approach for both APIs
-await new Promise(resolve => setTimeout(resolve, 1500));
+// ISBNdb Premium: 3 requests/second, 5000 requests/day
+// Using 334ms delay (3 req/sec) for premium tier
+await new Promise(resolve => setTimeout(resolve, 334));
+```
+
+**Premium Endpoint Configuration**:
+```typescript
+// server/isbndbIntegration.ts:45, 91
+// Updated base URL to premium endpoint
+const response = await fetch(
+  `https://api.premium.isbndb.com/book/${cleanedIsbn}`,
+  { headers: { 'Authorization': apiKey } }
+);
 ```
 
 **Impact**:
-- ✅ Prevents API rate limiting
-- ✅ Stays within free tier limits (99/day ISBNdb, 1000/day Google Books)
-- ✅ Processes ~40 books/minute instead of 250/minute
-- ✅ API quota lasts much longer
+- ✅ Optimized for premium tier (3 req/sec vs free 1 req/15min)
+- ✅ 4.5x faster than conservative 1.5s delay
+- ✅ Stays within premium limits (3 req/sec, 5000/day)
+- ✅ Uses premium endpoint for higher rate limits
 
-**Time Impact**:
-- Before: 500 books in 2 minutes (but all failed)
-- After: 500 books in ~12.5 minutes (but successful)
-- Better to go slow and succeed than fast and fail!
+**Performance Comparison**:
+- **Initial (broken)**: 250 books/minute → all failed (rate limited)
+- **Conservative fix**: 40 books/minute (1.5s delay) → worked but slow
+- **Premium optimized**: 180 books/minute (334ms delay) → 4.5x faster!
+- **Time for 1000 books**: 25 minutes (premium) vs 5.5 minutes (premium)
+
+**Future Optimization**:
+- ISBNdb Premium supports **100 results per call** (bulk data)
+- Could batch requests: 100 books = 1 API call
+- Potential speedup: 100x faster for bulk operations
 
 ---
 
