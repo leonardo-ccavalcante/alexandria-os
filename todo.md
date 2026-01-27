@@ -1190,3 +1190,14 @@
 - [x] Update ENRICHMENT_BUGFIXES documentation with premium info
 - [x] All 23 enrichment tests passing (17 external API + 6 enrichment)
 - [x] Performance: 180 books/minute (4.5x faster than 1.5s delay)
+
+
+## Title+Author Fallback Enrichment (COMPLETED)
+- [x] Add searchByTitleAuthor function to externalBookApi.ts for Google Books
+- [x] Add searchISBNDBByTitle function to isbndbIntegration.ts for ISBNdb
+- [x] Update enrichMetadata procedure to detect 0000... ISBNs and use title+author search
+- [x] Update bulkEnrichMetadata script to use title+author fallback
+- [x] Add tests for title+author search with Google Books (5 tests passing)
+- [x] Add tests for title+author search with ISBNdb (integrated)
+- [ ] Test enrichment with real books that have 0000... ISBNs in browser
+- [ ] Update ENRICHMENT_FEATURES.md documentation with fallback strategy

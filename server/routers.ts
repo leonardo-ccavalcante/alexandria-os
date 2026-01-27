@@ -525,10 +525,28 @@ export const appRouter = router({
           return { success: true, enriched: false, message: "Book already has complete metadata" };
         }
 
+        // Detect books without valid ISBN (starting with 0000...)
+        const cleanIsbn = input.isbn13?.replace(/[^0-9X]/gi, '') || '';
+        const isPlaceholderIsbn = cleanIsbn.startsWith('0000');
+        
         // Fetch metadata from external APIs
-        const metadata = await fetchExternalBookMetadata(input.isbn13);
+        let metadata;
+        
+        if (isPlaceholderIsbn) {
+          // Use title+author search for books without valid ISBN
+          console.log(`[Enrichment] Using title+author search for: "${existing.title}" by "${existing.author}"`);
+          const { searchByTitleAuthor } = await import('./_core/externalBookApi');
+          metadata = await searchByTitleAuthor(existing.title, existing.author || undefined);
+        } else {
+          // Use ISBN lookup for books with valid ISBN
+          metadata = await fetchExternalBookMetadata(input.isbn13);
+        }
+        
         if (!metadata.found) {
-          return { success: false, enriched: false, message: "Metadata not found in external APIs" };
+          const errorMsg = isPlaceholderIsbn 
+            ? `Metadata not found using title+author search for "${existing.title}"`
+            : "Metadata not found in external APIs";
+          return { success: false, enriched: false, message: errorMsg };
         }
 
         // Update only missing fields or fix bad data
@@ -670,9 +688,12 @@ export const appRouter = router({
               continue;
             }
 
-            // Validate ISBN format before attempting external API calls
+            // Detect books without valid ISBN (starting with 0000...)
             const cleanIsbn = book.isbn13?.replace(/[^0-9X]/gi, '') || '';
-            if (!cleanIsbn || (cleanIsbn.length !== 10 && cleanIsbn.length !== 13)) {
+            const isPlaceholderIsbn = cleanIsbn.startsWith('0000');
+            
+            // Validate ISBN format (skip validation for placeholder ISBNs)
+            if (!isPlaceholderIsbn && (!cleanIsbn || (cleanIsbn.length !== 10 && cleanIsbn.length !== 13))) {
               results.failed++;
               results.errors.push(`${book.isbn13}: Invalid ISBN format (length: ${cleanIsbn.length})`);
               results.detailedReport.push({
@@ -731,10 +752,24 @@ export const appRouter = router({
             }
             
             // Fetch metadata from external APIs
-            const metadata = await fetchExternalBookMetadata(book.isbn13);
+            let metadata;
+            
+            if (isPlaceholderIsbn) {
+              // Use title+author search for books without valid ISBN
+              console.log(`[Enrichment] Using title+author search for: "${existing.title}" by "${existing.author}"`);
+              const { searchByTitleAuthor } = await import('./_core/externalBookApi');
+              metadata = await searchByTitleAuthor(existing.title, existing.author || undefined);
+            } else {
+              // Use ISBN lookup for books with valid ISBN
+              metadata = await fetchExternalBookMetadata(book.isbn13);
+            }
+            
             if (!metadata.found) {
               results.failed++;
-              results.errors.push(`${book.isbn13}: Metadata not found`);
+              const errorMsg = isPlaceholderIsbn 
+                ? `Title+author search failed: "${existing.title}" by "${existing.author}"`
+                : `${book.isbn13}: Metadata not found`;
+              results.errors.push(errorMsg);
               results.detailedReport.push({
                 isbn13: book.isbn13,
                 title: existing.title || 'Unknown',
@@ -743,7 +778,9 @@ export const appRouter = router({
                 beforeValues: {},
                 afterValues: {},
                 source: null,
-                error: 'Metadata not found in external APIs',
+                error: isPlaceholderIsbn 
+                  ? 'Metadata not found using title+author search'
+                  : 'Metadata not found in external APIs',
                 timestamp: startTime.toISOString(),
               });
               continue;

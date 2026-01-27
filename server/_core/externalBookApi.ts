@@ -18,6 +18,94 @@ export interface ExternalBookMetadata {
   edition?: string;
 }
 
+/**
+ * Search for book metadata using title and author (fallback for books without ISBN)
+ */
+export async function searchByTitleAuthor(title: string, author?: string): Promise<ExternalBookMetadata> {
+  try {
+    // Build search query: "intitle:title inauthor:author"
+    const titleQuery = title ? `intitle:${encodeURIComponent(title)}` : '';
+    const authorQuery = author ? `+inauthor:${encodeURIComponent(author)}` : '';
+    const searchQuery = `${titleQuery}${authorQuery}`;
+
+    if (!searchQuery) {
+      console.warn('[ExternalApi] Empty search query for title+author search');
+      return { found: false };
+    }
+
+    // Try Google Books API first
+    console.log(`[ExternalApi] Searching Google Books by title+author: "${title}" by "${author}"`);
+    try {
+      const response = await fetch(`https://www.googleapis.com/books/v1/volumes?q=${searchQuery}&maxResults=1`);
+      
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data.totalItems > 0 && data.items?.[0]?.volumeInfo) {
+          const info = data.items[0].volumeInfo;
+          console.log(`[ExternalApi] Found in Google Books: ${info.title}`);
+          
+          return {
+            found: true,
+            title: info.title || "",
+            author: info.authors ? info.authors.join(", ") : "",
+            publisher: info.publisher || "",
+            publishedDate: info.publishedDate ? info.publishedDate.substring(0, 4) : "",
+            description: info.description || "",
+            pageCount: info.pageCount || 0,
+            language: info.language ? info.language.substring(0, 2).toUpperCase() : "ES",
+            category: info.categories?.[0] || "OTROS",
+            coverImageUrl: info.imageLinks?.thumbnail?.replace('http:', 'https:') || null,
+            edition: undefined
+          };
+        }
+      }
+    } catch (googleError) {
+      console.warn(`[ExternalApi] Google Books title+author search failed:`, googleError);
+    }
+
+    // Fallback to ISBNDB (title search)
+    const isbndbApiKey = process.env.ISBNDB_API_KEY;
+    
+    if (!isbndbApiKey) {
+      console.warn('[ExternalApi] ISBNDB_API_KEY not configured');
+      return { found: false };
+    }
+
+    console.log(`[ExternalApi] Trying ISBNDB title search: "${title}"`);
+    try {
+      const { searchISBNDBByTitle } = await import('../isbndbIntegration');
+      const isbndbBook = await searchISBNDBByTitle(title, author, isbndbApiKey);
+      
+      if (isbndbBook) {
+        console.log(`[ExternalApi] Found in ISBNDB: ${isbndbBook.title}`);
+        
+        return {
+          found: true,
+          title: isbndbBook.title || "",
+          author: isbndbBook.authors?.join(", ") || "",
+          publisher: isbndbBook.publisher || "",
+          publishedDate: isbndbBook.date_published ? isbndbBook.date_published.substring(0, 4) : "",
+          description: isbndbBook.synopsis || "",
+          pageCount: isbndbBook.pages || 0,
+          language: isbndbBook.language ? isbndbBook.language.substring(0, 2).toUpperCase() : "ES",
+          category: "OTROS",
+          coverImageUrl: isbndbBook.image || undefined,
+          edition: isbndbBook.edition || ""
+        };
+      }
+    } catch (isbndbError) {
+      console.warn(`[ExternalApi] ISBNDB title search failed:`, isbndbError);
+    }
+
+    console.log(`[ExternalApi] No metadata found for title+author: "${title}" by "${author}"`);
+    return { found: false };
+  } catch (error) {
+    console.error('[ExternalApi] searchByTitleAuthor error:', error);
+    return { found: false };
+  }
+}
+
 export async function fetchExternalBookMetadata(isbn: string): Promise<ExternalBookMetadata> {
   try {
     // 1. Sanitize Input (Allow only numbers and 'X' for ISBN-10)
