@@ -14,7 +14,9 @@ import Settings from "./pages/Settings";
 import CargaMasiva from "./pages/CargaMasiva";
 import ExportarDatos from "./pages/ExportarDatos";
 import Configuracion from "./pages/Configuracion";
-import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon, Menu, X } from "lucide-react";
+import LibraryManagement from "./pages/LibraryManagement";
+import JoinLibrary from "./pages/JoinLibrary";
+import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon, Menu, X, Building2 } from "lucide-react";
 import { useState } from "react";
 
 function Router() {
@@ -26,6 +28,7 @@ function Router() {
     { href: "/dashboard", icon: BarChart3, label: "Dashboard" },
     { href: "/batch", icon: Upload, label: "Lotes" },
     { href: "/settings", icon: SettingsIcon, label: "Config" },
+    { href: "/biblioteca", icon: Building2, label: "Biblioteca" },
   ];
 
   return (
@@ -104,6 +107,8 @@ function Router() {
         <Route path="/carga-masiva" component={CargaMasiva} />
         <Route path="/exportar" component={ExportarDatos} />
         <Route path="/configuracion" component={Configuracion} />
+        <Route path="/biblioteca" component={LibraryManagement} />
+        <Route path="/join" component={JoinLibrary} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
       </Switch>

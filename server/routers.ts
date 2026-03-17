@@ -10,6 +10,7 @@ import { getDb } from "./db";
 import { extractIsbnFromImage } from "./aiIsbnExtractor";
 import { fetchExternalBookMetadata } from "./_core/externalBookApi";
 import { logExport, logDatabaseActivity } from "./auditLog";
+import { libraryRouter } from "./routers/libraryRouter";
 import {
   getCatalogMasterByIsbn,
   upsertCatalogMaster,
@@ -36,6 +37,7 @@ import {
 
 export const appRouter = router({
   system: systemRouter,
+  library: libraryRouter,
   
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
@@ -435,6 +437,8 @@ export const appRouter = router({
           console.log(`[Catalog] Created catalog master for synthetic ISBN: ${input.isbn13}`);
         }
         
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
         const item = await createInventoryItem({
           isbn13: input.isbn13,
           status: 'AVAILABLE',
@@ -444,6 +448,7 @@ export const appRouter = router({
           listingPrice: input.listingPrice,
           costOfGoods: '0.00',
           createdBy: ctx.user.id,
+          libraryId: library?.id ?? null,
         });
         
         return { success: true, item };
@@ -963,8 +968,10 @@ export const appRouter = router({
         limit: z.number().default(50),
         offset: z.number().default(0),
       }))
-      .query(async ({ input }) => {
-        return await searchInventory(input);
+      .query(async ({ ctx, input }) => {
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
+        return await searchInventory({ ...input, libraryId: library?.id });
       }),
     
     // Get single item by UUID
@@ -1222,12 +1229,15 @@ export const appRouter = router({
     increaseQuantity: protectedProcedure
       .input(z.object({ isbn13: z.string() }))
       .mutation(async ({ input, ctx }) => {
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
         const item = await createInventoryItem({
           isbn13: input.isbn13,
           status: 'AVAILABLE',
           conditionGrade: 'BUENO',
           locationCode: null,
           createdBy: ctx.user.id,
+          libraryId: library?.id ?? null,
         });
         return { success: true, item };
       }),
@@ -1270,6 +1280,8 @@ export const appRouter = router({
         location: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
         const items = [];
         for (let i = 0; i < input.quantity; i++) {
           const item = await createInventoryItem({
@@ -1278,6 +1290,7 @@ export const appRouter = router({
             conditionGrade: input.condition,
             locationCode: input.location || null,
             createdBy: ctx.user.id,
+            libraryId: library?.id ?? null,
           });
           items.push(item);
         }
@@ -1460,7 +1473,7 @@ export const appRouter = router({
       .input(z.object({
         csvData: z.string(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         // Proper CSV parser that handles multi-line quoted fields
         const parseCSV = (csvText: string): string[][] => {
           const rows: string[][] = [];
@@ -1611,6 +1624,9 @@ export const appRouter = router({
             
             // If quantity is provided, create inventory items
             if (quantity > 0) {
+              // Get the user's active library for tenant isolation
+              const { getActiveLibraryForUser } = await import('./libraryDb');
+              const library = await getActiveLibraryForUser(ctx.user!.id);
               for (let j = 0; j < quantity; j++) {
                 const itemData: any = {
                   isbn13: isbn,
@@ -1622,6 +1638,9 @@ export const appRouter = router({
                 }
                 if (listingPrice !== undefined) {
                   itemData.listingPrice = listingPrice.toFixed(2);
+                }
+                if (library?.id) {
+                  itemData.libraryId = library.id;
                 }
                 await createInventoryItem(itemData);
               }
@@ -1713,11 +1732,14 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         // 1. Fetch Data (grouped by ISBN like the UI)
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
         const { items } = await searchInventory({
           ...input.filters,
           dateFrom: input.filters?.createdFrom,
           dateTo: input.filters?.createdTo,
-          limit: 10000, 
+          limit: 10000,
+          libraryId: library?.id,
         });
         
         // 2. Group items by ISBN and calculate total quantity + available quantity + average price
@@ -1860,12 +1882,15 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         // 1. Fetch inventory items with filters, excluding books already on Iberlibro
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
         const result = await searchInventory({
           ...input.filters,
           dateFrom: input.filters?.createdFrom,
           dateTo: input.filters?.createdTo,
           limit: 10000,
           excludeSalesChannel: 'Iberlibro',
+          libraryId: library?.id,
         });
         const items = result.items;
         
@@ -1873,6 +1898,7 @@ export const appRouter = router({
         const totalResult = await searchInventory({
           ...input.filters,
           limit: 10000,
+          libraryId: library?.id,
         });
         const totalAvailable = totalResult.items.length;
         const excludedCount = totalAvailable - items.length;
@@ -2050,13 +2076,16 @@ export const appRouter = router({
           createdTo: z.date().optional(),
         }).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         // 1. Fetch inventory items with filters
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
         const result = await searchInventory({
           ...input.filters,
           dateFrom: input.filters?.createdFrom,
           dateTo: input.filters?.createdTo,
           limit: 10000,
+          libraryId: library?.id,
         });
         const items = result.items;
 
@@ -2158,13 +2187,16 @@ export const appRouter = router({
           createdTo: z.date().optional(),
         }).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         // 1. Fetch inventory items with filters
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
         const result = await searchInventory({
           ...input.filters,
           dateFrom: input.filters?.createdFrom,
           dateTo: input.filters?.createdTo,
           limit: 10000,
+          libraryId: library?.id,
         });
         const items = result.items;
 
@@ -2323,13 +2355,16 @@ export const appRouter = router({
           createdTo: z.date().optional(),
         }).optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ ctx, input }) => {
         // 1. Fetch inventory items
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
         const items = await searchInventory({
           ...input.filters,
           dateFrom: input.filters?.createdFrom,
           dateTo: input.filters?.createdTo,
           limit: 10000,
+          libraryId: library?.id,
         });
 
         // 2. Normalize condition to eBay standards
@@ -2474,20 +2509,26 @@ export const appRouter = router({
   // ============================================================================
   dashboard: router({
     // Get main KPIs
-    getKPIs: protectedProcedure.query(async () => {
-      return await getDashboardKPIs();
+    getKPIs: protectedProcedure.query(async ({ ctx }) => {
+      const { getActiveLibraryForUser } = await import('./libraryDb');
+      const library = await getActiveLibraryForUser(ctx.user!.id);
+      return await getDashboardKPIs(library?.id);
     }),
     
     // Get sales by channel
-    getSalesByChannel: protectedProcedure.query(async () => {
-      return await getSalesByChannel();
+    getSalesByChannel: protectedProcedure.query(async ({ ctx }) => {
+      const { getActiveLibraryForUser } = await import('./libraryDb');
+      const library = await getActiveLibraryForUser(ctx.user!.id);
+      return await getSalesByChannel(library?.id);
     }),
     
     // Get top performing books
     getTopBooks: protectedProcedure
       .input(z.object({ limit: z.number().default(10) }))
-      .query(async ({ input }) => {
-        return await getTopPerformingBooks(input.limit);
+      .query(async ({ ctx, input }) => {
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
+        return await getTopPerformingBooks(input.limit, library?.id);
       }),
     
     // Get sales transactions
@@ -2499,8 +2540,10 @@ export const appRouter = router({
         limit: z.number().default(50),
         offset: z.number().default(0),
       }))
-      .query(async ({ input }) => {
-        return await getSalesTransactions(input);
+      .query(async ({ ctx, input }) => {
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
+        return await getSalesTransactions({ ...input, libraryId: library?.id });
       }),
     
     // Get inventory velocity (items added/sold over time)
@@ -2510,8 +2553,10 @@ export const appRouter = router({
         dateTo: z.date().optional(),
         groupBy: z.enum(['day', 'week', 'month']).default('day'),
       }))
-      .query(async ({ input }) => {
-        return await getInventoryVelocity(input);
+      .query(async ({ ctx, input }) => {
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
+        return await getInventoryVelocity({ ...input, libraryId: library?.id });
       }),
     
     // Get analytics by author
@@ -2521,8 +2566,10 @@ export const appRouter = router({
         dateTo: z.date().optional(),
         limit: z.number().default(20),
       }))
-      .query(async ({ input }) => {
-        return await getAnalyticsByAuthor(input);
+      .query(async ({ ctx, input }) => {
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
+        return await getAnalyticsByAuthor({ ...input, libraryId: library?.id });
       }),
     
     // Get analytics by publisher
@@ -2532,8 +2579,10 @@ export const appRouter = router({
         dateTo: z.date().optional(),
         limit: z.number().default(20),
       }))
-      .query(async ({ input }) => {
-        return await getAnalyticsByPublisher(input);
+      .query(async ({ ctx, input }) => {
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
+        return await getAnalyticsByPublisher({ ...input, libraryId: library?.id });
       }),
     
     // Get analytics by category
@@ -2542,8 +2591,10 @@ export const appRouter = router({
         dateFrom: z.date().optional(),
         dateTo: z.date().optional(),
       }))
-      .query(async ({ input }) => {
-        return await getAnalyticsByCategory(input);
+      .query(async ({ ctx, input }) => {
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
+        return await getAnalyticsByCategory({ ...input, libraryId: library?.id });
       }),
     
     // Get analytics by location
@@ -2552,8 +2603,10 @@ export const appRouter = router({
         dateFrom: z.date().optional(),
         dateTo: z.date().optional(),
       }))
-      .query(async ({ input }) => {
-        return await getAnalyticsByLocation(input);
+      .query(async ({ ctx, input }) => {
+        const { getActiveLibraryForUser } = await import('./libraryDb');
+        const library = await getActiveLibraryForUser(ctx.user!.id);
+        return await getAnalyticsByLocation({ ...input, libraryId: library?.id });
       }),
   }),
 

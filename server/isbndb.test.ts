@@ -33,7 +33,7 @@ describe('ISBNDB Integration', () => {
       
       expect(result).toEqual(mockBook);
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api2.isbndb.com/book/9780743273565',
+        'https://api.premium.isbndb.com/book/9780743273565',
         expect.objectContaining({
           headers: {
             'Authorization': 'test-api-key',
@@ -76,7 +76,7 @@ describe('ISBNDB Integration', () => {
       await fetchFromISBNDB('978-0-7432-7356-5', 'test-api-key');
       
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api2.isbndb.com/book/9780743273565',
+        'https://api.premium.isbndb.com/book/9780743273565',
         expect.any(Object)
       );
     });

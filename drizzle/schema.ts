@@ -71,6 +71,8 @@ export type InsertPriceHistory = typeof priceHistory.$inferInsert;
 
 export const inventoryItems = mysqlTable("inventory_items", {
   uuid: varchar("uuid", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  /** Tenant isolation: which library this item belongs to. */
+  libraryId: int("libraryId"),
   isbn13: varchar("isbn13", { length: 13 }).notNull(),
   status: mysqlEnum("status", [
     "INGESTION",
@@ -107,6 +109,7 @@ export const inventoryItems = mysqlTable("inventory_items", {
   createdAtIdx: index("idx_items_created_at").on(table.createdAt),
   // NEW INDEX for faster JOIN queries
   isbnStatusIdx: index("isbn_status_idx").on(table.isbn13, table.status),
+  libraryIdx: index("idx_items_library").on(table.libraryId),
 }));
 
 export type InventoryItem = typeof inventoryItems.$inferSelect;
@@ -114,6 +117,8 @@ export type InsertInventoryItem = typeof inventoryItems.$inferInsert;
 
 export const salesTransactions = mysqlTable("sales_transactions", {
   transactionId: varchar("transactionId", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  /** Tenant isolation: which library this transaction belongs to. */
+  libraryId: int("libraryId"),
   itemUuid: varchar("itemUuid", { length: 36 }).notNull(),
   isbn13: varchar("isbn13", { length: 13 }).notNull(),
   channel: varchar("channel", { length: 50 }).notNull(),
@@ -134,6 +139,7 @@ export const salesTransactions = mysqlTable("sales_transactions", {
   isbnIdx: index("idx_transactions_isbn").on(table.isbn13),
   channelIdx: index("idx_transactions_channel").on(table.channel),
   dateIdx: index("idx_transactions_date").on(table.saleDate),
+  libraryIdx: index("idx_transactions_library").on(table.libraryId),
 }));
 
 export type SalesTransaction = typeof salesTransactions.$inferSelect;
@@ -149,10 +155,82 @@ export const systemSettings = mysqlTable("system_settings", {
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = typeof systemSettings.$inferInsert;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MULTI-TENANT: Libraries, Memberships, Invitations
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Each library is an independent tenant (e.g., a bookshop or donation centre).
+ * The owner is the user who created or was assigned the library.
+ */
+export const libraries = mysqlTable("libraries", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  slug: varchar("slug", { length: 100 }).notNull().unique(),
+  description: text("description"),
+  ownerId: int("ownerId").notNull(),
+  /** Storage quota in megabytes. Default 500 MB. Admin can adjust per library. */
+  storageQuotaMb: int("storageQuotaMb").default(500).notNull(),
+  isActive: mysqlEnum("isActive", ["yes", "no"]).default("yes").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => ({
+  ownerIdx: index("idx_libraries_owner").on(table.ownerId),
+  slugIdx: index("idx_libraries_slug").on(table.slug),
+}));
+
+export type Library = typeof libraries.$inferSelect;
+export type InsertLibrary = typeof libraries.$inferInsert;
+
+/**
+ * Membership table — users belong to libraries with a role.
+ * role: owner (full control), admin (manage inventory/members), member (read/add only)
+ */
+export const libraryMembers = mysqlTable("library_members", {
+  id: int("id").autoincrement().primaryKey(),
+  libraryId: int("libraryId").notNull(),
+  userId: int("userId").notNull(),
+  role: mysqlEnum("role", ["owner", "admin", "member"]).default("member").notNull(),
+  joinedAt: timestamp("joinedAt").defaultNow().notNull(),
+}, (table) => ({
+  libraryUserIdx: index("idx_members_library_user").on(table.libraryId, table.userId),
+  userIdx: index("idx_members_user").on(table.userId),
+}));
+
+export type LibraryMember = typeof libraryMembers.$inferSelect;
+export type InsertLibraryMember = typeof libraryMembers.$inferInsert;
+
+/**
+ * Invitation codes — time-limited tokens that link a new user to a library.
+ * When a user logs in with a valid invite code, they join the library instead
+ * of creating a new one.
+ */
+export const libraryInvitations = mysqlTable("library_invitations", {
+  id: int("id").autoincrement().primaryKey(),
+  libraryId: int("libraryId").notNull(),
+  code: varchar("code", { length: 36 }).notNull().unique(), // UUID
+  /** Optional: pre-fill a specific email. If set, only that email can use it. */
+  email: varchar("email", { length: 320 }),
+  role: mysqlEnum("role", ["admin", "member"]).default("member").notNull(),
+  createdBy: int("createdBy").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  usedBy: int("usedBy"),
+  usedAt: timestamp("usedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => ({
+  codeIdx: index("idx_invitations_code").on(table.code),
+  libraryIdx: index("idx_invitations_library").on(table.libraryId),
+  expiresIdx: index("idx_invitations_expires").on(table.expiresAt),
+}));
+
+export type LibraryInvitation = typeof libraryInvitations.$inferSelect;
+export type InsertLibraryInvitation = typeof libraryInvitations.$inferInsert;
 
 // Export History Tracking
 export const exportHistory = mysqlTable("export_history", {
   id: int("id").autoincrement().primaryKey(),
+  /** Tenant isolation: which library this export belongs to. */
+  libraryId: int("libraryId"),
   platform: varchar("platform", { length: 50 }).notNull(), // 'general', 'iberlibro', 'casadellibro', 'todocoleccion', 'ebay'
   exportDate: timestamp("exportDate").defaultNow().notNull(),
   itemCount: int("itemCount").notNull(),

@@ -1201,3 +1201,32 @@
 - [x] Add tests for title+author search with ISBNdb (integrated)
 - [ ] Test enrichment with real books that have 0000... ISBNs in browser
 - [ ] Update ENRICHMENT_FEATURES.md documentation with fallback strategy
+
+
+## Multi-Tenant Library Structure (COMPLETED)
+- [x] Deep dive review of current database schema
+- [x] Design libraries, memberships, and invitations tables
+- [x] Implement database migrations for multi-tenant schema
+- [x] Update OAuth callback to create new library OR join via invitation
+- [x] Build invitation generation and validation system
+- [x] Scope all inventory/catalog queries by libraryId
+- [x] Build frontend UI for library management and member invitations
+- [x] Write tests for multi-tenant isolation and invitation flow
+
+
+## Production QA - Test Suite Fixes (COMPLETED)
+- [x] Fix category → categoryLevel1 field name in all test files (catalog, inventory, dashboard, export tests)
+- [x] Add libraryId to all inventory item inserts in integration tests (iberlibro, todocoleccion, analytics, csv.export, csv.price.export, batch-location)
+- [x] Fix iberlibro stats test: clean up all 3 ISBNs in beforeEach and add libraryId to inserts
+- [x] Fix iberlibro exclude-already-listed tests: add libraryId to inventory inserts
+- [x] Fix todocoleccion stats test: add libraryId to inserts and clean up extra ISBNs
+- [x] Fix triage tests: replace invalid ISBN checksums with valid ones
+- [x] Fix isbndb test: update URL from api2.isbndb.com to api.premium.isbndb.com
+- [x] Fix csv.import test: use totalQuantity instead of totalCount, add cleanup before quantity test
+- [x] Fix triageToInventory test: update onDuplicateKeyUpdate to also set author and marketMedianPrice
+- [x] Fix triageToInventory price calculation test: add beforeEach to ensure market price is set
+- [x] Fix getInventoryVelocity raw SQL query: use pool.execute with params instead of sql.raw
+- [x] Fix importCatalogFromCsv procedure: add libraryId to created inventory items
+- [x] Add restoreMocks: true to vitest config to prevent mock leakage between test files
+- [x] Add singleFork: true to vitest config to prevent database race conditions
+- [x] Final result: 324/324 tests passing, 0 failures

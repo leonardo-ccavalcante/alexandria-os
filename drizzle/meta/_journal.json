@@ -43,6 +43,13 @@
       "when": 1765268571993,
       "tag": "0005_bumpy_susan_delgado",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1773778484858,
+      "tag": "0006_high_spot",
+      "breakpoints": true
     }
   ]
 }

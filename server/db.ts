@@ -271,11 +271,18 @@ export async function searchInventory(filters: {
   limit?: number;
   offset?: number;
   excludeSalesChannel?: string;
+  /** Tenant isolation: only return items belonging to this library. */
+  libraryId?: number;
 }) {
   const db = await getDb();
   if (!db) return { items: [], total: 0 };
   
   const conditions = [];
+  
+  // Tenant isolation
+  if (filters.libraryId !== undefined) {
+    conditions.push(eq(inventoryItems.libraryId, filters.libraryId));
+  }
   
   if (filters.status) {
     conditions.push(eq(inventoryItems.status, filters.status as any));
@@ -402,11 +409,18 @@ export async function getSalesTransactions(filters: {
   dateTo?: Date;
   limit?: number;
   offset?: number;
+  /** Tenant isolation: only return transactions belonging to this library. */
+  libraryId?: number;
 }) {
   const db = await getDb();
   if (!db) return { transactions: [], total: 0 };
   
   const conditions = [];
+  
+  // Tenant isolation
+  if (filters.libraryId !== undefined) {
+    conditions.push(eq(salesTransactions.libraryId, filters.libraryId));
+  }
   
   if (filters.channel) {
     conditions.push(eq(salesTransactions.channel, filters.channel));
@@ -476,29 +490,34 @@ export async function updateSystemSetting(key: string, value: string): Promise<v
 // DASHBOARD ANALYTICS
 // ============================================================================
 
-export async function getDashboardKPIs() {
+export async function getDashboardKPIs(libraryId?: number) {
   const db = await getDb();
   if (!db) return null;
+  
+  // Build tenant filter condition
+  const tenantFilter = libraryId !== undefined ? eq(inventoryItems.libraryId, libraryId) : undefined;
+  const txTenantFilter = libraryId !== undefined ? eq(salesTransactions.libraryId, libraryId) : undefined;
   
   // Count unique books (ISBNs), not individual inventory items
   const [totalInventory] = await db
     .select({ count: sql<number>`count(DISTINCT ${inventoryItems.isbn13})` })
-    .from(inventoryItems);
+    .from(inventoryItems)
+    .where(tenantFilter);
   
   const [availableCount] = await db
     .select({ count: sql<number>`count(DISTINCT ${inventoryItems.isbn13})` })
     .from(inventoryItems)
-    .where(eq(inventoryItems.status, 'AVAILABLE'));
+    .where(tenantFilter ? and(tenantFilter, eq(inventoryItems.status, 'AVAILABLE')) : eq(inventoryItems.status, 'AVAILABLE'));
   
   const [listedCount] = await db
     .select({ count: sql<number>`count(DISTINCT ${inventoryItems.isbn13})` })
     .from(inventoryItems)
-    .where(eq(inventoryItems.status, 'LISTED'));
+    .where(tenantFilter ? and(tenantFilter, eq(inventoryItems.status, 'LISTED')) : eq(inventoryItems.status, 'LISTED'));
   
   const [soldCount] = await db
     .select({ count: sql<number>`count(DISTINCT ${inventoryItems.isbn13})` })
     .from(inventoryItems)
-    .where(eq(inventoryItems.status, 'SOLD'));
+    .where(tenantFilter ? and(tenantFilter, eq(inventoryItems.status, 'SOLD')) : eq(inventoryItems.status, 'SOLD'));
   
   const [revenueData] = await db
     .select({ 
@@ -506,15 +525,17 @@ export async function getDashboardKPIs() {
       totalProfit: sql<number>`COALESCE(SUM(${salesTransactions.netProfit}), 0)`,
       avgProfit: sql<number>`COALESCE(AVG(${salesTransactions.netProfit}), 0)`,
     })
-    .from(salesTransactions);
+    .from(salesTransactions)
+    .where(txTenantFilter);
   
   // Calculate total inventory value (sum of listing prices for available/listed items)
+  const availableListedFilter = sql`${inventoryItems.status} IN ('AVAILABLE', 'LISTED')`;
   const [inventoryValue] = await db
     .select({
       totalValue: sql<number>`COALESCE(SUM(CAST(${inventoryItems.listingPrice} AS DECIMAL(10,2))), 0)`,
     })
     .from(inventoryItems)
-    .where(sql`${inventoryItems.status} IN ('AVAILABLE', 'LISTED')`);
+    .where(tenantFilter ? and(tenantFilter, availableListedFilter) : availableListedFilter);
   
   // Calculate estimated profit (listing price - cost of goods for available/listed items)
   const [profitEstimate] = await db
@@ -522,7 +543,7 @@ export async function getDashboardKPIs() {
       estimatedProfit: sql<number>`COALESCE(SUM(CAST(${inventoryItems.listingPrice} AS DECIMAL(10,2)) - CAST(${inventoryItems.costOfGoods} AS DECIMAL(10,2))), 0)`,
     })
     .from(inventoryItems)
-    .where(sql`${inventoryItems.status} IN ('AVAILABLE', 'LISTED')`);
+    .where(tenantFilter ? and(tenantFilter, availableListedFilter) : availableListedFilter);
   
   return {
     totalInventory: Number(totalInventory?.count || 0),
@@ -537,9 +558,11 @@ export async function getDashboardKPIs() {
   };
 }
 
-export async function getSalesByChannel() {
+export async function getSalesByChannel(libraryId?: number) {
   const db = await getDb();
   if (!db) return [];
+  
+  const tenantFilter = libraryId !== undefined ? eq(salesTransactions.libraryId, libraryId) : undefined;
   
   const result = await db
     .select({
@@ -549,6 +572,7 @@ export async function getSalesByChannel() {
       profit: sql<number>`COALESCE(SUM(${salesTransactions.netProfit}), 0)`,
     })
     .from(salesTransactions)
+    .where(tenantFilter)
     .groupBy(salesTransactions.channel);
   
   return result.map(r => ({
@@ -559,9 +583,11 @@ export async function getSalesByChannel() {
   }));
 }
 
-export async function getTopPerformingBooks(limit: number = 10) {
+export async function getTopPerformingBooks(limit: number = 10, libraryId?: number) {
   const db = await getDb();
   if (!db) return [];
+  
+  const tenantFilter = libraryId !== undefined ? eq(salesTransactions.libraryId, libraryId) : undefined;
   
   const result = await db
     .select({
@@ -574,6 +600,7 @@ export async function getTopPerformingBooks(limit: number = 10) {
     })
     .from(salesTransactions)
     .leftJoin(catalogMasters, eq(salesTransactions.isbn13, catalogMasters.isbn13))
+    .where(tenantFilter)
     .groupBy(salesTransactions.isbn13, catalogMasters.title, catalogMasters.author)
     .orderBy(desc(sql`count(*)`))
     .limit(limit);
@@ -596,11 +623,12 @@ export async function getInventoryVelocity(params: {
   dateFrom?: Date;
   dateTo?: Date;
   groupBy?: 'day' | 'week' | 'month';
+  libraryId?: number;
 }) {
   const db = await getDb();
   if (!db) return [];
   
-  const { dateFrom, dateTo, groupBy = 'day' } = params;
+  const { dateFrom, dateTo, groupBy = 'day', libraryId } = params;
   
   // Date format based on grouping
   const dateFormat = groupBy === 'day' ? '%Y-%m-%d' : 
@@ -611,6 +639,9 @@ export async function getInventoryVelocity(params: {
   let whereClause = '1=1';
   const whereParams: any[] = [];
   
+  if (libraryId !== undefined) {
+    whereClause += ` AND libraryId = ${libraryId}`;
+  }
   if (dateFrom) {
     whereClause += ' AND createdAt >= ?';
     whereParams.push(dateFrom);
@@ -632,18 +663,24 @@ export async function getInventoryVelocity(params: {
   `;
   
   // Query for items sold (sales_transactions.saleDate)
+  const soldWhereClause = whereClause.replace('createdAt', 'saleDate');
   const soldQuery = `
     SELECT 
       DATE_FORMAT(saleDate, '${dateFormat}') as period,
       COUNT(*) as count
     FROM sales_transactions
-    WHERE ${whereClause.replace('createdAt', 'saleDate')}
+    WHERE ${soldWhereClause}
     GROUP BY period
     ORDER BY period
   `;
   
-  const addedResults = await db.execute(sql.raw(addedQuery)) as any;
-  const soldResults = await db.execute(sql.raw(soldQuery)) as any;
+  const pool = await getPool();
+  if (!pool) return [];
+  const [addedRows] = await pool.execute(addedQuery, whereParams) as any;
+  const addedResults = addedRows;
+  const soldWhereParams = [...whereParams];
+  const [soldRows] = await pool.execute(soldQuery, soldWhereParams) as any;
+  const soldResults = soldRows;
   
   // Merge results
   const periodsMap = new Map<string, { period: string; added: number; sold: number }>();
@@ -668,11 +705,13 @@ export async function getAnalyticsByAuthor(params: {
   dateFrom?: Date;
   dateTo?: Date;
   limit?: number;
+  libraryId?: number;
 }) {
   const db = await getDb();
   if (!db) return [];
   
-  const { limit = 20 } = params;
+  const { limit = 20, libraryId } = params;
+  const tenantClause = libraryId !== undefined ? `AND ii.libraryId = ${libraryId}` : '';
   
   // Note: Date filtering temporarily disabled due to SQL parameter binding complexity
   // Will be re-enabled after refactoring to use Drizzle query builder
@@ -687,7 +726,7 @@ export async function getAnalyticsByAuthor(params: {
       COALESCE(SUM(st.netProfit), 0) as totalProfit,
       COALESCE(AVG(CAST(ii.listingPrice AS DECIMAL(10,2))), 0) as avgPrice
     FROM catalog_masters cm
-    LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+    LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13 ${tenantClause}
     LEFT JOIN sales_transactions st ON ii.uuid = st.itemUuid
     WHERE cm.author IS NOT NULL AND cm.author != ''
     GROUP BY cm.author
@@ -715,11 +754,13 @@ export async function getAnalyticsByPublisher(params: {
   dateFrom?: Date;
   dateTo?: Date;
   limit?: number;
+  libraryId?: number;
 }) {
   const db = await getDb();
   if (!db) return [];
   
-  const { limit = 20 } = params;
+  const { limit = 20, libraryId } = params;
+  const tenantClause = libraryId !== undefined ? `AND ii.libraryId = ${libraryId}` : '';
   
   // Note: Date filtering temporarily disabled due to SQL parameter binding complexity
   // Will be re-enabled after refactoring to use Drizzle query builder
@@ -734,7 +775,7 @@ export async function getAnalyticsByPublisher(params: {
       COALESCE(SUM(st.netProfit), 0) as totalProfit,
       COALESCE(AVG(CAST(ii.listingPrice AS DECIMAL(10,2))), 0) as avgPrice
     FROM catalog_masters cm
-    LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+    LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13 ${tenantClause}
     LEFT JOIN sales_transactions st ON ii.uuid = st.itemUuid
     WHERE cm.publisher IS NOT NULL AND cm.publisher != ''
     GROUP BY cm.publisher
@@ -761,9 +802,13 @@ export async function getAnalyticsByPublisher(params: {
 export async function getAnalyticsByCategory(params: {
   dateFrom?: Date;
   dateTo?: Date;
+  libraryId?: number;
 }) {
   const db = await getDb();
   if (!db) return [];
+  
+  const { libraryId } = params;
+  const tenantClause = libraryId !== undefined ? `AND ii.libraryId = ${libraryId}` : '';
   
   // Note: Date filtering temporarily disabled due to SQL parameter binding complexity
   // Will be re-enabled after refactoring to use Drizzle query builder
@@ -777,7 +822,7 @@ export async function getAnalyticsByCategory(params: {
       COALESCE(SUM(st.finalSalePrice), 0) as totalRevenue,
       COALESCE(SUM(st.netProfit), 0) as totalProfit
     FROM catalog_masters cm
-    LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+    LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13 ${tenantClause}
     LEFT JOIN sales_transactions st ON ii.uuid = st.itemUuid
     GROUP BY category
     ORDER BY totalItems DESC
@@ -801,13 +846,17 @@ export async function getAnalyticsByCategory(params: {
 export async function getAnalyticsByLocation(params: {
   dateFrom?: Date;
   dateTo?: Date;
+  libraryId?: number;
 }) {
   const db = await getDb();
   if (!db) return [];
   
+  const { libraryId } = params;
+  const tenantClause = libraryId !== undefined ? `AND libraryId = ${libraryId}` : '';
+  
   // Note: Date filtering temporarily disabled due to SQL template complexity
   // Will be re-enabled after refactoring to use Drizzle query builder
-  const query = sql`
+  const query = sql.raw(`
     SELECT 
       COALESCE(locationCode, 'No Location') as location,
       COUNT(CASE WHEN status IN ('AVAILABLE', 'LISTED') THEN 1 END) as totalItems,
@@ -817,9 +866,10 @@ export async function getAnalyticsByLocation(params: {
       COALESCE(SUM(CASE WHEN status IN ('AVAILABLE', 'LISTED') THEN CAST(listingPrice AS DECIMAL(10,2)) END), 0) as inventoryValue,
       COALESCE(AVG(CASE WHEN status IN ('AVAILABLE', 'LISTED') THEN CAST(listingPrice AS DECIMAL(10,2)) END), 0) as avgPrice
     FROM inventory_items
+    WHERE 1=1 ${tenantClause}
     GROUP BY location
     ORDER BY totalItems DESC
-  `;
+  `);
   
   const rawResults = await db.execute(query) as any;
   // Drizzle execute() returns [rows, metadata], we need the rows

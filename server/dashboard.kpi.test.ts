@@ -4,6 +4,7 @@ import { catalogMasters, inventoryItems } from "../drizzle/schema";
 import { getDb } from "./db";
 import { eq } from "drizzle-orm";
 import type { TrpcContext } from "./_core/context";
+import { getTestLibraryId } from "./testHelpers";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -30,11 +31,14 @@ function createAuthContext(): TrpcContext {
   };
 }
 
+let testLibraryId: number;
+
 describe("Dashboard KPIs - Unique Book Counting", () => {
   const testIsbn1 = "9780000000111";
   const testIsbn2 = "9780000000222";
 
   beforeEach(async () => {
+    testLibraryId = await getTestLibraryId();
     const db = await getDb();
     if (!db) return;
 
@@ -83,6 +87,7 @@ describe("Dashboard KPIs - Unique Book Counting", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       });
     }
 
@@ -96,6 +101,7 @@ describe("Dashboard KPIs - Unique Book Counting", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       });
     }
 
@@ -133,6 +139,7 @@ describe("Dashboard KPIs - Unique Book Counting", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       });
     }
 
@@ -170,6 +177,7 @@ describe("Dashboard KPIs - Unique Book Counting", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       });
     }
 
@@ -207,6 +215,7 @@ describe("Dashboard KPIs - Unique Book Counting", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       });
     }
 
@@ -243,6 +252,7 @@ describe("Dashboard KPIs - Unique Book Counting", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       });
     }
     for (let i = 0; i < 3; i++) {
@@ -254,6 +264,7 @@ describe("Dashboard KPIs - Unique Book Counting", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       });
     }
     for (let i = 0; i < 2; i++) {
@@ -265,6 +276,7 @@ describe("Dashboard KPIs - Unique Book Counting", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       });
     }
 

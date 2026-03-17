@@ -121,6 +121,16 @@ describe("CSV Import", () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
+    // Clean up any pre-existing items for this ISBN from previous test runs
+    const { getDb } = await import("./db");
+    const { inventoryItems, catalogMasters } = await import("../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const db = await getDb();
+    if (db) {
+      await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, "9781234567890"));
+      await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, "9781234567890"));
+    }
+
     const csvData = `ISBN,Titulo,Autor,Editorial,Año,Categoría,Sinopsis,Páginas,Edición,Idioma,Cantidad,Ubicación
 9781234567890,Test Book,Test Author,Test Publisher,2024,Test Category,Test Synopsis,200,1st,EN,3,01A`;
 
@@ -139,7 +149,7 @@ describe("CSV Import", () => {
     
     const book = inventory.items.find((item: any) => item.isbn13 === "9781234567890");
     expect(book).toBeDefined();
-    expect(book?.totalCount).toBe(3);
+    expect(book?.totalQuantity).toBe(3);
   });
 
   it("should update existing books on duplicate ISBN", async () => {

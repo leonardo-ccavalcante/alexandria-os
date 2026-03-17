@@ -4,6 +4,7 @@ import { catalogMasters, inventoryItems } from "../drizzle/schema";
 import { getDb } from "./db";
 import { eq } from "drizzle-orm";
 import type { TrpcContext } from "./_core/context";
+import { getTestLibraryId } from "./testHelpers";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -30,17 +31,24 @@ function createAuthContext(): TrpcContext {
   };
 }
 
+let testLibraryId: number;
+
 describe("Iberlibro/AbeBooks TSV Export", () => {
   const testIsbn = "9780000000444";
 
   beforeEach(async () => {
+    testLibraryId = await getTestLibraryId();
     const db = await getDb();
     if (!db) return;
 
-    // Clean up test data
+    // Clean up test data (including extra ISBNs used in stats test)
     try {
       await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn));
+      await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, "9780000000445"));
+      await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, "9780000000446"));
       await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn));
+      await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, "9780000000445"));
+      await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, "9780000000446"));
     } catch (error) {
       // Ignore errors if records don't exist
     }
@@ -71,6 +79,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       acquisitionDate: new Date(),
       costOfGoods: "5.00",
       listingPrice: "15.00",
+      libraryId: testLibraryId,
     });
 
     // Export to Iberlibro
@@ -120,6 +129,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -155,6 +165,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "20.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -187,6 +198,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "8.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -219,6 +231,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "12.50",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -252,6 +265,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -285,6 +299,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ 
@@ -322,6 +337,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
         conditionGrade: "BUENO",
         acquisitionDate: new Date(),
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       },
       {
         isbn13: "9780000000445",
@@ -329,12 +345,14 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
         conditionGrade: "BUENO",
         acquisitionDate: new Date(),
         listingPrice: "15.00",
+        libraryId: testLibraryId,
       },
       {
         isbn13: "9780000000446",
         status: "AVAILABLE",
         conditionGrade: "BUENO",
         acquisitionDate: new Date(),
+        libraryId: testLibraryId,
         // No price
       },
     ]);
@@ -372,6 +390,7 @@ describe("Iberlibro/AbeBooks TSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -392,6 +411,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
   const testIsbn3 = "9780000000503";
 
   beforeEach(async () => {
+    testLibraryId = await getTestLibraryId();
     const db = await getDb();
     if (!db) return;
 
@@ -429,6 +449,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
         acquisitionDate: new Date(),
         listingPrice: "10.00",
         salesChannels: JSON.stringify(["Iberlibro"]),
+        libraryId: testLibraryId,
       },
       {
         isbn13: testIsbn2,
@@ -437,6 +458,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
         acquisitionDate: new Date(),
         listingPrice: "15.00",
         salesChannels: JSON.stringify(["Wallapop"]),
+        libraryId: testLibraryId,
       },
       {
         isbn13: testIsbn3,
@@ -445,6 +467,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
         acquisitionDate: new Date(),
         listingPrice: "12.00",
         salesChannels: null,
+        libraryId: testLibraryId,
       },
     ]);
 
@@ -483,6 +506,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
       acquisitionDate: new Date(),
       listingPrice: "10.00",
       salesChannels: JSON.stringify(["Iberlibro", "Wallapop", "Vinted"]),
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -516,6 +540,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
         acquisitionDate: new Date(),
         listingPrice: "10.00",
         salesChannels: JSON.stringify(["Iberlibro"]),
+        libraryId: testLibraryId,
       },
       {
         isbn13: testIsbn2,
@@ -524,6 +549,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
         acquisitionDate: new Date(),
         listingPrice: "15.00",
         salesChannels: JSON.stringify(["Iberlibro"]),
+        libraryId: testLibraryId,
       },
       {
         isbn13: testIsbn3,
@@ -532,6 +558,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
         acquisitionDate: new Date(),
         listingPrice: "12.00",
         salesChannels: null,
+        libraryId: testLibraryId,
       },
     ]);
 
@@ -577,6 +604,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
       conditionGrade: "BUENO",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -627,6 +655,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
       conditionGrade: "BUENO",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -666,6 +695,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
       conditionGrade: "BUENO",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -705,6 +735,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
       conditionGrade: "BUENO",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });
@@ -744,6 +775,7 @@ describe("Iberlibro Export Filtering (Exclude Already Listed)", () => {
       acquisitionDate: new Date(),
       listingPrice: "10.00",
       salesChannels: null,
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToIberlibro({ filters: {} });

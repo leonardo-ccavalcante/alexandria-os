@@ -4,6 +4,7 @@ import type { TrpcContext } from "./_core/context";
 import { getDb } from "./db";
 import { catalogMasters, inventoryItems } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { getTestLibraryId } from "./testHelpers";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -30,12 +31,15 @@ function createAuthContext(): TrpcContext {
   };
 }
 
+let testLibraryId: number;
+
 describe("Batch Location Update", () => {
   const testIsbn = "9780000000099";
   let testItemUuids: string[] = [];
   let caller: ReturnType<typeof appRouter.createCaller>;
 
   beforeAll(async () => {
+    testLibraryId = await getTestLibraryId();
     const ctx = createAuthContext();
     caller = appRouter.createCaller(ctx);
 
@@ -76,6 +80,7 @@ describe("Batch Location Update", () => {
         listingPrice: "12.00",
         costOfGoods: "5.00",
         createdBy: 1,
+        libraryId: testLibraryId,
       },
       {
         uuid: uuid2,
@@ -86,6 +91,7 @@ describe("Batch Location Update", () => {
         listingPrice: "12.00",
         costOfGoods: "5.00",
         createdBy: 1,
+        libraryId: testLibraryId,
       },
       {
         uuid: uuid3,
@@ -96,6 +102,7 @@ describe("Batch Location Update", () => {
         listingPrice: "15.00",
         costOfGoods: "5.00",
         createdBy: 1,
+        libraryId: testLibraryId,
       },
     ]);
   });

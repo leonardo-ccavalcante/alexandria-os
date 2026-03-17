@@ -3,6 +3,7 @@ import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import { getDb } from "./db";
 import { catalogMasters, inventoryItems, salesTransactions } from "../drizzle/schema";
+import { getTestLibraryId } from "./testHelpers";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -31,10 +32,13 @@ function createTestContext(): { ctx: TrpcContext } {
   return { ctx };
 }
 
+let testLibraryId: number;
+
 describe("Dashboard Analytics", () => {
   let caller: ReturnType<typeof appRouter.createCaller>;
 
   beforeAll(async () => {
+    testLibraryId = await getTestLibraryId();
     const { ctx } = createTestContext();
     caller = appRouter.createCaller(ctx);
 
@@ -91,6 +95,7 @@ describe("Dashboard Analytics", () => {
           listingPrice: "10.00",
           costOfGoods: "5.00",
           createdAt: lastWeek,
+          libraryId: testLibraryId,
         },
         {
           uuid: "test-uuid-2",
@@ -101,6 +106,7 @@ describe("Dashboard Analytics", () => {
           listingPrice: "12.00",
           costOfGoods: "6.00",
           createdAt: yesterday,
+          libraryId: testLibraryId,
         },
         {
           uuid: "test-uuid-3",
@@ -111,6 +117,7 @@ describe("Dashboard Analytics", () => {
           listingPrice: "15.00",
           costOfGoods: "7.00",
           createdAt: lastWeek,
+          libraryId: testLibraryId,
         },
         {
           uuid: "test-uuid-4",
@@ -121,6 +128,7 @@ describe("Dashboard Analytics", () => {
           listingPrice: "20.00",
           costOfGoods: "10.00",
           createdAt: now,
+          libraryId: testLibraryId,
         },
       ]);
 

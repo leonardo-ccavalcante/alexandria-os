@@ -42,7 +42,7 @@ describe("Triage Procedures", () => {
       publisher: "Penguin Classics",
       publicationYear: 1997,
       language: "en",
-      category: "LITERATURA",
+      categoryLevel1: "LITERATURA",
       marketMinPrice: "10.00",
       marketMedianPrice: "15.00",
       lastPriceCheck: new Date(),
@@ -73,10 +73,10 @@ describe("Triage Procedures", () => {
     const ctx = createAuthContext();
     const caller = appRouter.createCaller(ctx);
 
-    const result = await caller.triage.checkIsbn({ isbn: "9999999999999" });
+    const result = await caller.triage.checkIsbn({ isbn: "9789999999991" });
 
     expect(result.found).toBe(false);
-    expect(result.isbn).toBe("9999999999999");
+    expect(result.isbn).toBe("9789999999991");
   });
 
   it("should validate ISBN format and reject invalid ISBNs", async () => {
@@ -108,16 +108,16 @@ describe("Triage Procedures", () => {
 
     // Create a book with low market price
     await upsertCatalogMaster({
-      isbn13: "9780000000001",
+      isbn13: "9780000001009",
       title: "Low Value Book",
       author: "Test Author",
-      category: "OTROS",
+      categoryLevel1: "OTROS",
       marketMinPrice: "5.00",
       marketMedianPrice: "6.00",
       lastPriceCheck: new Date(),
     });
 
-    const result = await caller.triage.checkIsbn({ isbn: "9780000000001" });
+    const result = await caller.triage.checkIsbn({ isbn: "9780000001009" });
 
     // Profit = 6.00 - 4.50 = 1.50 (below threshold of 8.00)
     expect(result.decision).toBe("DONATE");
@@ -130,16 +130,16 @@ describe("Triage Procedures", () => {
 
     // Create a book with very low market price
     await upsertCatalogMaster({
-      isbn13: "9780000000002",
+      isbn13: "9780000002006",
       title: "Worthless Book",
       author: "Test Author",
-      category: "OTROS",
+      categoryLevel1: "OTROS",
       marketMinPrice: "1.00",
       marketMedianPrice: "2.00",
       lastPriceCheck: new Date(),
     });
 
-    const result = await caller.triage.checkIsbn({ isbn: "9780000000002" });
+    const result = await caller.triage.checkIsbn({ isbn: "9780000002006" });
 
     // Profit = 2.00 - 4.50 = -2.50 (negative)
     expect(result.decision).toBe("RECYCLE");

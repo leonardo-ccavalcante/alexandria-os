@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import { getDb } from "./db";
@@ -57,11 +57,15 @@ describe("Triage to Inventory Workflow", () => {
       publisher: "Addison-Wesley",
       publicationYear: 2018,
       language: "en",
-      category: "Programming",
+      categoryLevel1: "Programming",
       coverImageUrl: "https://example.com/cover.jpg",
       description: "Best practices for Java programming",
     }).onDuplicateKeyUpdate({
-      set: { title: "Effective Java" },
+      set: { 
+        title: "Effective Java",
+        author: "Joshua Bloch",
+        marketMedianPrice: "20.00",
+      },
     });
   });
 
@@ -186,6 +190,19 @@ describe("Triage to Inventory Workflow", () => {
   });
 
   describe("Price calculation", () => {
+    beforeEach(async () => {
+      // Ensure the catalog entry has a market price set for price calculation tests
+      // This may be cleared by other tests (e.g., csvLocationImport) that update the catalog
+      const db = await getDb();
+      if (db) {
+        const { catalogMasters } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        await db.update(catalogMasters)
+          .set({ marketMedianPrice: "20.00" })
+          .where(eq(catalogMasters.isbn13, "9780134685991"));
+      }
+    });
+
     it("should calculate different prices for different conditions", async () => {
       const { ctx } = createAuthContext();
       const caller = appRouter.createCaller(ctx);

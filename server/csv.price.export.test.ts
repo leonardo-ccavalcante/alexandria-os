@@ -4,6 +4,7 @@ import { catalogMasters, inventoryItems } from "../drizzle/schema";
 import { getDb } from "./db";
 import { eq } from "drizzle-orm";
 import type { TrpcContext } from "./_core/context";
+import { getTestLibraryId } from "./testHelpers";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -30,10 +31,13 @@ function createAuthContext(): TrpcContext {
   };
 }
 
+let testLibraryId: number;
+
 describe("CSV Export - Price Column", () => {
   const testIsbn = "9780000000333";
 
   beforeEach(async () => {
+    testLibraryId = await getTestLibraryId();
     const db = await getDb();
     if (!db) return;
 
@@ -69,6 +73,7 @@ describe("CSV Export - Price Column", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       });
     }
 
@@ -117,6 +122,7 @@ describe("CSV Export - Price Column", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       },
       {
         isbn13: testIsbn,
@@ -126,6 +132,7 @@ describe("CSV Export - Price Column", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "12.00",
+        libraryId: testLibraryId,
       },
       {
         isbn13: testIsbn,
@@ -135,6 +142,7 @@ describe("CSV Export - Price Column", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "14.00",
+        libraryId: testLibraryId,
       },
     ]);
 
@@ -183,6 +191,7 @@ describe("CSV Export - Price Column", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         // No listingPrice
+        libraryId: testLibraryId,
       });
     }
 
@@ -231,6 +240,7 @@ describe("CSV Export - Price Column", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: "10.00", // Valid
+        libraryId: testLibraryId,
       },
       {
         isbn13: testIsbn,
@@ -240,6 +250,7 @@ describe("CSV Export - Price Column", () => {
         acquisitionDate: new Date(),
         costOfGoods: "5.00",
         listingPrice: null as any, // Invalid (null)
+        libraryId: testLibraryId,
       },
     ]);
 

@@ -4,6 +4,7 @@ import { catalogMasters, inventoryItems } from "../drizzle/schema";
 import { getDb } from "./db";
 import { eq } from "drizzle-orm";
 import type { TrpcContext } from "./_core/context";
+import { getTestLibraryId } from "./testHelpers";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
@@ -30,17 +31,24 @@ function createAuthContext(): TrpcContext {
   };
 }
 
+let testLibraryId: number;
+
 describe("Todocolección CSV Export", () => {
   const testIsbn = "9780000000555";
 
   beforeEach(async () => {
+    testLibraryId = await getTestLibraryId();
     const db = await getDb();
     if (!db) return;
 
-    // Clean up test data
+    // Clean up test data (including extra ISBNs used in stats test)
     try {
       await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, testIsbn));
+      await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, "9780000000556"));
+      await db.delete(inventoryItems).where(eq(inventoryItems.isbn13, "9780000000557"));
       await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, testIsbn));
+      await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, "9780000000556"));
+      await db.delete(catalogMasters).where(eq(catalogMasters.isbn13, "9780000000557"));
     } catch (error) {
       // Ignore errors if records don't exist
     }
@@ -71,6 +79,7 @@ describe("Todocolección CSV Export", () => {
       acquisitionDate: new Date(),
       costOfGoods: "5.00",
       listingPrice: "15.00",
+      libraryId: testLibraryId,
     });
 
     // Export to Todocolección
@@ -120,6 +129,7 @@ describe("Todocolección CSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToTodocoleccion({ filters: {} });
@@ -155,6 +165,7 @@ describe("Todocolección CSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "20.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToTodocoleccion({ filters: {} });
@@ -187,6 +198,7 @@ describe("Todocolección CSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "8.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToTodocoleccion({ filters: {} });
@@ -219,6 +231,7 @@ describe("Todocolección CSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "12.50",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToTodocoleccion({ filters: {} });
@@ -251,6 +264,7 @@ describe("Todocolección CSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToTodocoleccion({ filters: {} });
@@ -284,6 +298,7 @@ describe("Todocolección CSV Export", () => {
         conditionGrade: "BUENO",
         acquisitionDate: new Date(),
         listingPrice: "10.00",
+        libraryId: testLibraryId,
       },
       {
         isbn13: "9780000000556",
@@ -291,12 +306,14 @@ describe("Todocolección CSV Export", () => {
         conditionGrade: "BUENO",
         acquisitionDate: new Date(),
         listingPrice: "15.00",
+        libraryId: testLibraryId,
       },
       {
         isbn13: "9780000000557",
         status: "AVAILABLE",
         conditionGrade: "BUENO",
         acquisitionDate: new Date(),
+        libraryId: testLibraryId,
         // No price
       },
     ]);
@@ -334,6 +351,7 @@ describe("Todocolección CSV Export", () => {
       locationCode: "01A",
       acquisitionDate: new Date(),
       listingPrice: "10.00",
+      libraryId: testLibraryId,
     });
 
     const result = await caller.batch.exportToTodocoleccion({ filters: {} });

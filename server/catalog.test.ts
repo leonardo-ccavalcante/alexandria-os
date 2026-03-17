@@ -32,7 +32,7 @@ describe("Catalog Procedures", () => {
       isbn13: "9780140449136",
       title: "The Odyssey",
       author: "Homer",
-      category: "LITERATURA",
+      categoryLevel1: "LITERATURA",
       marketMinPrice: "10.00",
       marketMedianPrice: "15.00",
       lastPriceCheck: new Date(),

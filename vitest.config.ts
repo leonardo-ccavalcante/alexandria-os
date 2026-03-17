@@ -15,5 +15,16 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    // Run test files sequentially to avoid database race conditions
+    // (all integration tests share the same live database)
+    pool: "forks",
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
+    // Automatically restore all vi.spyOn mocks after each test to prevent
+    // mock leakage between test files in sequential mode
+    restoreMocks: true,
   },
 });
