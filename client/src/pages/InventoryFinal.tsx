@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useLibrary } from "@/hooks/useLibrary";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { EmptyState } from "@/components/EmptyState";
 import { useLocation } from "wouter";
@@ -20,6 +21,7 @@ type SortField = "title" | "author" | "publisher" | "isbn13" | "publicationYear"
 type SortDirection = "asc" | "desc";
 
 export default function InventoryFinal() {
+  const { isAdmin } = useLibrary();
   const [, setLocation] = useLocation();
   const [searchText, setSearchText] = useState("");
   const debouncedSearch = useDebounce(searchText, 300);
@@ -338,11 +340,14 @@ export default function InventoryFinal() {
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Inventario</h1>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
+            {/* Export and admin-only actions — visible to all, but admin-gated */}
             <Button
               onClick={() => exportMutation.mutate({ filters: { searchText, publisher, author } })}
               variant="outline"
               className="gap-2 flex-1 sm:flex-none"
               size="sm"
+              disabled={!isAdmin}
+              title={!isAdmin ? "Solo los administradores pueden exportar" : undefined}
             >
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Exportar CSV</span>
@@ -353,7 +358,8 @@ export default function InventoryFinal() {
               variant="outline"
               className="gap-2 flex-1 sm:flex-none"
               size="sm"
-              disabled={exportIberlibroMutation.isPending}
+              disabled={exportIberlibroMutation.isPending || !isAdmin}
+              title={!isAdmin ? "Solo los administradores pueden exportar" : undefined}
             >
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Iberlibro</span>
@@ -364,7 +370,8 @@ export default function InventoryFinal() {
               variant="outline"
               className="gap-2 flex-1 sm:flex-none"
               size="sm"
-              disabled={exportTodocoleccionMutation.isPending}
+              disabled={exportTodocoleccionMutation.isPending || !isAdmin}
+              title={!isAdmin ? "Solo los administradores pueden exportar" : undefined}
             >
               <Download className="h-4 w-4" />
               <span className="hidden sm:inline">Todocol.</span>
@@ -375,7 +382,8 @@ export default function InventoryFinal() {
               variant="outline"
               className="gap-2 flex-1 sm:flex-none"
               size="sm"
-              disabled={bulkEnrichMutation.isPending}
+              disabled={bulkEnrichMutation.isPending || !isAdmin}
+              title={!isAdmin ? "Solo los administradores pueden enriquecer" : undefined}
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />

@@ -3,17 +3,19 @@
  * tRPC procedures for multi-tenant library management.
  *
  * Procedures:
- *  library.me              → Get the active library for the current user
- *  library.list            → List all libraries the user belongs to
- *  library.create          → Create a new library (user becomes owner)
- *  library.update          → Update library name/description (owner/admin only)
- *  library.getMembers      → List members of the active library
- *  library.removeMember    → Remove a member (owner/admin only, cannot remove owner)
- *  library.updateMemberRole → Change a member's role (owner only)
- *  library.invitations.list   → List active invitations
- *  library.invitations.create → Create an invitation link
- *  library.invitations.revoke → Revoke an invitation
- *  library.invitations.accept → Accept an invitation (join a library)
+ *  library.me                → Get the active library for the current user
+ *  library.list              → List all libraries the user belongs to
+ *  library.create            → Create a new library (user becomes owner)
+ *  library.update            → Update library name/description (owner/admin only)
+ *  library.getMembers        → List members of the active library
+ *  library.removeMember      → Remove a member (owner/admin only, cannot remove owner)
+ *  library.updateMemberRole  → Change a member's role (owner only)
+ *  library.searchUsers       → Search registered users by name/email/openId (admin only)
+ *  library.addMemberDirectly → Add a registered user directly without invitation (admin only)
+ *  library.invitations.list     → List active invitations
+ *  library.invitations.create   → Create an invitation link
+ *  library.invitations.revoke   → Revoke an invitation
+ *  library.invitations.accept   → Accept an invitation (join a library)
  *  library.invitations.validate → Validate an invite code (public, for pre-login check)
  */
 
@@ -37,8 +39,8 @@ import {
   validateInvitation,
 } from "../libraryDb";
 import { getDb } from "../db";
-import { users } from "../../drizzle/schema";
-import { eq, inArray } from "drizzle-orm";
+import { users, libraryMembers } from "../../drizzle/schema";
+import { eq, inArray, or, like, and } from "drizzle-orm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: assert caller is a member of a library with at least the given role
@@ -178,6 +180,120 @@ export const libraryRouter = router({
 
       await updateMemberRole(input.userId, input.libraryId, input.role);
       return { success: true };
+    }),
+
+  /**
+   * Search registered users by name, email, or openId.
+   * Admin/owner only. Used to find users for manual addition.
+   * Returns users who are NOT already members of the library.
+   */
+  searchUsers: protectedProcedure
+    .input(
+      z.object({
+        libraryId: z.number().int().positive(),
+        query: z.string().min(2).max(100),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      await assertMembership(ctx.user!.id, input.libraryId, "admin");
+
+      const db = await getDb();
+      if (!db) return [];
+
+      const q = `%${input.query}%`;
+
+      // Find users matching the query
+      const matchingUsers = await db
+        .select({ id: users.id, name: users.name, email: users.email, openId: users.openId })
+        .from(users)
+        .where(
+          or(
+            like(users.name, q),
+            like(users.email, q),
+            like(users.openId, q)
+          )
+        )
+        .limit(20);
+
+      if (matchingUsers.length === 0) return [];
+
+      // Exclude users who are already members of this library
+      const existingMemberRows = await db
+        .select({ userId: libraryMembers.userId })
+        .from(libraryMembers)
+        .where(
+          and(
+            eq(libraryMembers.libraryId, input.libraryId),
+            inArray(
+              libraryMembers.userId,
+              matchingUsers.map((u) => u.id)
+            )
+          )
+        );
+
+      const existingMemberIds = new Set(existingMemberRows.map((m) => m.userId));
+
+      return matchingUsers
+        .filter((u) => !existingMemberIds.has(u.id))
+        .map((u) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          openId: u.openId,
+        }));
+    }),
+
+  /**
+   * Add a registered user directly to the library without an invitation.
+   * Admin/owner only. The user must already have a Manus account (be in the users table).
+   * This is the manual alternative to the invitation link flow.
+   */
+  addMemberDirectly: protectedProcedure
+    .input(
+      z.object({
+        libraryId: z.number().int().positive(),
+        userId: z.number().int().positive(),
+        role: z.enum(["admin", "member"]).default("member"),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      await assertMembership(ctx.user!.id, input.libraryId, "admin");
+
+      const db = await getDb();
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Base de datos no disponible." });
+
+      // Verify the target user exists
+      const targetUser = await db
+        .select({ id: users.id, name: users.name, email: users.email })
+        .from(users)
+        .where(eq(users.id, input.userId))
+        .limit(1);
+
+      if (!targetUser[0]) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Usuario no encontrado." });
+      }
+
+      // Check if the user is already a member
+      const existing = await isLibraryMember(input.userId, input.libraryId);
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `${targetUser[0].name ?? "El usuario"} ya es miembro de esta biblioteca.`,
+        });
+      }
+
+      // Add the user directly to the library
+      await db.insert(libraryMembers).values({
+        libraryId: input.libraryId,
+        userId: input.userId,
+        role: input.role,
+      });
+
+      return {
+        success: true,
+        user: targetUser[0],
+        role: input.role,
+      };
     }),
 
   // ─── Invitations sub-router ───────────────────────────────────────────────

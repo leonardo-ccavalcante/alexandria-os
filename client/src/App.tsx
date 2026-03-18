@@ -1,5 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch, Link } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -16,8 +17,44 @@ import ExportarDatos from "./pages/ExportarDatos";
 import Configuracion from "./pages/Configuracion";
 import LibraryManagement from "./pages/LibraryManagement";
 import JoinLibrary from "./pages/JoinLibrary";
-import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon, Menu, X, Building2 } from "lucide-react";
+import { useLibrary } from "./hooks/useLibrary";
+import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon, Menu, X, Building2, Crown, Shield, User as UserIcon } from "lucide-react";
 import { useState } from "react";
+
+// ─── Library indicator badge shown in the nav header ─────────────────────────
+function LibraryIndicator() {
+  const { library, isLoading, memberRole } = useLibrary();
+
+  if (isLoading || !library) return null;
+
+  const roleIcon =
+    memberRole === "owner" ? <Crown className="h-3 w-3" /> :
+    memberRole === "admin" ? <Shield className="h-3 w-3" /> :
+    <UserIcon className="h-3 w-3" />;
+
+  const roleColor =
+    memberRole === "owner" ? "bg-amber-100 text-amber-800 border-amber-200" :
+    memberRole === "admin" ? "bg-blue-100 text-blue-800 border-blue-200" :
+    "bg-gray-100 text-gray-700 border-gray-200";
+
+  return (
+    <Link href="/biblioteca">
+      <div className="hidden sm:flex items-center gap-1.5 cursor-pointer group">
+        <Building2 className="h-4 w-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
+        <span className="text-sm text-gray-600 group-hover:text-blue-600 transition-colors max-w-[120px] truncate hidden lg:block">
+          {library.name}
+        </span>
+        <Badge
+          variant="outline"
+          className={`text-xs gap-1 px-1.5 py-0.5 ${roleColor} border`}
+        >
+          {roleIcon}
+          <span className="hidden xl:inline capitalize">{memberRole}</span>
+        </Badge>
+      </div>
+    </Link>
+  );
+}
 
 function Router() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -47,7 +84,7 @@ function Router() {
             </Link>
 
             {/* Desktop Navigation */}
-            <div className="hidden md:flex gap-2 lg:gap-4">
+            <div className="hidden md:flex items-center gap-2 lg:gap-4">
               {navLinks.map(({ href, icon: Icon, label }) => (
                 <Link
                   key={href}
@@ -58,6 +95,10 @@ function Router() {
                   <span className="hidden lg:inline">{label}</span>
                 </Link>
               ))}
+              {/* Library indicator — shows current library name and role */}
+              <div className="ml-2 pl-2 border-l border-gray-200">
+                <LibraryIndicator />
+              </div>
             </div>
 
             {/* Mobile Menu Button */}
@@ -89,6 +130,10 @@ function Router() {
                     <span>{label}</span>
                   </Link>
                 ))}
+                {/* Mobile library indicator */}
+                <div className="px-4 py-2 border-t mt-1 pt-3">
+                  <LibraryIndicator />
+                </div>
               </div>
             </div>
           )}
@@ -100,7 +145,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/triage" component={Triage} />
         <Route path="/catalog" component={Catalog} />
-       <Route path="/inventario" component={InventoryFinal} />
+        <Route path="/inventario" component={InventoryFinal} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/batch" component={BatchOperations} />
         <Route path="/settings" component={Settings} />

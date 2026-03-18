@@ -1,7 +1,8 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
+import { publicProcedure, protectedProcedure, libraryProcedure, libraryAdminProcedure, router } from "./_core/trpc";
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, sql, or, isNull } from "drizzle-orm";
 import mysql from 'mysql2/promise';
@@ -402,7 +403,7 @@ export const appRouter = router({
       }),
     
     // Create new inventory item
-    createItem: protectedProcedure
+    createItem: libraryProcedure
       .input(z.object({
         isbn13: z.string(),
         conditionGrade: z.enum(['COMO_NUEVO', 'BUENO', 'ACEPTABLE']),
@@ -437,8 +438,7 @@ export const appRouter = router({
           console.log(`[Catalog] Created catalog master for synthetic ISBN: ${input.isbn13}`);
         }
         
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         const item = await createInventoryItem({
           isbn13: input.isbn13,
           status: 'AVAILABLE',
@@ -957,7 +957,7 @@ export const appRouter = router({
   // ============================================================================
   inventory: router({
     // Search and filter inventory
-    search: protectedProcedure
+    search: libraryProcedure
       .input(z.object({
         status: z.string().optional(),
         condition: z.string().optional(),
@@ -969,27 +969,34 @@ export const appRouter = router({
         offset: z.number().default(0),
       }))
       .query(async ({ ctx, input }) => {
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         return await searchInventory({ ...input, libraryId: library?.id });
       }),
     
     // Get single item by UUID
-    getByUuid: protectedProcedure
+    getByUuid: libraryProcedure
       .input(z.object({ uuid: z.string() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const item = await getInventoryItemByUuid(input.uuid);
         if (!item) throw new Error("Item not found");
+        // Verify item belongs to the user's library
+        if (item.libraryId !== null && item.libraryId !== ctx.library.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Este artículo no pertenece a tu biblioteca.' });
+        }
         return item;
       }),
     
     // Update item location
-    updateLocation: protectedProcedure
+    updateLocation: libraryProcedure
       .input(z.object({
         uuid: z.string(),
         locationCode: z.string().regex(/^[0-9]{2}[A-Z]$/),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const existing = await getInventoryItemByUuid(input.uuid);
+        if (!existing || (existing.libraryId !== null && existing.libraryId !== ctx.library.id)) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Este artículo no pertenece a tu biblioteca.' });
+        }
         const item = await updateInventoryItem(input.uuid, {
           locationCode: input.locationCode,
         });
@@ -997,12 +1004,16 @@ export const appRouter = router({
       }),
     
     // Update item price
-    updatePrice: protectedProcedure
+    updatePrice: libraryProcedure
       .input(z.object({
         uuid: z.string(),
         listingPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const existing = await getInventoryItemByUuid(input.uuid);
+        if (!existing || (existing.libraryId !== null && existing.libraryId !== ctx.library.id)) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Este artículo no pertenece a tu biblioteca.' });
+        }
         const item = await updateInventoryItem(input.uuid, {
           listingPrice: input.listingPrice,
         });
@@ -1010,12 +1021,16 @@ export const appRouter = router({
       }),
     
     // Update item status
-    updateStatus: protectedProcedure
+    updateStatus: libraryProcedure
       .input(z.object({
         uuid: z.string(),
         status: z.enum(['INGESTION', 'AVAILABLE', 'LISTED', 'RESERVED', 'SOLD', 'REJECTED', 'DONATED', 'MISSING']),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const existing = await getInventoryItemByUuid(input.uuid);
+        if (!existing || (existing.libraryId !== null && existing.libraryId !== ctx.library.id)) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Este artículo no pertenece a tu biblioteca.' });
+        }
         const item = await updateInventoryItem(input.uuid, {
           status: input.status,
         });
@@ -1023,7 +1038,7 @@ export const appRouter = router({
       }),
     
     // ✅ OPTIMIZED: Single SQL query with GROUP BY, sorting support for all fields
-    getGroupedByIsbn: protectedProcedure
+    getGroupedByIsbn: libraryProcedure
       .input(z.object({
         searchText: z.string().optional(),
         categoryLevel1: z.string().optional(),
@@ -1041,13 +1056,13 @@ export const appRouter = router({
         sortField: z.enum(['title', 'author', 'publisher', 'isbn13', 'publicationYear', 'total', 'available', 'location', 'price']).default('title'),
         sortDirection: z.enum(['asc', 'desc']).default('asc'),
       }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error('Database not available');
         
         // Build WHERE conditions as raw SQL strings to avoid alias mismatch
-        const whereConditions = ['1=1'];
-        const whereParams: any[] = [];
+        const whereConditions = ['ii.libraryId = ?'];
+        const whereParams: any[] = [ctx.library.id];
         
         if (input.searchText) {
           const search = `%${input.searchText}%`;
@@ -1226,36 +1241,35 @@ export const appRouter = router({
       }),
     
     // Increase quantity (alias for addQuantity)
-    increaseQuantity: protectedProcedure
+    increaseQuantity: libraryProcedure
       .input(z.object({ isbn13: z.string() }))
       .mutation(async ({ input, ctx }) => {
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
         const item = await createInventoryItem({
           isbn13: input.isbn13,
           status: 'AVAILABLE',
           conditionGrade: 'BUENO',
           locationCode: null,
           createdBy: ctx.user.id,
-          libraryId: library?.id ?? null,
+          libraryId: ctx.library.id,
         });
         return { success: true, item };
       }),
     
     // Decrease quantity (alias for removeQuantity)
-    decreaseQuantity: protectedProcedure
+    decreaseQuantity: libraryProcedure
       .input(z.object({ isbn13: z.string() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error('Database not available');
         
-        // Get one available item for this ISBN
+        // Get one available item for this ISBN scoped to the user's library
         const items = await db
           .select({ uuid: inventoryItems.uuid })
           .from(inventoryItems)
           .where(and(
             eq(inventoryItems.isbn13, input.isbn13),
-            eq(inventoryItems.status, 'AVAILABLE')
+            eq(inventoryItems.status, 'AVAILABLE'),
+            eq(inventoryItems.libraryId, ctx.library.id)
           ))
           .limit(1);
         
@@ -1272,7 +1286,7 @@ export const appRouter = router({
       }),
     
     // Add new inventory item for existing ISBN
-    addQuantity: protectedProcedure
+    addQuantity: libraryProcedure
       .input(z.object({
         isbn13: z.string(),
         quantity: z.number().min(1).max(100),
@@ -1280,8 +1294,6 @@ export const appRouter = router({
         location: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
         const items = [];
         for (let i = 0; i < input.quantity; i++) {
           const item = await createInventoryItem({
@@ -1290,7 +1302,7 @@ export const appRouter = router({
             conditionGrade: input.condition,
             locationCode: input.location || null,
             createdBy: ctx.user.id,
-            libraryId: library?.id ?? null,
+            libraryId: ctx.library.id,
           });
           items.push(item);
         }
@@ -1298,23 +1310,24 @@ export const appRouter = router({
       }),
     
     // Remove inventory items (mark as donated/missing)
-    removeQuantity: protectedProcedure
+    removeQuantity: libraryProcedure
       .input(z.object({
         isbn13: z.string(),
         quantity: z.number().min(1),
         reason: z.enum(['DONATED', 'MISSING', 'REJECTED']).default('DONATED'),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error('Database not available');
         
-        // Get available items for this ISBN
+        // Get available items for this ISBN scoped to the user's library
         const items = await db
           .select({ uuid: inventoryItems.uuid })
           .from(inventoryItems)
           .where(and(
             eq(inventoryItems.isbn13, input.isbn13),
-            eq(inventoryItems.status, 'AVAILABLE')
+            eq(inventoryItems.status, 'AVAILABLE'),
+            eq(inventoryItems.libraryId, ctx.library.id)
           ))
           .limit(input.quantity);
         
@@ -1333,7 +1346,7 @@ export const appRouter = router({
       }),
     
     // Record sale
-    recordSale: protectedProcedure
+    recordSale: libraryProcedure
       .input(z.object({
         uuid: z.string(),
         channel: z.string(),
@@ -1346,6 +1359,10 @@ export const appRouter = router({
         const item = await getInventoryItemByUuid(input.uuid);
         if (!item) {
           throw new Error('Item not found');
+        }
+        // Verify item belongs to the user's library
+        if (item.libraryId !== null && item.libraryId !== ctx.library.id) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Este artículo no pertenece a tu biblioteca.' });
         }
         
         const finalPrice = parseFloat(input.finalSalePrice);
@@ -1390,7 +1407,7 @@ export const appRouter = router({
       }),
     
     // Update sales channels for an inventory item
-    updateSalesChannels: protectedProcedure
+    updateSalesChannels: libraryProcedure
       .input(z.object({
         uuid: z.string(),
         salesChannels: z.array(z.enum([
@@ -1405,7 +1422,11 @@ export const appRouter = router({
           'Fnac',
         ])),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        const existing = await getInventoryItemByUuid(input.uuid);
+        if (!existing || (existing.libraryId !== null && existing.libraryId !== ctx.library.id)) {
+          throw new TRPCError({ code: 'FORBIDDEN', message: 'Este artículo no pertenece a tu biblioteca.' });
+        }
         const item = await updateInventoryItem(input.uuid, {
           salesChannels: JSON.stringify(input.salesChannels),
         });
@@ -1418,7 +1439,7 @@ export const appRouter = router({
   // ============================================================================
   batch: router({
     // Batch update from CSV
-    updateFromCsv: protectedProcedure
+    updateFromCsv: libraryAdminProcedure
       .input(z.object({
         updates: z.array(z.object({
           uuid: z.string(),
@@ -1441,10 +1462,10 @@ export const appRouter = router({
         };
       }),
     
-    // Admin-only: Clean up database
+    // Admin-only: Clean up database (system-level, not library-scoped)
     cleanupDatabase: protectedProcedure
       .mutation(async ({ ctx }) => {
-        // Check if user is admin
+        // Check if user is system admin
         if (ctx.user?.role !== 'admin') {
           throw new Error('Only admins can clean up the database');
         }
@@ -1469,7 +1490,7 @@ export const appRouter = router({
       }),
     
     // Import catalog from CSV
-    importCatalogFromCsv: protectedProcedure
+    importCatalogFromCsv: libraryProcedure
       .input(z.object({
         csvData: z.string(),
       }))
@@ -1625,8 +1646,7 @@ export const appRouter = router({
             // If quantity is provided, create inventory items
             if (quantity > 0) {
               // Get the user's active library for tenant isolation
-              const { getActiveLibraryForUser } = await import('./libraryDb');
-              const library = await getActiveLibraryForUser(ctx.user!.id);
+              const library = ctx.library;
               for (let j = 0; j < quantity; j++) {
                 const itemData: any = {
                   isbn13: isbn,
@@ -1718,7 +1738,7 @@ export const appRouter = router({
       }),
     
     // Export inventory to CSV (Strict Schema)
-    exportToCsv: protectedProcedure
+    exportToCsv: libraryAdminProcedure
       .input(z.object({
         filters: z.object({
           searchText: z.string().optional(),
@@ -1732,8 +1752,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         // 1. Fetch Data (grouped by ISBN like the UI)
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         const { items } = await searchInventory({
           ...input.filters,
           dateFrom: input.filters?.createdFrom,
@@ -1866,7 +1885,7 @@ export const appRouter = router({
       }),
 
     // Export inventory to Iberlibro/AbeBooks TSV format
-    exportToIberlibro: protectedProcedure
+    exportToIberlibro: libraryAdminProcedure
       .input(z.object({
         filters: z.object({
           searchTerm: z.string().optional(),
@@ -1882,8 +1901,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         // 1. Fetch inventory items with filters, excluding books already on Iberlibro
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         const result = await searchInventory({
           ...input.filters,
           dateFrom: input.filters?.createdFrom,
@@ -2063,7 +2081,7 @@ export const appRouter = router({
       }),
 
     // Export inventory to Todocolección CSV format
-    exportToTodocoleccion: protectedProcedure
+    exportToTodocoleccion: libraryAdminProcedure
       .input(z.object({
         filters: z.object({
           searchTerm: z.string().optional(),
@@ -2078,8 +2096,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         // 1. Fetch inventory items with filters
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         const result = await searchInventory({
           ...input.filters,
           dateFrom: input.filters?.createdFrom,
@@ -2174,7 +2191,7 @@ export const appRouter = router({
     // ============================================================================
     // CASA DEL LIBRO EXPORT
     // ============================================================================
-    exportToCasaDelLibro: protectedProcedure
+    exportToCasaDelLibro: libraryAdminProcedure
       .input(z.object({
         filters: z.object({
           searchTerm: z.string().optional(),
@@ -2189,8 +2206,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         // 1. Fetch inventory items with filters
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         const result = await searchInventory({
           ...input.filters,
           dateFrom: input.filters?.createdFrom,
@@ -2343,7 +2359,7 @@ export const appRouter = router({
     // ============================================================================
     // EBAY FILE EXCHANGE EXPORT
     // ============================================================================
-    exportToEbay: protectedProcedure
+    exportToEbay: libraryAdminProcedure
       .input(z.object({
         filters: z.object({
           searchTerm: z.string().optional(),
@@ -2357,8 +2373,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         // 1. Fetch inventory items
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         const items = await searchInventory({
           ...input.filters,
           dateFrom: input.filters?.createdFrom,
@@ -2509,30 +2524,27 @@ export const appRouter = router({
   // ============================================================================
   dashboard: router({
     // Get main KPIs
-    getKPIs: protectedProcedure.query(async ({ ctx }) => {
-      const { getActiveLibraryForUser } = await import('./libraryDb');
-      const library = await getActiveLibraryForUser(ctx.user!.id);
+    getKPIs: libraryProcedure.query(async ({ ctx }) => {
+      const library = ctx.library;
       return await getDashboardKPIs(library?.id);
     }),
     
     // Get sales by channel
-    getSalesByChannel: protectedProcedure.query(async ({ ctx }) => {
-      const { getActiveLibraryForUser } = await import('./libraryDb');
-      const library = await getActiveLibraryForUser(ctx.user!.id);
+    getSalesByChannel: libraryProcedure.query(async ({ ctx }) => {
+      const library = ctx.library;
       return await getSalesByChannel(library?.id);
     }),
     
     // Get top performing books
-    getTopBooks: protectedProcedure
+    getTopBooks: libraryProcedure
       .input(z.object({ limit: z.number().default(10) }))
       .query(async ({ ctx, input }) => {
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         return await getTopPerformingBooks(input.limit, library?.id);
       }),
     
     // Get sales transactions
-    getSalesTransactions: protectedProcedure
+    getSalesTransactions: libraryProcedure
       .input(z.object({
         channel: z.string().optional(),
         dateFrom: z.date().optional(),
@@ -2541,71 +2553,65 @@ export const appRouter = router({
         offset: z.number().default(0),
       }))
       .query(async ({ ctx, input }) => {
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         return await getSalesTransactions({ ...input, libraryId: library?.id });
       }),
     
     // Get inventory velocity (items added/sold over time)
-    getInventoryVelocity: protectedProcedure
+    getInventoryVelocity: libraryProcedure
       .input(z.object({
         dateFrom: z.date().optional(),
         dateTo: z.date().optional(),
         groupBy: z.enum(['day', 'week', 'month']).default('day'),
       }))
       .query(async ({ ctx, input }) => {
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         return await getInventoryVelocity({ ...input, libraryId: library?.id });
       }),
     
     // Get analytics by author
-    getAnalyticsByAuthor: protectedProcedure
+    getAnalyticsByAuthor: libraryProcedure
       .input(z.object({
         dateFrom: z.date().optional(),
         dateTo: z.date().optional(),
         limit: z.number().default(20),
       }))
       .query(async ({ ctx, input }) => {
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         return await getAnalyticsByAuthor({ ...input, libraryId: library?.id });
       }),
     
     // Get analytics by publisher
-    getAnalyticsByPublisher: protectedProcedure
+    getAnalyticsByPublisher: libraryProcedure
       .input(z.object({
         dateFrom: z.date().optional(),
         dateTo: z.date().optional(),
         limit: z.number().default(20),
       }))
       .query(async ({ ctx, input }) => {
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         return await getAnalyticsByPublisher({ ...input, libraryId: library?.id });
       }),
     
     // Get analytics by category
-    getAnalyticsByCategory: protectedProcedure
+    getAnalyticsByCategory: libraryProcedure
       .input(z.object({
         dateFrom: z.date().optional(),
         dateTo: z.date().optional(),
       }))
       .query(async ({ ctx, input }) => {
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         return await getAnalyticsByCategory({ ...input, libraryId: library?.id });
       }),
     
     // Get analytics by location
-    getAnalyticsByLocation: protectedProcedure
+    getAnalyticsByLocation: libraryProcedure
       .input(z.object({
         dateFrom: z.date().optional(),
         dateTo: z.date().optional(),
       }))
       .query(async ({ ctx, input }) => {
-        const { getActiveLibraryForUser } = await import('./libraryDb');
-        const library = await getActiveLibraryForUser(ctx.user!.id);
+        const library = ctx.library;
         return await getAnalyticsByLocation({ ...input, libraryId: library?.id });
       }),
   }),

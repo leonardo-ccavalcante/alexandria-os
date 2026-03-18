@@ -1,6 +1,13 @@
 /**
  * LibraryManagement.tsx
- * Page for managing the current library: view info, manage members, and create/revoke invitations.
+ *
+ * Full library administration page. Accessible to all members, but admin/owner
+ * controls are gated by role. Features:
+ *  - Library info card with edit (admin/owner)
+ *  - Member list with role badges, role change (owner), and remove (admin/owner)
+ *  - Manual user addition by searching registered users (admin/owner)
+ *  - Invitation link creation and management (admin/owner)
+ *  - Access denied screen for non-members
  */
 
 import { useState } from "react";
@@ -12,8 +19,26 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   Building2,
@@ -29,7 +54,13 @@ import {
   RefreshCw,
   Link as LinkIcon,
   Clock,
+  UserPlus,
+  Search,
+  Loader2,
+  Lock,
+  AlertTriangle,
 } from "lucide-react";
+import { useDebounce } from "@/hooks/useDebounce";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Role badge helper
@@ -73,17 +104,41 @@ export default function LibraryManagement() {
   );
 
   // ── Invitations ───────────────────────────────────────────────────────────
+  const canManage = library?.memberRole === "owner" || library?.memberRole === "admin";
+  const isOwner = library?.memberRole === "owner";
+
   const { data: invitations = [], isLoading: invitationsLoading } = trpc.library.invitations.list.useQuery(
     { libraryId: library?.id ?? 0 },
-    { enabled: !!library?.id && (library?.memberRole === "owner" || library?.memberRole === "admin") }
+    { enabled: !!library?.id && canManage }
+  );
+
+  // ── User search (for manual add) ──────────────────────────────────────────
+  const [addUserOpen, setAddUserOpen] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [addUserRole, setAddUserRole] = useState<"admin" | "member">("member");
+  const debouncedSearch = useDebounce(userSearchQuery, 400);
+
+  const { data: userSearchResults = [], isFetching: searchFetching } = trpc.library.searchUsers.useQuery(
+    { libraryId: library?.id ?? 0, query: debouncedSearch },
+    { enabled: !!library?.id && canManage && debouncedSearch.length >= 2 }
   );
 
   // ── Mutations ─────────────────────────────────────────────────────────────
+  const addMemberDirectlyMutation = trpc.library.addMemberDirectly.useMutation({
+    onSuccess: (data) => {
+      utils.library.getMembers.invalidate();
+      toast.success(`${data.user.name ?? "Usuario"} añadido como ${data.role === "admin" ? "administrador" : "miembro"}`);
+      setAddUserOpen(false);
+      setUserSearchQuery("");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const createInvitationMutation = trpc.library.invitations.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (inv) => {
       utils.library.invitations.list.invalidate();
-      toast.success("Invitación creada");
-      setInviteDialogOpen(false);
+      const url = `${window.location.origin}/join?code=${inv.code}`;
+      setCreatedInviteUrl(url);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -126,15 +181,11 @@ export default function LibraryManagement() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"member" | "admin">("member");
   const [inviteExpiry, setInviteExpiry] = useState(7);
+  const [createdInviteUrl, setCreatedInviteUrl] = useState<string | null>(null);
 
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
-
-  // ── Derived ───────────────────────────────────────────────────────────────
-  const myMembership = members.find((m) => m.userId === user?.id);
-  const canManage = myMembership?.role === "owner" || myMembership?.role === "admin";
-  const isOwner = myMembership?.role === "owner";
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function getInviteLink(code: string) {
@@ -156,7 +207,7 @@ export default function LibraryManagement() {
     return `Expira en ${diffDays} días`;
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Loading / no-library states ────────────────────────────────────────────
   if (libraryLoading) {
     return (
       <div className="container py-8">
@@ -170,27 +221,24 @@ export default function LibraryManagement() {
 
   if (!library) {
     return (
-      <div className="container py-8">
-        <Card className="max-w-md mx-auto">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Sin biblioteca
-            </CardTitle>
-            <CardDescription>
-              No perteneces a ninguna biblioteca todavía. Crea una nueva para empezar.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CreateLibraryCard />
-          </CardContent>
-        </Card>
+      <div className="container py-16 max-w-lg mx-auto text-center">
+        <div className="p-4 bg-amber-50 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+          <Lock className="h-10 w-10 text-amber-500" />
+        </div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-3">Sin acceso a biblioteca</h2>
+        <p className="text-gray-500 mb-6">
+          No perteneces a ninguna biblioteca. Necesitas una invitación de un administrador para acceder.
+        </p>
+        <p className="text-sm text-gray-400">
+          Si tienes un enlace de invitación, ábrelo para unirte.
+        </p>
       </div>
     );
   }
 
+  // ── Main render ────────────────────────────────────────────────────────────
   return (
-    <div className="container py-6 space-y-6">
+    <div className="container py-6 space-y-6 max-w-4xl">
       {/* ── Header ── */}
       <div className="flex items-start justify-between">
         <div>
@@ -270,6 +318,21 @@ export default function LibraryManagement() {
         )}
       </div>
 
+      {/* ── Access notice for non-admin members ─────────────────────────────── */}
+      {!canManage && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="flex items-start gap-3 pt-5">
+            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium text-amber-800">Acceso de solo lectura</p>
+              <p className="text-sm text-amber-700 mt-1">
+                Eres miembro de esta biblioteca. Solo los administradores y el propietario pueden añadir usuarios, crear invitaciones o modificar la configuración.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Members ── */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -281,87 +344,138 @@ export default function LibraryManagement() {
             <CardDescription>Personas con acceso a esta biblioteca</CardDescription>
           </div>
           {canManage && (
-            <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gap-1">
-                  <Plus className="h-4 w-4" />
-                  Invitar
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Crear invitación</DialogTitle>
-                  <DialogDescription>
-                    Genera un enlace de invitación para que alguien se una a esta biblioteca.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-2">
-                  <div className="space-y-1">
-                    <Label>Email (opcional)</Label>
-                    <Input
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="correo@ejemplo.com"
-                    />
-                    <p className="text-xs text-gray-500">
-                      Si especificas un email, la invitación quedará asociada a esa persona.
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Rol</Label>
-                    <Select
-                      value={inviteRole}
-                      onValueChange={(v) => setInviteRole(v as "member" | "admin")}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="member">Miembro</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Expira en</Label>
-                    <Select
-                      value={String(inviteExpiry)}
-                      onValueChange={(v) => setInviteExpiry(Number(v))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 día</SelectItem>
-                        <SelectItem value="3">3 días</SelectItem>
-                        <SelectItem value="7">7 días</SelectItem>
-                        <SelectItem value="14">14 días</SelectItem>
-                        <SelectItem value="30">30 días</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
-                    Cancelar
+            <div className="flex items-center gap-2">
+              {/* Manual add user button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={() => { setAddUserOpen(true); setUserSearchQuery(""); }}
+              >
+                <UserPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Añadir usuario</span>
+              </Button>
+
+              {/* Invite link button */}
+              <Dialog
+                open={inviteDialogOpen}
+                onOpenChange={(o) => {
+                  setInviteDialogOpen(o);
+                  if (!o) { setCreatedInviteUrl(null); setInviteEmail(""); }
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button size="sm" className="gap-1">
+                    <LinkIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">Crear invitación</span>
                   </Button>
-                  <Button
-                    onClick={() =>
-                      createInvitationMutation.mutate({
-                        libraryId: library.id,
-                        email: inviteEmail || undefined,
-                        role: inviteRole,
-                        expiresInDays: inviteExpiry,
-                      })
-                    }
-                    disabled={createInvitationMutation.isPending}
-                  >
-                    {createInvitationMutation.isPending ? "Creando..." : "Crear invitación"}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Crear enlace de invitación</DialogTitle>
+                    <DialogDescription>
+                      Genera un enlace de un solo uso para que alguien se una a esta biblioteca.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  {createdInviteUrl ? (
+                    <div className="space-y-4 py-2">
+                      <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                        <span className="text-sm text-green-800 font-medium">✓ Invitación creada</span>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Enlace de invitación</Label>
+                        <div className="flex gap-2">
+                          <Input value={createdInviteUrl} readOnly className="font-mono text-xs" />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => {
+                              navigator.clipboard.writeText(createdInviteUrl);
+                              toast.success("Enlace copiado");
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <p className="text-xs text-gray-500">Comparte este enlace por WhatsApp, email o cualquier otro canal.</p>
+                      </div>
+                      <DialogFooter>
+                        <Button onClick={() => { setInviteDialogOpen(false); setCreatedInviteUrl(null); setInviteEmail(""); }}>
+                          Cerrar
+                        </Button>
+                      </DialogFooter>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 py-2">
+                      <div className="space-y-1">
+                        <Label>Email (opcional)</Label>
+                        <Input
+                          type="email"
+                          value={inviteEmail}
+                          onChange={(e) => setInviteEmail(e.target.value)}
+                          placeholder="correo@ejemplo.com"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Si especificas un email, solo ese usuario podrá usar el enlace.
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Rol</Label>
+                        <Select
+                          value={inviteRole}
+                          onValueChange={(v) => setInviteRole(v as "member" | "admin")}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="member">Miembro</SelectItem>
+                            <SelectItem value="admin">Administrador</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Expira en</Label>
+                        <Select
+                          value={String(inviteExpiry)}
+                          onValueChange={(v) => setInviteExpiry(Number(v))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1 día</SelectItem>
+                            <SelectItem value="3">3 días</SelectItem>
+                            <SelectItem value="7">7 días</SelectItem>
+                            <SelectItem value="14">14 días</SelectItem>
+                            <SelectItem value="30">30 días</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
+                          Cancelar
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            createInvitationMutation.mutate({
+                              libraryId: library.id,
+                              email: inviteEmail || undefined,
+                              role: inviteRole,
+                              expiresInDays: inviteExpiry,
+                            })
+                          }
+                          disabled={createInvitationMutation.isPending}
+                        >
+                          {createInvitationMutation.isPending ? "Creando..." : "Crear invitación"}
+                        </Button>
+                      </DialogFooter>
+                    </div>
+                  )}
+                </DialogContent>
+              </Dialog>
+            </div>
           )}
         </CardHeader>
         <CardContent>
@@ -404,7 +518,7 @@ export default function LibraryManagement() {
                           })
                         }
                       >
-                        <SelectTrigger className="h-7 w-24 text-xs">
+                        <SelectTrigger className="h-7 w-28 text-xs">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -547,52 +661,125 @@ export default function LibraryManagement() {
           </CardContent>
         </Card>
       )}
-    </div>
-  );
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-component: create a new library
-// ─────────────────────────────────────────────────────────────────────────────
-function CreateLibraryCard() {
-  const utils = trpc.useUtils();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-
-  const createMutation = trpc.library.create.useMutation({
-    onSuccess: () => {
-      utils.library.me.invalidate();
-      utils.library.list.invalidate();
-      toast.success("Biblioteca creada");
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  return (
-    <div className="space-y-3">
-      <div className="space-y-1">
-        <Label>Nombre de la biblioteca</Label>
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Mi Biblioteca"
-        />
-      </div>
-      <div className="space-y-1">
-        <Label>Descripción (opcional)</Label>
-        <Input
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Descripción breve"
-        />
-      </div>
-      <Button
-        className="w-full"
-        onClick={() => createMutation.mutate({ name, description: description || undefined })}
-        disabled={!name.trim() || createMutation.isPending}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/* Manual Add User Dialog                                               */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      <Dialog
+        open={addUserOpen}
+        onOpenChange={(o) => {
+          setAddUserOpen(o);
+          if (!o) setUserSearchQuery("");
+        }}
       >
-        {createMutation.isPending ? "Creando..." : "Crear biblioteca"}
-      </Button>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5" />
+              Añadir usuario directamente
+            </DialogTitle>
+            <DialogDescription>
+              Busca un usuario registrado en el sistema y añádelo a la biblioteca sin necesidad de invitación. El usuario debe haber iniciado sesión al menos una vez.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Role selector */}
+            <div className="space-y-1">
+              <Label>Rol a asignar</Label>
+              <Select value={addUserRole} onValueChange={(v) => setAddUserRole(v as "admin" | "member")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="member">
+                    <span className="flex items-center gap-2">
+                      <User className="h-4 w-4" /> Miembro
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="admin">
+                    <span className="flex items-center gap-2">
+                      <Shield className="h-4 w-4" /> Administrador
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Search input */}
+            <div className="space-y-1">
+              <Label>Buscar usuario</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  className="pl-9"
+                  placeholder="Nombre, email o ID de usuario..."
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            {/* Search results */}
+            {debouncedSearch.length >= 2 && (
+              <div className="border rounded-lg divide-y max-h-52 overflow-y-auto">
+                {searchFetching ? (
+                  <div className="flex items-center justify-center py-6 text-gray-400 gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm">Buscando...</span>
+                  </div>
+                ) : userSearchResults.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-gray-400">
+                    No se encontraron usuarios disponibles
+                  </div>
+                ) : (
+                  userSearchResults.map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-blue-50 transition-colors text-left disabled:opacity-50"
+                      onClick={() => {
+                        if (!library) return;
+                        addMemberDirectlyMutation.mutate({
+                          libraryId: library.id,
+                          userId: u.id,
+                          role: addUserRole,
+                        });
+                      }}
+                      disabled={addMemberDirectlyMutation.isPending}
+                    >
+                      <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                        <User className="h-4 w-4 text-gray-500" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 truncate">{u.name ?? "Sin nombre"}</p>
+                        {u.email && <p className="text-xs text-gray-500 truncate">{u.email}</p>}
+                      </div>
+                      {addMemberDirectlyMutation.isPending && (
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-400 shrink-0" />
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+
+            {debouncedSearch.length > 0 && debouncedSearch.length < 2 && (
+              <p className="text-xs text-gray-400 text-center">Escribe al menos 2 caracteres para buscar</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setAddUserOpen(false); setUserSearchQuery(""); }}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

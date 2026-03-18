@@ -404,16 +404,17 @@ describe("Tenant isolation: inventory.search passes libraryId", () => {
     );
   });
 
-  it("passes undefined libraryId when user has no library", async () => {
+  it("throws FORBIDDEN when user has no library (access control enforced by libraryProcedure)", async () => {
     vi.mocked(libraryDb.getActiveLibraryForUser).mockResolvedValue(null);
     vi.mocked(dbModule.searchInventory).mockResolvedValue({ items: [], total: 0 });
 
     const caller = appRouter.createCaller(makeCtx());
-    await caller.inventory.search({ limit: 10, offset: 0 });
-
-    expect(dbModule.searchInventory).toHaveBeenCalledWith(
-      expect.objectContaining({ libraryId: undefined })
-    );
+    // libraryProcedure middleware must block access when user has no library
+    await expect(caller.inventory.search({ limit: 10, offset: 0 })).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    // searchInventory must NOT be called — access was blocked upstream
+    expect(dbModule.searchInventory).not.toHaveBeenCalled();
   });
 });
 

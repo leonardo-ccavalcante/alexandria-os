@@ -1230,3 +1230,16 @@
 - [x] Add restoreMocks: true to vitest config to prevent mock leakage between test files
 - [x] Add singleFork: true to vitest config to prevent database race conditions
 - [x] Final result: 324/324 tests passing, 0 failures
+
+
+## Role-Based UI Permissions & Manual User Addition (COMPLETED)
+- [x] Enforce backend access control: libraryProcedure middleware (FORBIDDEN when no library), libraryAdminProcedure (FORBIDDEN for non-admin)
+- [x] Add manual user-addition procedure: admin can add any registered user by name/email/openId
+- [x] Add user search/lookup procedure: find users by name, email, or openId, excludes existing members
+- [x] Show current library name/role badge in navigation header on all pages
+- [x] Restrict export operations (exportToCsv, exportToIberlibro, exportToTodocoleccion, exportToCasaDelLibro, exportToEbay) to libraryAdminProcedure at backend level
+- [x] Add "Añadir usuario directamente" dialog in Library Management page alongside invitation flow
+- [x] Show role badge (Propietario/Admin/Miembro) next to each member in the members list
+- [x] Disable export/enrich buttons for non-admin members with visual lock indicators and tooltips
+- [x] Write 19 access-control tests (libraryProcedure, libraryAdminProcedure, searchUsers, addMemberDirectly)
+- [x] Final result: 343/343 tests passing across 39 files, 0 failures
