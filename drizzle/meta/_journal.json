@@ -50,6 +50,13 @@
       "when": 1773778484858,
       "tag": "0006_high_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1773841063021,
+      "tag": "0007_flowery_moon_knight",
+      "breakpoints": true
     }
   ]
 }

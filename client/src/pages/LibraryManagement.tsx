@@ -6,7 +6,8 @@
  *  - Library info card with edit (admin/owner)
  *  - Member list with role badges, role change (owner), and remove (admin/owner)
  *  - Manual user addition by searching registered users (admin/owner)
- *  - Invitation link creation and management (admin/owner)
+ *  - Invitation link creation and management with one-click copy (admin/owner)
+ *  - Member activity audit log showing join method, who added them, last activity (admin/owner)
  *  - Access denied screen for non-members
  */
 
@@ -45,6 +46,7 @@ import {
   Users,
   Mail,
   Copy,
+  Check,
   Trash2,
   UserMinus,
   Shield,
@@ -59,6 +61,9 @@ import {
   Loader2,
   Lock,
   AlertTriangle,
+  Activity,
+  LogIn,
+  HandshakeIcon,
 } from "lucide-react";
 import { useDebounce } from "@/hooks/useDebounce";
 
@@ -88,6 +93,104 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Join method badge helper
+// ─────────────────────────────────────────────────────────────────────────────
+function JoinMethodBadge({ method }: { method: string | null }) {
+  if (method === "invitation") {
+    return (
+      <Badge variant="outline" className="gap-1 text-xs border-green-200 text-green-700 bg-green-50">
+        <LinkIcon className="h-3 w-3" /> Invitación
+      </Badge>
+    );
+  }
+  if (method === "manual") {
+    return (
+      <Badge variant="outline" className="gap-1 text-xs border-blue-200 text-blue-700 bg-blue-50">
+        <UserPlus className="h-3 w-3" /> Manual
+      </Badge>
+    );
+  }
+  if (method === "auto") {
+    return (
+      <Badge variant="outline" className="gap-1 text-xs border-gray-200 text-gray-600 bg-gray-50">
+        <LogIn className="h-3 w-3" /> Auto
+      </Badge>
+    );
+  }
+  if (method === "owner") {
+    return (
+      <Badge variant="outline" className="gap-1 text-xs border-amber-200 text-amber-700 bg-amber-50">
+        <Crown className="h-3 w-3" /> Fundador
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-xs text-gray-400">
+      —
+    </Badge>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Date formatting helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function formatRelativeDate(date: Date | string | null | undefined): string {
+  if (!date) return "—";
+  const d = new Date(date);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMins = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffMins < 1) return "Ahora mismo";
+  if (diffMins < 60) return `Hace ${diffMins} min`;
+  if (diffHours < 24) return `Hace ${diffHours}h`;
+  if (diffDays === 1) return "Ayer";
+  if (diffDays < 7) return `Hace ${diffDays} días`;
+  if (diffDays < 30) return `Hace ${Math.floor(diffDays / 7)} sem`;
+  return d.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function formatAbsoluteDate(date: Date | string | null | undefined): string {
+  if (!date) return "—";
+  return new Date(date).toLocaleDateString("es-ES", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Copy button with visual feedback
+// ─────────────────────────────────────────────────────────────────────────────
+function CopyButton({ text, label = "Copiar" }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      toast.success("Enlace copiado al portapapeles");
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className={`gap-1.5 transition-colors ${copied ? "border-green-400 text-green-700 bg-green-50" : ""}`}
+      onClick={handleCopy}
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? "¡Copiado!" : label}
+    </Button>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main page
 // ─────────────────────────────────────────────────────────────────────────────
 export default function LibraryManagement() {
@@ -112,6 +215,13 @@ export default function LibraryManagement() {
     { enabled: !!library?.id && canManage }
   );
 
+  // ── Activity log ──────────────────────────────────────────────────────────
+  const [showActivityLog, setShowActivityLog] = useState(false);
+  const { data: activityLog = [], isLoading: activityLoading } = trpc.library.getMemberActivityLog.useQuery(
+    { libraryId: library?.id ?? 0 },
+    { enabled: !!library?.id && canManage && showActivityLog }
+  );
+
   // ── User search (for manual add) ──────────────────────────────────────────
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [userSearchQuery, setUserSearchQuery] = useState("");
@@ -127,6 +237,7 @@ export default function LibraryManagement() {
   const addMemberDirectlyMutation = trpc.library.addMemberDirectly.useMutation({
     onSuccess: (data) => {
       utils.library.getMembers.invalidate();
+      utils.library.getMemberActivityLog.invalidate();
       toast.success(`${data.user.name ?? "Usuario"} añadido como ${data.role === "admin" ? "administrador" : "miembro"}`);
       setAddUserOpen(false);
       setUserSearchQuery("");
@@ -154,6 +265,7 @@ export default function LibraryManagement() {
   const removeMemberMutation = trpc.library.removeMember.useMutation({
     onSuccess: () => {
       utils.library.getMembers.invalidate();
+      utils.library.getMemberActivityLog.invalidate();
       toast.success("Miembro eliminado");
     },
     onError: (err) => toast.error(err.message),
@@ -190,11 +302,6 @@ export default function LibraryManagement() {
   // ── Helpers ───────────────────────────────────────────────────────────────
   function getInviteLink(code: string) {
     return `${window.location.origin}/join?code=${code}`;
-  }
-
-  function copyInviteLink(code: string) {
-    navigator.clipboard.writeText(getInviteLink(code));
-    toast.success("Enlace copiado al portapapeles");
   }
 
   function formatExpiry(date: Date | string) {
@@ -381,9 +488,10 @@ export default function LibraryManagement() {
                   {createdInviteUrl ? (
                     <div className="space-y-4 py-2">
                       <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <span className="text-sm text-green-800 font-medium">✓ Invitación creada</span>
+                        <Check className="h-4 w-4 text-green-600" />
+                        <span className="text-sm text-green-800 font-medium">Invitación creada con éxito</span>
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <Label>Enlace de invitación</Label>
                         <div className="flex gap-2">
                           <Input value={createdInviteUrl} readOnly className="font-mono text-xs" />
@@ -400,6 +508,8 @@ export default function LibraryManagement() {
                         </div>
                         <p className="text-xs text-gray-500">Comparte este enlace por WhatsApp, email o cualquier otro canal.</p>
                       </div>
+                      {/* Large copy button for easy sharing */}
+                      <CopyButton text={createdInviteUrl} label="Copiar enlace para compartir" />
                       <DialogFooter>
                         <Button onClick={() => { setInviteDialogOpen(false); setCreatedInviteUrl(null); setInviteEmail(""); }}>
                           Cerrar
@@ -590,8 +700,8 @@ export default function LibraryManagement() {
             ) : (
               <div className="divide-y">
                 {invitations.map((inv) => (
-                  <div key={inv.id} className="flex items-center justify-between py-3">
-                    <div className="min-w-0 flex-1">
+                  <div key={inv.id} className="py-3 space-y-2">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 flex-wrap">
                         <RoleBadge role={inv.role} />
                         {inv.email && (
@@ -605,60 +715,154 @@ export default function LibraryManagement() {
                           {formatExpiry(inv.expiresAt)}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400 font-mono mt-1 truncate">
+                      <div className="flex items-center gap-1 shrink-0">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-500 hover:text-red-700"
+                              title="Revocar invitación"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>¿Revocar invitación?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                El enlace dejará de funcionar inmediatamente.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-red-600 hover:bg-red-700"
+                                onClick={() =>
+                                  revokeInvitationMutation.mutate({
+                                    libraryId: library.id,
+                                    invitationId: inv.id,
+                                  })
+                                }
+                              >
+                                Revocar
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                    {/* Invitation link row with prominent copy button */}
+                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                      <p className="text-xs text-gray-500 font-mono flex-1 truncate min-w-0">
                         {getInviteLink(inv.code)}
                       </p>
-                    </div>
-                    <div className="flex items-center gap-1 ml-2 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => copyInviteLink(inv.code)}
-                        title="Copiar enlace"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-red-500 hover:text-red-700"
-                            title="Revocar invitación"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>¿Revocar invitación?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              El enlace dejará de funcionar inmediatamente.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-red-600 hover:bg-red-700"
-                              onClick={() =>
-                                revokeInvitationMutation.mutate({
-                                  libraryId: library.id,
-                                  invitationId: inv.id,
-                                })
-                              }
-                            >
-                              Revocar
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <CopyButton text={getInviteLink(inv.code)} label="Copiar" />
                     </div>
                   </div>
                 ))}
               </div>
             )}
           </CardContent>
+        </Card>
+      )}
+
+      {/* ── Member Activity Log ── */}
+      {canManage && (
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Activity className="h-4 w-4" />
+                  Registro de actividad
+                </CardTitle>
+                <CardDescription>
+                  Historial de incorporaciones y actividad reciente de los miembros
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowActivityLog(!showActivityLog)}
+              >
+                {showActivityLog ? "Ocultar" : "Ver registro"}
+              </Button>
+            </div>
+          </CardHeader>
+
+          {showActivityLog && (
+            <CardContent>
+              {activityLoading ? (
+                <div className="flex items-center gap-2 text-gray-400 text-sm py-4">
+                  <RefreshCw className="h-3 w-3 animate-spin" /> Cargando registro...
+                </div>
+              ) : activityLog.length === 0 ? (
+                <p className="text-sm text-gray-400">No hay datos de actividad.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-xs text-gray-500 uppercase tracking-wide">
+                        <th className="text-left pb-2 pr-4">Miembro</th>
+                        <th className="text-left pb-2 pr-4">Rol</th>
+                        <th className="text-left pb-2 pr-4">Cómo se unió</th>
+                        <th className="text-left pb-2 pr-4">Añadido por</th>
+                        <th className="text-left pb-2 pr-4">Fecha de unión</th>
+                        <th className="text-left pb-2">Última actividad</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {activityLog.map((entry) => (
+                        <tr key={entry.userId} className="hover:bg-gray-50">
+                          <td className="py-2.5 pr-4">
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                {entry.userName ?? `Usuario #${entry.userId}`}
+                                {entry.userId === user?.id && (
+                                  <span className="ml-1.5 text-xs text-gray-400">(tú)</span>
+                                )}
+                              </p>
+                              {entry.userEmail && (
+                                <p className="text-xs text-gray-400">{entry.userEmail}</p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <RoleBadge role={entry.role} />
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <JoinMethodBadge method={entry.joinedVia} />
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <span className="text-xs text-gray-600">
+                              {entry.addedByName ?? (entry.joinedVia === "invitation" ? "Enlace" : "—")}
+                            </span>
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <span
+                              className="text-xs text-gray-500"
+                              title={formatAbsoluteDate(entry.joinedAt)}
+                            >
+                              {formatRelativeDate(entry.joinedAt)}
+                            </span>
+                          </td>
+                          <td className="py-2.5">
+                            <span
+                              className="text-xs text-gray-500"
+                              title={formatAbsoluteDate(entry.lastActivityAt)}
+                            >
+                              {formatRelativeDate(entry.lastActivityAt)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          )}
         </Card>
       )}
 

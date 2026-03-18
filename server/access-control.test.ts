@@ -25,6 +25,8 @@ vi.mock("./libraryDb", () => ({
   updateLibrary: vi.fn(),
   removeMember: vi.fn(),
   updateMemberRole: vi.fn(),
+  addMemberDirectly: vi.fn(),
+  updateMemberLastActivity: vi.fn(() => Promise.resolve(undefined)),
   createInvitation: vi.fn(),
   validateInvitation: vi.fn(),
   acceptInvitation: vi.fn(),

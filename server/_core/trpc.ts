@@ -59,7 +59,7 @@ const requireLibraryMember = t.middleware(async opts => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
-  const { getActiveLibraryForUser } = await import('../libraryDb');
+  const { getActiveLibraryForUser, updateMemberLastActivity } = await import('../libraryDb');
   const library = await getActiveLibraryForUser(ctx.user.id);
 
   if (!library) {
@@ -68,6 +68,9 @@ const requireLibraryMember = t.middleware(async opts => {
       message: "No perteneces a ninguna biblioteca. Solicita una invitación al administrador.",
     });
   }
+
+  // Fire-and-forget: update lastActivityAt without blocking the request
+  updateMemberLastActivity(ctx.user.id, library.id).catch(() => {});
 
   return next({
     ctx: {
@@ -94,7 +97,7 @@ const requireLibraryAdmin = t.middleware(async opts => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
-  const { getActiveLibraryForUser } = await import('../libraryDb');
+  const { getActiveLibraryForUser, updateMemberLastActivity } = await import('../libraryDb');
   const library = await getActiveLibraryForUser(ctx.user.id);
 
   if (!library) {
@@ -110,6 +113,9 @@ const requireLibraryAdmin = t.middleware(async opts => {
       message: "Esta acción requiere permisos de administrador de biblioteca.",
     });
   }
+
+  // Fire-and-forget: update lastActivityAt without blocking the request
+  updateMemberLastActivity(ctx.user.id, library.id).catch(() => {});
 
   return next({
     ctx: {

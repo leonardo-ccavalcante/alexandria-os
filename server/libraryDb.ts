@@ -84,6 +84,9 @@ export async function createLibrary(
     libraryId: created[0].id,
     userId: ownerId,
     role: "owner",
+    joinedVia: "owner",
+    addedByUserId: null,
+    lastActivityAt: new Date(),
   });
 
   return created[0];
@@ -266,6 +269,9 @@ export async function acceptInvitation(
       libraryId: invitation.libraryId,
       userId,
       role: invitation.role,
+      joinedVia: "invitation",
+      addedByUserId: invitation.createdBy,
+      lastActivityAt: new Date(),
     });
   }
 
@@ -311,6 +317,49 @@ export async function revokeInvitation(
       and(
         eq(libraryInvitations.id, invitationId),
         eq(libraryInvitations.libraryId, libraryId)
+      )
+    );
+}
+
+/**
+ * Add a member directly (manual addition by an admin).
+ * Records who added them and sets joinedVia = 'manual'.
+ */
+export async function addMemberDirectly(
+  libraryId: number,
+  userId: number,
+  role: "admin" | "member",
+  addedByUserId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(libraryMembers).values({
+    libraryId,
+    userId,
+    role,
+    joinedVia: "manual",
+    addedByUserId,
+    lastActivityAt: new Date(),
+  });
+}
+
+/**
+ * Update the lastActivityAt timestamp for a library member.
+ * Called by the libraryProcedure middleware on each authenticated request.
+ */
+export async function updateMemberLastActivity(
+  userId: number,
+  libraryId: number
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+  await db
+    .update(libraryMembers)
+    .set({ lastActivityAt: new Date() })
+    .where(
+      and(
+        eq(libraryMembers.userId, userId),
+        eq(libraryMembers.libraryId, libraryId)
       )
     );
 }

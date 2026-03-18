@@ -3,20 +3,21 @@
  * tRPC procedures for multi-tenant library management.
  *
  * Procedures:
- *  library.me                → Get the active library for the current user
- *  library.list              → List all libraries the user belongs to
- *  library.create            → Create a new library (user becomes owner)
- *  library.update            → Update library name/description (owner/admin only)
- *  library.getMembers        → List members of the active library
- *  library.removeMember      → Remove a member (owner/admin only, cannot remove owner)
- *  library.updateMemberRole  → Change a member's role (owner only)
- *  library.searchUsers       → Search registered users by name/email/openId (admin only)
- *  library.addMemberDirectly → Add a registered user directly without invitation (admin only)
- *  library.invitations.list     → List active invitations
- *  library.invitations.create   → Create an invitation link
- *  library.invitations.revoke   → Revoke an invitation
- *  library.invitations.accept   → Accept an invitation (join a library)
- *  library.invitations.validate → Validate an invite code (public, for pre-login check)
+ *  library.me                    → Get the active library for the current user
+ *  library.list                  → List all libraries the user belongs to
+ *  library.create                → Create a new library (user becomes owner)
+ *  library.update                → Update library name/description (owner/admin only)
+ *  library.getMembers            → List members of the active library
+ *  library.removeMember          → Remove a member (owner/admin only, cannot remove owner)
+ *  library.updateMemberRole      → Change a member's role (owner only)
+ *  library.searchUsers           → Search registered users by name/email/openId (admin only)
+ *  library.addMemberDirectly     → Add a registered user directly without invitation (admin only)
+ *  library.getMemberActivityLog  → Get member join history and activity (admin only)
+ *  library.invitations.list      → List active invitations
+ *  library.invitations.create    → Create an invitation link
+ *  library.invitations.revoke    → Revoke an invitation
+ *  library.invitations.accept    → Accept an invitation (join a library)
+ *  library.invitations.validate  → Validate an invite code (public, for pre-login check)
  */
 
 import { TRPCError } from "@trpc/server";
@@ -24,6 +25,7 @@ import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../_core/trpc";
 import {
   acceptInvitation,
+  addMemberDirectly,
   createInvitation,
   createLibrary,
   getActiveInvitations,
@@ -247,6 +249,7 @@ export const libraryRouter = router({
    * Add a registered user directly to the library without an invitation.
    * Admin/owner only. The user must already have a Manus account (be in the users table).
    * This is the manual alternative to the invitation link flow.
+   * Records joinedVia='manual' and addedByUserId for audit trail.
    */
   addMemberDirectly: protectedProcedure
     .input(
@@ -282,18 +285,70 @@ export const libraryRouter = router({
         });
       }
 
-      // Add the user directly to the library
-      await db.insert(libraryMembers).values({
-        libraryId: input.libraryId,
-        userId: input.userId,
-        role: input.role,
-      });
+      // Add the user using the helper that sets joinedVia='manual' and addedByUserId
+      await addMemberDirectly(input.libraryId, input.userId, input.role, ctx.user!.id);
 
       return {
         success: true,
         user: targetUser[0],
         role: input.role,
       };
+    }),
+
+  /**
+   * Get the member activity log for a library.
+   * Returns all members with their join method, who added them, join date, and last activity.
+   * Admin/owner only.
+   */
+  getMemberActivityLog: protectedProcedure
+    .input(z.object({ libraryId: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      await assertMembership(ctx.user!.id, input.libraryId, "admin");
+
+      const db = await getDb();
+      if (!db) return [];
+
+      // Get all members with their activity data
+      const members = await db
+        .select({
+          userId: libraryMembers.userId,
+          role: libraryMembers.role,
+          joinedVia: libraryMembers.joinedVia,
+          addedByUserId: libraryMembers.addedByUserId,
+          joinedAt: libraryMembers.joinedAt,
+          lastActivityAt: libraryMembers.lastActivityAt,
+        })
+        .from(libraryMembers)
+        .where(eq(libraryMembers.libraryId, input.libraryId));
+
+      if (members.length === 0) return [];
+
+      // Enrich with user display names (members + who added them)
+      const allUserIds = Array.from(
+        new Set([
+          ...members.map((m) => m.userId),
+          ...members.filter((m) => m.addedByUserId != null).map((m) => m.addedByUserId!),
+        ])
+      );
+
+      const userRows = await db
+        .select({ id: users.id, name: users.name, email: users.email })
+        .from(users)
+        .where(inArray(users.id, allUserIds));
+
+      const userMap = new Map(userRows.map((u) => [u.id, u]));
+
+      return members.map((m) => ({
+        userId: m.userId,
+        userName: userMap.get(m.userId)?.name ?? null,
+        userEmail: userMap.get(m.userId)?.email ?? null,
+        role: m.role,
+        joinedVia: m.joinedVia,
+        addedByUserId: m.addedByUserId,
+        addedByName: m.addedByUserId ? (userMap.get(m.addedByUserId)?.name ?? null) : null,
+        joinedAt: m.joinedAt,
+        lastActivityAt: m.lastActivityAt,
+      }));
     }),
 
   // ─── Invitations sub-router ───────────────────────────────────────────────

@@ -1243,3 +1243,15 @@
 - [x] Disable export/enrich buttons for non-admin members with visual lock indicators and tooltips
 - [x] Write 19 access-control tests (libraryProcedure, libraryAdminProcedure, searchUsers, addMemberDirectly)
 - [x] Final result: 343/343 tests passing across 39 files, 0 failures
+
+
+## Invitation Sharing, Activity Log & Non-Member Landing Page (COMPLETED)
+- [x] Extend libraryMembers schema: add joinedVia (invitation/manual/owner), addedByUserId, joinedAt fields
+- [x] Add lastActivity tracking: update member lastActivity on each authenticated request
+- [x] Add getMemberActivityLog procedure: returns member list with joinedVia, addedBy name, joinedAt, lastActivity
+- [x] Add one-click "Copy link" button to invitation cards in LibraryManagement page
+- [x] Build member activity audit trail section in LibraryManagement page (toggle-able table)
+- [x] Build non-member landing page: clear CTA to paste invitation link or contact owner
+- [x] Wire non-member landing page into app routing (redirect users with no library)
+- [x] Fix test mocks: add updateMemberLastActivity and addMemberDirectly to all vi.mock(libraryDb) calls
+- [x] Production QA: 343/343 tests passing after all changes

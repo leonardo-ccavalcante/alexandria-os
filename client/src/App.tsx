@@ -17,7 +17,9 @@ import ExportarDatos from "./pages/ExportarDatos";
 import Configuracion from "./pages/Configuracion";
 import LibraryManagement from "./pages/LibraryManagement";
 import JoinLibrary from "./pages/JoinLibrary";
+import NoLibraryAccess from "./pages/NoLibraryAccess";
 import { useLibrary } from "./hooks/useLibrary";
+import { useAuth } from "./_core/hooks/useAuth";
 import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon, Menu, X, Building2, Crown, Shield, User as UserIcon } from "lucide-react";
 import { useState } from "react";
 
@@ -58,6 +60,15 @@ function LibraryIndicator() {
 
 function Router() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user, loading: authLoading, isAuthenticated } = useAuth();
+  const { hasLibrary, isLoading: libraryLoading } = useLibrary();
+
+  // Show NoLibraryAccess for authenticated users who have no library
+  // (but not on the /join route which handles the invitation flow)
+  const isJoinRoute = window.location.pathname === "/join";
+  if (!authLoading && !libraryLoading && isAuthenticated && !hasLibrary && !isJoinRoute) {
+    return <NoLibraryAccess />;
+  }
 
   const navLinks = [
     { href: "/triage", icon: BookOpen, label: "Triage" },

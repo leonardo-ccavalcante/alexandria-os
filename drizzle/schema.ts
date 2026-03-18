@@ -192,9 +192,16 @@ export const libraryMembers = mysqlTable("library_members", {
   userId: int("userId").notNull(),
   role: mysqlEnum("role", ["owner", "admin", "member"]).default("member").notNull(),
   joinedAt: timestamp("joinedAt").defaultNow().notNull(),
+  /** How the user joined: 'owner' (created the library), 'invitation' (used an invite link), 'manual' (added directly by an admin) */
+  joinedVia: mysqlEnum("joinedVia", ["owner", "invitation", "manual"]).default("manual").notNull(),
+  /** The user ID of the admin who added this member (null for owners) */
+  addedByUserId: int("addedByUserId"),
+  /** Last time this member performed any action in the library */
+  lastActivityAt: timestamp("lastActivityAt").defaultNow().notNull(),
 }, (table) => ({
   libraryUserIdx: index("idx_members_library_user").on(table.libraryId, table.userId),
   userIdx: index("idx_members_user").on(table.userId),
+  lastActivityIdx: index("idx_members_last_activity").on(table.lastActivityAt),
 }));
 
 export type LibraryMember = typeof libraryMembers.$inferSelect;
