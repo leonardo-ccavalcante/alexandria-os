@@ -109,3 +109,14 @@ temp/
 # Manus query logs (contains sensitive database info)
 .manus/
 db-query-*.json
+
+# Stale operational notes and migration artifacts (superseded by README.md)
+ENRICHMENT_BUGFIXES_*.md
+ENRICHMENT_FIXES.md
+OPTIMIZATION_REPORT.md
+PERFORMANCE_OPTIMIZATION_PLAN.md
+SALES_CHANNEL_IMPLEMENTATION_GUIDE.md
+SORTING_FIX_INSTRUCTIONS.md
+UX_POLISH_GUIDE.md
+dashboard-analytics-test-results.md
+migration-errors*.json
