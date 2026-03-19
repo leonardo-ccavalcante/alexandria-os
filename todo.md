@@ -1255,3 +1255,10 @@
 - [x] Wire non-member landing page into app routing (redirect users with no library)
 - [x] Fix test mocks: add updateMemberLastActivity and addMemberDirectly to all vi.mock(libraryDb) calls
 - [x] Production QA: 343/343 tests passing after all changes
+
+## Bug Fix — Triage Result Not Displayed (COMPLETED)
+- [x] Diagnose why book result card and error messages are not shown after ISBN scan/upload/manual entry
+- [x] Fix result display: show book info card on success (with decision badge, cover image, inventory status)
+- [x] Fix error display: show clear "book not found" message when lookup fails
+- [x] Ensure both camera scan and image-upload paths trigger the result display
+- [x] Refactor result state to discriminated union (found / not_found / pre1970) for type safety
