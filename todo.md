@@ -1289,3 +1289,18 @@
 - [x] Fix schema: remove lastVerifiedAt/lastVerifiedBy accidentally added to sales_transactions
 - [x] Apply all 5 critical bug fixes from pasted report (pool singleton, libraryId in JOIN, catalog.createItem libraryId, getCatalogMasterByIsbn error handling)
 - [x] Fix test suite: 299 passing, 44 skipped (6 legacy integration test files skipped pending DB-aware test refactor), 0 failing
+
+## Critical Bug Fixes — Newly Catalogued Books Invisible in /inventario
+- [ ] P0: Replace mysql.createPool() per-request with shared getPool() singleton in getGroupedByIsbn
+- [ ] P0: Move ii.libraryId = ? from WHERE clause to JOIN ON clause in getGroupedByIsbn
+- [ ] P1: Fix libraryId write in catalog.createItem: change library?.id ?? null to ctx.library.id
+- [ ] P1: Add diagnostic logging to catalog.createItem (libraryId, uuid, status confirmation)
+- [ ] P2: Fix getCatalogMasterByIsbn in db.ts: throw instead of returning undefined on DB failure
+- [ ] Verify: run tests, confirm 0 failures, checkpoint
+
+## P0 Bug Fix — isbn13 Stale Closure in QuickCatalogModal (Session 2)
+- [x] Root cause: QuickCatalogModal always mounted (condition was `result || !result`), so useState(isbn) captured empty string at initial mount
+- [x] Fix 1: Add `key={resolvedIsbn}` prop to QuickCatalogModal in Triage.tsx — forces remount whenever ISBN changes
+- [x] Fix 2: Add `useEffect(() => { if (open) { setEditableIsbn(isbn); ... } }, [open, isbn])` in QuickCatalogModal — belt-and-suspenders sync on open
+- [x] Verify: 299 tests passing, 0 failures
+- [x] DB check: no orphaned inventory_items rows with empty isbn13 found

@@ -477,6 +477,11 @@ export default function Triage() {
       {/* Quick Catalog Modal */}
       {(result || !result) && (
         <QuickCatalogModal
+          key={
+            result?.kind === 'found' ? (result.data.bookData?.isbn13 || isbn)
+            : result?.kind === 'pre1970' ? result.isbn
+            : isbn
+          }
           open={showQuickCatalog}
           onClose={() => setShowQuickCatalog(false)}
           onCatalogComplete={handleReset}

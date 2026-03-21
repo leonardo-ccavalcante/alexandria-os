@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -34,6 +34,18 @@ export function QuickCatalogModal({ open, onClose, onCatalogComplete, isbn, book
   const [editableAuthor, setEditableAuthor] = useState(bookData?.author || '');
   const [editablePublisher, setEditablePublisher] = useState(bookData?.publisher || '');
   const [editableYear, setEditableYear] = useState(bookData?.publicationYear?.toString() || '');
+
+  // Sync editable fields when the modal opens with a new book (belt-and-suspenders alongside key prop)
+  useEffect(() => {
+    if (open) {
+      setEditableIsbn(isbn);
+      setEditableTitle(bookData?.title || '');
+      setEditableAuthor(bookData?.author || '');
+      setEditablePublisher(bookData?.publisher || '');
+      setEditableYear(bookData?.publicationYear?.toString() || '');
+    }
+  }, [open, isbn]);
+
 
   const createItemMutation = trpc.catalog.createItem.useMutation();
 
