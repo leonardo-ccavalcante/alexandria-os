@@ -20,9 +20,12 @@ import { trpc } from "@/lib/trpc";
 
 type UploadResult = {
   imported?: number;
+  created?: number;
+  relocated?: number;
   updated?: number;
   skipped: number;
   errors: string[];
+  locationChanges?: Array<{ isbn: string; title: string; from: string; to: string }>;
 };
 
 export default function CargaMasiva() {
@@ -48,9 +51,14 @@ export default function CargaMasiva() {
   });
   
   const importCatalog = trpc.batch.importCatalogFromCsv.useMutation({
-    onSuccess: (result: { imported: number; skipped: number; errors: string[] }) => {
+    onSuccess: (result) => {
       setCatalogResult(result);
-      toast.success(`Importación completada: ${result.imported} libros importados`);
+      const msg = [
+        result.created > 0 ? `${result.created} nuevos` : '',
+        result.relocated > 0 ? `${result.relocated} reubicados` : '',
+        result.updated > 0 ? `${result.updated} verificados` : '',
+      ].filter(Boolean).join(', ');
+      toast.success(`Importación completada: ${msg || 'sin cambios'}`);
       setCatalogFile(null);
       setIsUploading(false);
     },
@@ -202,18 +210,30 @@ export default function CargaMasiva() {
   };
 
   const ResultDisplay = ({ result, type }: { result: UploadResult; type: 'catalog' | 'channels' }) => {
-    const successCount = result.imported || result.updated || 0;
+    const successCount = result.imported || result.created || result.updated || 0;
     const hasErrors = result.errors.length > 0;
     
     return (
       <div className="mt-4 space-y-3">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-green-600">
-            <CheckCircle2 className="h-5 w-5" />
-            <span className="font-medium">
-              {type === 'catalog' ? 'Importados' : 'Actualizados'}: {successCount}
-            </span>
-          </div>
+        <div className="flex items-center gap-4 flex-wrap">
+          {(result.created ?? 0) > 0 && (
+            <div className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-5 w-5" />
+              <span className="font-medium">Nuevos: {result.created}</span>
+            </div>
+          )}
+          {(result.relocated ?? 0) > 0 && (
+            <div className="flex items-center gap-2 text-blue-600">
+              <CheckCircle2 className="h-5 w-5" />
+              <span className="font-medium">Reubicados: {result.relocated}</span>
+            </div>
+          )}
+          {type === 'channels' && successCount > 0 && (
+            <div className="flex items-center gap-2 text-green-600">
+              <CheckCircle2 className="h-5 w-5" />
+              <span className="font-medium">Actualizados: {successCount}</span>
+            </div>
+          )}
           {result.skipped > 0 && (
             <div className="flex items-center gap-2 text-yellow-600">
               <AlertCircle className="h-5 w-5" />
@@ -241,6 +261,27 @@ export default function CargaMasiva() {
                 </li>
               )}
             </ul>
+          </div>
+        )}
+        {(result.locationChanges?.length ?? 0) > 0 && (
+          <div className="border border-blue-200 rounded-lg p-4 bg-blue-50 max-h-60 overflow-y-auto">
+            <h4 className="font-medium text-blue-900 mb-2">Cambios de ubicación ({result.locationChanges!.length}):</h4>
+            <table className="w-full text-sm text-blue-800">
+              <thead><tr className="text-left font-medium"><th className="pr-4">ISBN</th><th className="pr-4">Título</th><th className="pr-4">Desde</th><th>Hasta</th></tr></thead>
+              <tbody>
+                {result.locationChanges!.slice(0, 20).map((c, idx) => (
+                  <tr key={idx} className="border-t border-blue-100">
+                    <td className="pr-4 font-mono">{c.isbn}</td>
+                    <td className="pr-4 truncate max-w-[200px]">{c.title}</td>
+                    <td className="pr-4 font-mono text-orange-700">{c.from}</td>
+                    <td className="font-mono text-green-700">{c.to}</td>
+                  </tr>
+                ))}
+                {result.locationChanges!.length > 20 && (
+                  <tr><td colSpan={4} className="text-blue-600 font-medium pt-1">... y {result.locationChanges!.length - 20} más</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

@@ -2,7 +2,7 @@ import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Package, DollarSign, ShoppingCart, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Loader2, Package, DollarSign, ShoppingCart, AlertTriangle, CheckCircle2, Clock, MapPin } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -58,6 +58,9 @@ export default function Dashboard() {
     dateFrom,
     dateTo,
   });
+
+  const { data: staleCount } = trpc.batch.countStaleItems.useQuery({ thresholdDays: 90 });
+  const { data: staleItems } = trpc.batch.getStaleItems.useQuery({ thresholdDays: 90, limit: 10 }, { enabled: (staleCount ?? 0) > 0 });
 
   if (kpisLoading) {
     return (
@@ -212,6 +215,42 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Stale Books Alert */}
+        {(staleCount ?? 0) > 0 && (
+          <Card className="border-amber-200 bg-amber-50 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-amber-800 text-base font-medium">
+                <Clock className="h-5 w-5" />
+                Libros sin verificar en +90 días
+                <span className="ml-auto bg-amber-200 text-amber-900 text-xs font-bold px-2 py-0.5 rounded-full">{staleCount}</span>
+              </CardTitle>
+            </CardHeader>
+            {staleItems && staleItems.length > 0 && (
+              <CardContent>
+                <div className="space-y-2">
+                  {staleItems.map((item: any) => (
+                    <div key={item.uuid} className="flex items-center justify-between text-sm border-b border-amber-100 pb-2 last:border-0">
+                      <span className="font-mono text-amber-900 text-xs">{item.isbn13}</span>
+                      <div className="flex items-center gap-2 text-amber-700">
+                        <MapPin className="h-3 w-3" />
+                        <span>{item.locationCode || '—'}</span>
+                      </div>
+                      <span className="text-amber-600 text-xs">
+                        {item.lastVerifiedAt
+                          ? `Verificado ${Math.floor((Date.now() - new Date(item.lastVerifiedAt).getTime()) / 86400000)}d atrás`
+                          : `Catalogado ${Math.floor((Date.now() - new Date(item.createdAt).getTime()) / 86400000)}d atrás`}
+                      </span>
+                    </div>
+                  ))}
+                  {staleCount! > 10 && (
+                    <p className="text-xs text-amber-600 pt-1">... y {staleCount! - 10} más. Usa la página de Inventario para filtrar por estado.</p>
+                  )}
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
 
         {/* Analytics Tabs */}
         <Tabs defaultValue="author" className="space-y-4">

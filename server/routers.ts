@@ -5,9 +5,7 @@ import { publicProcedure, protectedProcedure, libraryProcedure, libraryAdminProc
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, sql, or, isNull } from "drizzle-orm";
-import mysql from 'mysql2/promise';
 import { catalogMasters, inventoryItems, salesTransactions, InsertCatalogMaster } from "../drizzle/schema";
-import { getDb } from "./db";
 import { extractIsbnFromImage } from "./aiIsbnExtractor";
 import { fetchExternalBookMetadata } from "./_core/externalBookApi";
 import { logExport, logDatabaseActivity } from "./auditLog";
@@ -23,6 +21,14 @@ import {
   createSalesTransaction,
   getSalesTransactions,
   getSystemSetting,
+  getDb,
+  getPool,
+  getActiveItemsByIsbnAndLibrary,
+  appendLocationLog,
+  getLocationHistory,
+  getLibraryLocationHistory,
+  countStaleItems,
+  getStaleItems,
   getAllSystemSettings,
   updateSystemSetting,
   getDashboardKPIs,
@@ -438,7 +444,8 @@ export const appRouter = router({
           console.log(`[Catalog] Created catalog master for synthetic ISBN: ${input.isbn13}`);
         }
         
-        const library = ctx.library;
+        const libraryId = ctx.library.id;
+        console.log(`[catalog.createItem] START isbn=${input.isbn13} libraryId=${libraryId} userId=${ctx.user.id}`);
         const item = await createInventoryItem({
           isbn13: input.isbn13,
           status: 'AVAILABLE',
@@ -448,9 +455,9 @@ export const appRouter = router({
           listingPrice: input.listingPrice,
           costOfGoods: '0.00',
           createdBy: ctx.user.id,
-          libraryId: library?.id ?? null,
+          libraryId: libraryId,
         });
-        
+        console.log(`[catalog.createItem] OK uuid=${item.uuid} isbn=${item.isbn13} libraryId=${item.libraryId} status=${item.status}`);
         return { success: true, item };
       }),
     
@@ -1061,8 +1068,9 @@ export const appRouter = router({
         if (!db) throw new Error('Database not available');
         
         // Build WHERE conditions as raw SQL strings to avoid alias mismatch
-        const whereConditions = ['ii.libraryId = ?'];
-        const whereParams: any[] = [ctx.library.id];
+        const joinParams: any[] = [ctx.library.id];  // For JOIN ON tenant filter
+        const whereConditions = ['1=1'];
+        const whereParams: any[] = [];
         
         if (input.searchText) {
           const search = `%${input.searchText}%`;
@@ -1139,7 +1147,7 @@ export const appRouter = router({
             MIN(CASE WHEN ii.status = 'AVAILABLE' AND ii.listingPrice IS NOT NULL THEN ii.listingPrice ELSE NULL END) as minPrice,
             MAX(CASE WHEN ii.status = 'AVAILABLE' AND ii.listingPrice IS NOT NULL THEN ii.listingPrice ELSE NULL END) as maxPrice
           FROM catalog_masters cm
-          LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+          LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13 AND ii.libraryId = ?
           WHERE ${whereClause}
           GROUP BY cm.isbn13, cm.title, cm.author, cm.publisher, cm.publicationYear, cm.categoryLevel1, cm.categoryLevel2, cm.categoryLevel3, cm.synopsis, cm.coverImageUrl, cm.pages, cm.edition, cm.language
           ${havingClause}
@@ -1156,20 +1164,22 @@ export const appRouter = router({
               SUM(CASE WHEN ii.status = 'AVAILABLE' THEN 1 ELSE 0 END) as availableQuantity,
               GROUP_CONCAT(DISTINCT CASE WHEN ii.status = 'AVAILABLE' AND ii.locationCode IS NOT NULL AND ii.locationCode != '' THEN ii.locationCode END ORDER BY ii.locationCode SEPARATOR ',') as locations
             FROM catalog_masters cm
-            LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13
+            LEFT JOIN inventory_items ii ON cm.isbn13 = ii.isbn13 AND ii.libraryId = ?
             WHERE ${whereClause}
             GROUP BY cm.isbn13
             ${havingClause}
           ) as filtered_books
         `;
 
-        // Use mysql2 pool directly for parameterized queries
-        const pool = mysql.createPool(process.env.DATABASE_URL!);
+        // Use shared singleton pool (never create per-request pools on TiDB)
+        const pool = await getPool();
+        if (!pool) throw new Error('Database pool not available');
+        const allParams = [...joinParams, ...whereParams];
         const [[rawRows], [countRows]] = await Promise.all([
-          pool.execute(dataQuery, whereParams),
-          pool.execute(countQuerySql, whereParams)
+          pool.execute(dataQuery, allParams),
+          pool.execute(countQuerySql, allParams)
         ]);
-        await pool.end();
+        // Do NOT call pool.end() -- shared singleton must remain open
         
         // Extract data from RowDataPacket format
         const rawItems = rawRows as any[];
@@ -1558,9 +1568,12 @@ export const appRouter = router({
         const rows = allRows.slice(1);
         
         const results = {
-          imported: 0,
+          created: 0,
+          relocated: 0,
+          updated: 0,
           skipped: 0,
           errors: [] as string[],
+          locationChanges: [] as Array<{ isbn: string; title: string; from: string; to: string }>,
         };
         
         for (let i = 0; i < rows.length; i++) {
@@ -1574,7 +1587,7 @@ export const appRouter = router({
             // Validate required fields
             let isbn = row['ISBN'] || row['isbn13'] || row['ISBN13'];
             if (!isbn) {
-              results.errors.push(`Row ${i + 2}: Missing ISBN`);
+              results.errors.push(`Fila ${i + 2}: ISBN faltante`);
               results.skipped++;
               continue;
             }
@@ -1584,7 +1597,7 @@ export const appRouter = router({
             
             // Validate ISBN length (should be 13 characters)
             if (isbn.length > 13) {
-              results.errors.push(`Row ${i + 2}: ISBN too long (${isbn.length} chars): ${isbn}`);
+              results.errors.push(`Fila ${i + 2}: ISBN demasiado largo (${isbn.length} chars): ${isbn}`);
               results.skipped++;
               continue;
             }
@@ -1643,30 +1656,68 @@ export const appRouter = router({
             
             await upsertCatalogMaster(catalogData);
             
-            // If quantity is provided, create inventory items
-            if (quantity > 0) {
-              // Get the user's active library for tenant isolation
-              const library = ctx.library;
-              for (let j = 0; j < quantity; j++) {
+            // Smart upsert: reconcile existing items vs desired state
+            const library = ctx.library;
+            if (quantity > 0 && library?.id) {
+              const existing = await getActiveItemsByIsbnAndLibrary(isbn, library.id);
+              const desiredLocations: string[] = [];
+              if (locationCode) {
+                // Expand locationCode into N copies (e.g. "01A; 01A; 02B" or just "01A" for N copies)
+                const locationParts = locationCode.split(/[;,]/).map((s: string) => s.trim()).filter(Boolean);
+                if (locationParts.length >= quantity) {
+                  desiredLocations.push(...locationParts.slice(0, quantity));
+                } else {
+                  // Repeat last location to fill quantity
+                  for (let j = 0; j < quantity; j++) {
+                    desiredLocations.push(locationParts[j % locationParts.length] || locationCode);
+                  }
+                }
+              }
+
+              // Relocate or update existing items
+              for (let j = 0; j < Math.min(existing.length, quantity); j++) {
+                const item = existing[j]!;
+                const desiredLoc = desiredLocations[j] || locationCode;
+                const needsRelocation = desiredLoc && item.locationCode !== desiredLoc;
+                const updateData: any = { lastVerifiedAt: new Date(), lastVerifiedBy: ctx.user.id };
+                if (needsRelocation) {
+                  updateData.locationCode = desiredLoc;
+                  results.relocated++;
+                  results.locationChanges.push({ isbn, title, from: item.locationCode || '—', to: desiredLoc });
+                  await appendLocationLog({ itemUuid: item.uuid, libraryId: library.id, fromLocation: item.locationCode || null, toLocation: desiredLoc, changedBy: ctx.user.id, reason: 'import' });
+                } else {
+                  results.updated++;
+                }
+                await updateInventoryItem(item.uuid, updateData);
+              }
+
+              // Create new items if CSV quantity > existing count
+              for (let j = existing.length; j < quantity; j++) {
                 const itemData: any = {
                   isbn13: isbn,
-                  conditionGrade: 'BUENO', // Default condition
+                  conditionGrade: 'BUENO',
                   status: 'AVAILABLE',
+                  libraryId: library.id,
+                  createdBy: ctx.user.id,
+                  lastVerifiedAt: new Date(),
+                  lastVerifiedBy: ctx.user.id,
                 };
-                if (locationCode) {
-                  itemData.locationCode = locationCode;
-                }
-                if (listingPrice !== undefined) {
-                  itemData.listingPrice = listingPrice.toFixed(2);
-                }
-                if (library?.id) {
-                  itemData.libraryId = library.id;
-                }
-                await createInventoryItem(itemData);
+                const loc = desiredLocations[j] || locationCode;
+                if (loc) itemData.locationCode = loc;
+                if (listingPrice !== undefined) itemData.listingPrice = listingPrice.toFixed(2);
+                const newItem = await createInventoryItem(itemData);
+                if (loc) await appendLocationLog({ itemUuid: newItem.uuid, libraryId: library.id, fromLocation: null, toLocation: loc, changedBy: ctx.user.id, reason: 'import' });
+                results.created++;
               }
+
+              // Mark surplus items as MISSING if CSV quantity < existing count
+              for (let j = quantity; j < existing.length; j++) {
+                const item = existing[j]!;
+                await updateInventoryItem(item.uuid, { status: 'MISSING' });
+              }
+            } else if (quantity === 0 && library?.id) {
+              // Quantity 0 means catalog-only, no inventory items
             }
-            
-            results.imported++;
           } catch (error: any) {
             results.errors.push(`Row ${i + 2}: ${error.message}`);
             results.skipped++;
@@ -1676,6 +1727,22 @@ export const appRouter = router({
         return results;
       }),
     
+    getLocationHistory: libraryProcedure
+      .input(z.object({ uuid: z.string() }))
+      .query(async ({ input }) => getLocationHistory(input.uuid)),
+
+    getLibraryLocationHistory: libraryAdminProcedure
+      .input(z.object({ limit: z.number().optional() }))
+      .query(async ({ input, ctx }) => getLibraryLocationHistory(ctx.library.id, input.limit)),
+
+    countStaleItems: libraryProcedure
+      .input(z.object({ thresholdDays: z.number().optional() }))
+      .query(async ({ input, ctx }) => countStaleItems(ctx.library.id, input.thresholdDays)),
+
+    getStaleItems: libraryAdminProcedure
+      .input(z.object({ thresholdDays: z.number().optional(), limit: z.number().optional(), offset: z.number().optional() }))
+      .query(async ({ input, ctx }) => getStaleItems({ libraryId: ctx.library.id, ...input })),
+
     // Import sales channels from CSV
     importSalesChannelsFromCsv: protectedProcedure
       .input(z.object({

@@ -57,6 +57,20 @@
       "when": 1773841063021,
       "tag": "0007_flowery_moon_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1773926138997,
+      "tag": "0008_black_joystick",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1774053394679,
+      "tag": "0009_round_abomination",
+      "breakpoints": true
     }
   ]
 }

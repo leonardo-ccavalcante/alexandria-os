@@ -17,7 +17,9 @@ import {
   InsertCatalogMaster,
   InsertInventoryItem,
   InsertSalesTransaction,
-  InsertPriceHistory
+  InsertPriceHistory,
+  locationLog,
+  LocationLog
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -131,7 +133,7 @@ export async function getUserByOpenId(openId: string) {
 
 export async function getCatalogMasterByIsbn(isbn13: string): Promise<CatalogMaster | undefined> {
   const db = await getDb();
-  if (!db) return undefined;
+  if (!db) throw new Error('Database not available');
   
   const result = await db.select().from(catalogMasters).where(eq(catalogMasters.isbn13, isbn13)).limit(1);
   return result[0];
@@ -946,4 +948,130 @@ export async function getLatestMarketplacePrices(isbn: string): Promise<PriceHis
     console.error("[Database] Failed to get latest marketplace prices:", error);
     return [];
   }
+}
+
+
+// --- Recatalogation helpers ---------------------------------------------------
+
+/** Return all non-sold, non-donated items for a given ISBN in a library. */
+export async function getActiveItemsByIsbnAndLibrary(
+  isbn13: string,
+  libraryId: number
+): Promise<InventoryItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(inventoryItems)
+    .where(
+      and(
+        eq(inventoryItems.isbn13, isbn13),
+        eq(inventoryItems.libraryId, libraryId),
+        sql`${inventoryItems.status} NOT IN ('SOLD','DONATED','REJECTED')`
+      )
+    );
+}
+
+/** Append a row to location_log. Fire-and-forget safe (never throws). */
+export async function appendLocationLog(entry: {
+  itemUuid: string;
+  libraryId: number;
+  fromLocation: string | null;
+  toLocation: string | null;
+  changedBy?: number;
+  reason?: string;
+}): Promise<void> {
+  try {
+    const db = await getDb();
+    if (!db) return;
+    await db.insert(locationLog).values({
+      itemUuid: entry.itemUuid,
+      libraryId: entry.libraryId,
+      fromLocation: entry.fromLocation ?? undefined,
+      toLocation: entry.toLocation ?? undefined,
+      changedBy: entry.changedBy,
+      reason: entry.reason ?? "import",
+    });
+  } catch (e) {
+    console.warn("[DB] appendLocationLog failed:", e);
+  }
+}
+
+/** Return location history for a single item, newest first. */
+export async function getLocationHistory(itemUuid: string): Promise<LocationLog[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(locationLog)
+    .where(eq(locationLog.itemUuid, itemUuid))
+    .orderBy(desc(locationLog.changedAt));
+}
+
+/** Return recent location changes across a whole library. */
+export async function getLibraryLocationHistory(
+  libraryId: number,
+  limit = 50
+): Promise<LocationLog[]> {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(locationLog)
+    .where(eq(locationLog.libraryId, libraryId))
+    .orderBy(desc(locationLog.changedAt))
+    .limit(limit);
+}
+
+/** Count items not verified within the last N days. */
+export async function countStaleItems(
+  libraryId: number,
+  thresholdDays = 90
+): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  const cutoff = new Date(Date.now() - thresholdDays * 86400_000);
+  const [row] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(inventoryItems)
+    .where(
+      and(
+        eq(inventoryItems.libraryId, libraryId),
+        sql`${inventoryItems.status} IN ('AVAILABLE','LISTED','RESERVED')`,
+        or(
+          isNull(inventoryItems.lastVerifiedAt),
+          lte(inventoryItems.lastVerifiedAt, cutoff)
+        )
+      )
+    );
+  return Number(row?.count ?? 0);
+}
+
+/** Return stale items (not verified within N days), oldest first. */
+export async function getStaleItems(params: {
+  libraryId: number;
+  thresholdDays?: number;
+  limit?: number;
+  offset?: number;
+}): Promise<InventoryItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const { libraryId, thresholdDays = 90, limit = 50, offset = 0 } = params;
+  const cutoff = new Date(Date.now() - thresholdDays * 86400_000);
+  return db
+    .select()
+    .from(inventoryItems)
+    .where(
+      and(
+        eq(inventoryItems.libraryId, libraryId),
+        sql`${inventoryItems.status} IN ('AVAILABLE','LISTED','RESERVED')`,
+        or(
+          isNull(inventoryItems.lastVerifiedAt),
+          lte(inventoryItems.lastVerifiedAt, cutoff)
+        )
+      )
+    )
+    .orderBy(inventoryItems.lastVerifiedAt)
+    .limit(limit)
+    .offset(offset);
 }

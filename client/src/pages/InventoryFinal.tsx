@@ -405,7 +405,7 @@ export default function InventoryFinal() {
             />
             
             <Select
-              options={publishers.map(p => ({ value: p, label: p }))}
+              options={publishers.filter(Boolean).map((p) => ({ value: p as string, label: p as string }))}
               onChange={(option) => setPublisher(option?.value || "")}
               placeholder="Editorial"
               isClearable
@@ -413,7 +413,7 @@ export default function InventoryFinal() {
             />
             
             <Select
-              options={authors.map(a => ({ value: a, label: a }))}
+              options={authors.map((a: string) => ({ value: a, label: a }))}
               onChange={(option) => setAuthor(option?.value || "")}
               placeholder="Autor"
               isClearable
@@ -423,7 +423,7 @@ export default function InventoryFinal() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mb-3 md:mb-4">
             <Select
-              options={locations.map(loc => ({ value: loc, label: loc }))}
+              options={locations.filter(Boolean).map((loc) => ({ value: loc as string, label: loc as string }))}
               onChange={(option) => setLocationFilter(option?.value || "")}
               placeholder="Ubicación"
               isClearable
@@ -892,7 +892,7 @@ export default function InventoryFinal() {
                   <div className="text-sm text-gray-600 mb-3">
                     {booksWithoutIsbnData.count} libro(s) sin ISBN válido
                   </div>
-                  {booksWithoutIsbnData.books.map((book, idx) => (
+                  {booksWithoutIsbnData.books.map((book: any, idx: number) => (
                     <div key={idx} className="bg-white rounded p-3 shadow-sm">
                       <div className="font-medium text-gray-900">{book.title}</div>
                       <div className="text-sm text-gray-600">{book.author}</div>

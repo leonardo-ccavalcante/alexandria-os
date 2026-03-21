@@ -1,4 +1,5 @@
 import { NOT_ADMIN_ERR_MSG, UNAUTHED_ERR_MSG } from '@shared/const';
+import { getActiveLibraryForUser, updateMemberLastActivity } from '../libraryDb';
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import type { TrpcContext } from "./context";
@@ -59,7 +60,6 @@ const requireLibraryMember = t.middleware(async opts => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
-  const { getActiveLibraryForUser, updateMemberLastActivity } = await import('../libraryDb');
   const library = await getActiveLibraryForUser(ctx.user.id);
 
   if (!library) {
@@ -97,7 +97,6 @@ const requireLibraryAdmin = t.middleware(async opts => {
     throw new TRPCError({ code: "UNAUTHORIZED", message: UNAUTHED_ERR_MSG });
   }
 
-  const { getActiveLibraryForUser, updateMemberLastActivity } = await import('../libraryDb');
   const library = await getActiveLibraryForUser(ctx.user.id);
 
   if (!library) {

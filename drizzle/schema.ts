@@ -101,6 +101,8 @@ export const inventoryItems = mysqlTable("inventory_items", {
   netProfit: decimal("netProfit", { precision: 6, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  lastVerifiedAt: timestamp("lastVerifiedAt"),
+  lastVerifiedBy: int("lastVerifiedBy"),
   createdBy: int("createdBy"),
 }, (table) => ({
   isbnIdx: index("idx_items_isbn").on(table.isbn13),
@@ -114,6 +116,19 @@ export const inventoryItems = mysqlTable("inventory_items", {
 
 export type InventoryItem = typeof inventoryItems.$inferSelect;
 export type InsertInventoryItem = typeof inventoryItems.$inferInsert;
+
+/** Audit trail: every time an item changes location, a row is appended here. */
+export const locationLog = mysqlTable("location_log", {
+  id: int("id").autoincrement().primaryKey(),
+  itemUuid: varchar("itemUuid", { length: 36 }).notNull(),
+  libraryId: int("libraryId").notNull(),
+  fromLocation: varchar("fromLocation", { length: 3 }),
+  toLocation: varchar("toLocation", { length: 3 }),
+  changedBy: int("changedBy"),
+  reason: varchar("reason", { length: 50 }).default("import"),
+  changedAt: timestamp("changedAt").defaultNow().notNull(),
+});
+export type LocationLog = typeof locationLog.$inferSelect;
 
 export const salesTransactions = mysqlTable("sales_transactions", {
   transactionId: varchar("transactionId", { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
