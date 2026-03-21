@@ -474,14 +474,9 @@ export default function Triage() {
         )}
       </div>
 
-      {/* Quick Catalog Modal */}
-      {(result || !result) && (
+      {/* Quick Catalog Modal — only mounted when open so useState always initialises with correct props */}
+      {showQuickCatalog && (
         <QuickCatalogModal
-          key={
-            result?.kind === 'found' ? (result.data.bookData?.isbn13 || isbn)
-            : result?.kind === 'pre1970' ? result.isbn
-            : isbn
-          }
           open={showQuickCatalog}
           onClose={() => setShowQuickCatalog(false)}
           onCatalogComplete={handleReset}

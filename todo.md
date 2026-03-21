@@ -1304,3 +1304,8 @@
 - [x] Fix 2: Add `useEffect(() => { if (open) { setEditableIsbn(isbn); ... } }, [open, isbn])` in QuickCatalogModal — belt-and-suspenders sync on open
 - [x] Verify: 299 tests passing, 0 failures
 - [x] DB check: no orphaned inventory_items rows with empty isbn13 found
+
+## Definitive Fix — isbn13 always empty in QuickCatalogModal
+- [x] Rewrite modal rendering in Triage.tsx: changed guard from (result || !result) to showQuickCatalog — modal now only mounts when open, so useState always initialises with correct props
+- [x] Remove the always-true (result || !result) guard that causes stale mount
+- [x] Verify: 299 tests passing, 0 failures

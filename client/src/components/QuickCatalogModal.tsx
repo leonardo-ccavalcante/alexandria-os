@@ -35,16 +35,15 @@ export function QuickCatalogModal({ open, onClose, onCatalogComplete, isbn, book
   const [editablePublisher, setEditablePublisher] = useState(bookData?.publisher || '');
   const [editableYear, setEditableYear] = useState(bookData?.publicationYear?.toString() || '');
 
-  // Sync editable fields when the modal opens with a new book (belt-and-suspenders alongside key prop)
+  // Sync editable fields whenever isbn or bookData props change (covers both remount and prop update cases)
   useEffect(() => {
-    if (open) {
-      setEditableIsbn(isbn);
-      setEditableTitle(bookData?.title || '');
-      setEditableAuthor(bookData?.author || '');
-      setEditablePublisher(bookData?.publisher || '');
-      setEditableYear(bookData?.publicationYear?.toString() || '');
-    }
-  }, [open, isbn]);
+    setEditableIsbn(isbn || '');
+    setEditableTitle(bookData?.title || '');
+    setEditableAuthor(bookData?.author || '');
+    setEditablePublisher(bookData?.publisher || '');
+    setEditableYear(bookData?.publicationYear?.toString() || '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isbn, bookData?.title, bookData?.author, bookData?.publisher, bookData?.publicationYear]);
 
 
   const createItemMutation = trpc.catalog.createItem.useMutation();
@@ -55,12 +54,12 @@ export function QuickCatalogModal({ open, onClose, onCatalogComplete, isbn, book
     { enabled: !!isbn }
   );
 
-  // Update listing price when condition changes
-  useState(() => {
+  // Update listing price when price data or condition changes
+  useEffect(() => {
     if (priceData?.suggestedPrice) {
       setListingPrice(priceData.suggestedPrice.toFixed(2));
     }
-  });
+  }, [priceData?.suggestedPrice]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
