@@ -1309,3 +1309,9 @@
 - [x] Rewrite modal rendering in Triage.tsx: changed guard from (result || !result) to showQuickCatalog — modal now only mounts when open, so useState always initialises with correct props
 - [x] Remove the always-true (result || !result) guard that causes stale mount
 - [x] Verify: 299 tests passing, 0 failures
+
+## Bug — Inventory query excludes books with libraryId from unfiltered list
+- [ ] Fix getGroupedByIsbn: books appear only when filtering by location, not in unfiltered view
+
+## Bug — CSV catalog upload fails with "Failed to fetch"
+- [x] Fix CSV catalog upload: increased HTTP server timeout to 5 min; batch pre-fetch all existing inventory items in one query before processing rows (reduces DB round-trips from O(n) to O(1) for fetch step)

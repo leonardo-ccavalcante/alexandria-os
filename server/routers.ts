@@ -24,6 +24,7 @@ import {
   getDb,
   getPool,
   getActiveItemsByIsbnAndLibrary,
+  getActiveItemsByIsbnsBatch,
   appendLocationLog,
   getLocationHistory,
   getLibraryLocationHistory,
@@ -1564,9 +1565,30 @@ export const appRouter = router({
           throw new Error('CSV file is empty or invalid');
         }
         
-        const headers = allRows[0];
+        const headers = allRows[0]!;
         const rows = allRows.slice(1);
-        
+
+        // --- Batch pre-fetch: collect all valid ISBNs then fetch existing items in one query ---
+        const isbnColIdx = (() => {
+          for (const name of ['ISBN', 'isbn13', 'ISBN13']) {
+            const idx = headers.indexOf(name);
+            if (idx !== -1) return idx;
+          }
+          return -1;
+        })();
+        const allIsbns: string[] = [];
+        if (isbnColIdx !== -1) {
+          for (const r of rows) {
+            const rawIsbn = (r[isbnColIdx] || '').replace(/^['"`]+/, '').replace(/['"`]+$/, '').trim();
+            if (rawIsbn && rawIsbn.length <= 13) allIsbns.push(rawIsbn);
+          }
+        }
+        const existingItemsMap = await getActiveItemsByIsbnsBatch(
+          Array.from(new Set(allIsbns)),
+          ctx.library.id
+        );
+        // ---------------------------------------------------------------------------------
+
         const results = {
           created: 0,
           relocated: 0,
@@ -1659,7 +1681,8 @@ export const appRouter = router({
             // Smart upsert: reconcile existing items vs desired state
             const library = ctx.library;
             if (quantity > 0 && library?.id) {
-              const existing = await getActiveItemsByIsbnAndLibrary(isbn, library.id);
+              // Use pre-fetched map; fall back to live query only if isbn was not pre-collected
+              const existing = existingItemsMap.get(isbn) ?? await getActiveItemsByIsbnAndLibrary(isbn, library.id);
               const desiredLocations: string[] = [];
               if (locationCode) {
                 // Expand locationCode into N copies (e.g. "01A; 01A; 02B" or just "01A" for N copies)

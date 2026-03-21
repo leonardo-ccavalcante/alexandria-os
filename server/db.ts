@@ -1,4 +1,4 @@
-import { eq, desc, and, or, gte, lte, like, isNull, sql } from "drizzle-orm";
+import { eq, desc, and, or, gte, lte, like, isNull, sql, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from 'mysql2/promise';
 import { 
@@ -970,6 +970,35 @@ export async function getActiveItemsByIsbnAndLibrary(
         sql`${inventoryItems.status} NOT IN ('SOLD','DONATED','REJECTED')`
       )
     );
+}
+
+/**
+ * Batch fetch active inventory items for multiple ISBNs in a single query.
+ * Returns a Map<isbn13, InventoryItem[]> for O(1) lookup during CSV import.
+ */
+export async function getActiveItemsByIsbnsBatch(
+  isbn13s: string[],
+  libraryId: number
+): Promise<Map<string, InventoryItem[]>> {
+  const db = await getDb();
+  const result = new Map<string, InventoryItem[]>();
+  if (!db || isbn13s.length === 0) return result;
+  const rows = await db
+    .select()
+    .from(inventoryItems)
+    .where(
+      and(
+        inArray(inventoryItems.isbn13, isbn13s),
+        eq(inventoryItems.libraryId, libraryId),
+        sql`${inventoryItems.status} NOT IN ('SOLD','DONATED','REJECTED')`
+      )
+    );
+  for (const row of rows) {
+    const list = result.get(row.isbn13) ?? [];
+    list.push(row);
+    result.set(row.isbn13, list);
+  }
+  return result;
 }
 
 /** Append a row to location_log. Fire-and-forget safe (never throws). */
