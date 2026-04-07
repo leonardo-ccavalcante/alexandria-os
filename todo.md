@@ -1315,3 +1315,15 @@
 
 ## Bug — CSV catalog upload fails with "Failed to fetch"
 - [x] Fix CSV catalog upload: increased HTTP server timeout to 5 min; batch pre-fetch all existing inventory items in one query before processing rows (reduces DB round-trips from O(n) to O(1) for fetch step)
+
+## Bug — Clean database button does not clear all data
+- [x] Fixed: library-scoped delete (locationLog, salesTransactions, exportHistory, inventoryItems, orphaned catalogMasters)
+
+## Bug — CSV upload does not import all rows
+- [x] Fixed: chunked upload 200 rows/batch with progress toasts
+
+## Bug — Clean database button does not clear all data
+- [x] Fixed: library-scoped delete (locationLog, salesTransactions, exportHistory, inventoryItems, orphaned catalogMasters)
+
+## Bug — CSV upload does not import all rows
+- [x] Fixed: chunked upload 200 rows/batch with progress toasts

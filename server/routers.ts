@@ -5,7 +5,7 @@ import { publicProcedure, protectedProcedure, libraryProcedure, libraryAdminProc
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { eq, and, sql, or, isNull } from "drizzle-orm";
-import { catalogMasters, inventoryItems, salesTransactions, InsertCatalogMaster } from "../drizzle/schema";
+import { catalogMasters, inventoryItems, salesTransactions, locationLog, exportHistory, InsertCatalogMaster } from "../drizzle/schema";
 import { extractIsbnFromImage } from "./aiIsbnExtractor";
 import { fetchExternalBookMetadata } from "./_core/externalBookApi";
 import { logExport, logDatabaseActivity } from "./auditLog";
@@ -1473,30 +1473,41 @@ export const appRouter = router({
         };
       }),
     
-    // Admin-only: Clean up database (system-level, not library-scoped)
-    cleanupDatabase: protectedProcedure
+    // Library-admin: Clean up this library's catalog and inventory data only
+    cleanupDatabase: libraryAdminProcedure
       .mutation(async ({ ctx }) => {
-        // Check if user is system admin
-        if (ctx.user?.role !== 'admin') {
-          throw new Error('Only admins can clean up the database');
-        }
-        
         const db = await getDb();
         if (!db) throw new Error('Database not available');
         
+        const libraryId = ctx.library.id;
+        
         try {
-          // Delete all inventory items
-          await db.delete(inventoryItems);
+          // 1. Delete location log for this library
+          await db.delete(locationLog).where(eq(locationLog.libraryId, libraryId));
           
-          // Delete all catalog masters
-          await db.delete(catalogMasters);
+          // 2. Delete sales transactions for this library
+          await db.delete(salesTransactions).where(eq(salesTransactions.libraryId, libraryId));
+          
+          // 3. Delete export history for this library
+          await db.delete(exportHistory).where(eq(exportHistory.libraryId, libraryId));
+          
+          // 4. Delete inventory items for this library
+          await db.delete(inventoryItems).where(eq(inventoryItems.libraryId, libraryId));
+          
+          // 5. Delete catalog masters that are now orphaned (no inventory items reference them)
+          await db.execute(
+            sql`DELETE cm FROM catalog_masters cm
+                WHERE NOT EXISTS (
+                  SELECT 1 FROM inventory_items ii WHERE ii.isbn13 = cm.isbn13
+                )`
+          );
           
           return {
             success: true,
-            message: 'Database cleaned successfully',
+            message: 'Library data cleaned successfully',
           };
         } catch (error: any) {
-          throw new Error(`Failed to clean database: ${error.message}`);
+          throw new Error(`Failed to clean library data: ${error.message}`);
         }
       }),
     

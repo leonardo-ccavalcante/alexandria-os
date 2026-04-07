@@ -50,23 +50,7 @@ export default function CargaMasiva() {
     },
   });
   
-  const importCatalog = trpc.batch.importCatalogFromCsv.useMutation({
-    onSuccess: (result) => {
-      setCatalogResult(result);
-      const msg = [
-        result.created > 0 ? `${result.created} nuevos` : '',
-        result.relocated > 0 ? `${result.relocated} reubicados` : '',
-        result.updated > 0 ? `${result.updated} verificados` : '',
-      ].filter(Boolean).join(', ');
-      toast.success(`Importación completada: ${msg || 'sin cambios'}`);
-      setCatalogFile(null);
-      setIsUploading(false);
-    },
-    onError: (error: any) => {
-      toast.error(`Error al importar catálogo: ${error.message}`);
-      setIsUploading(false);
-    },
-  });
+  const importCatalog = trpc.batch.importCatalogFromCsv.useMutation();
   
   const importChannels = trpc.batch.importSalesChannelsFromCsv.useMutation({
     onSuccess: (result: { updated: number; skipped: number; errors: string[] }) => {
@@ -89,16 +73,49 @@ export default function CargaMasiva() {
 
     setIsUploading(true);
     setCatalogResult(null);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const csvData = e.target?.result as string;
-      importCatalog.mutate({ csvData });
-    };
-    reader.onerror = () => {
-      toast.error('Error al leer el archivo');
+
+    try {
+      const fullText = await catalogFile.text();
+      // Split into lines preserving quoted multi-line fields
+      const lines = fullText.split(/\r?\n/);
+      if (lines.length < 2) {
+        toast.error('El archivo CSV está vacío o no tiene datos');
+        setIsUploading(false);
+        return;
+      }
+      const headerLine = lines[0]!;
+      const dataLines = lines.slice(1).filter(l => l.trim().length > 0);
+      const CHUNK_SIZE = 200;
+      const totalChunks = Math.ceil(dataLines.length / CHUNK_SIZE);
+
+      const aggregated = { created: 0, relocated: 0, updated: 0, skipped: 0, errors: [] as string[], locationChanges: [] as Array<{ isbn: string; title: string; from: string; to: string }> };
+
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = dataLines.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        const csvData = [headerLine, ...chunk].join('\n');
+        toast.info(`Procesando bloque ${i + 1} de ${totalChunks}...`, { id: 'csv-progress' });
+        const result = await importCatalog.mutateAsync({ csvData });
+        aggregated.created += result.created ?? 0;
+        aggregated.relocated += result.relocated ?? 0;
+        aggregated.updated += result.updated ?? 0;
+        aggregated.skipped += result.skipped ?? 0;
+        aggregated.errors.push(...(result.errors ?? []));
+        aggregated.locationChanges!.push(...(result.locationChanges ?? []));
+      }
+
+      setCatalogResult(aggregated);
+      const msg = [
+        aggregated.created > 0 ? `${aggregated.created} nuevos` : '',
+        aggregated.relocated > 0 ? `${aggregated.relocated} reubicados` : '',
+        aggregated.updated > 0 ? `${aggregated.updated} verificados` : '',
+      ].filter(Boolean).join(', ');
+      toast.success(`Importación completada: ${msg || 'sin cambios'}`, { id: 'csv-progress' });
+      setCatalogFile(null);
+    } catch (error: any) {
+      toast.error(`Error al importar catálogo: ${error.message}`, { id: 'csv-progress' });
+    } finally {
       setIsUploading(false);
-    };
-    reader.readAsText(catalogFile);
+    }
   };
 
   const handleChannelsUpload = async () => {
