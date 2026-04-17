@@ -2832,7 +2832,36 @@ export const appRouter = router({
             eq(shelfAuditSessions.status, 'ACTIVE'),
           ))
           .limit(1);
-        return session ?? null;
+        if (!session) return null;
+
+        // Enrich with catalog data for expected items
+        const expectedUuids = (session.expectedItemUuids as string[]);
+        let expectedItemDetails: import('../shared/auditTypes').ExpectedItemDetail[] = [];
+        if (expectedUuids.length > 0) {
+          const rows = await db
+            .select({
+              uuid: inventoryItems.uuid,
+              isbn13: inventoryItems.isbn13,
+              title: catalogMasters.title,
+              author: catalogMasters.author,
+              locationCode: inventoryItems.locationCode,
+            })
+            .from(inventoryItems)
+            .innerJoin(catalogMasters, eq(inventoryItems.isbn13, catalogMasters.isbn13))
+            .where(and(
+              inArray(inventoryItems.uuid, expectedUuids),
+              eq(inventoryItems.libraryId, ctx.library.id),
+            ));
+          expectedItemDetails = rows.map(r => ({
+            uuid: r.uuid,
+            isbn13: r.isbn13,
+            title: r.title ?? null,
+            author: r.author ?? null,
+            locationCode: r.locationCode ?? null,
+          }));
+        }
+
+        return { ...session, expectedItemDetails };
       }),
 
     initiateShelfAudit: libraryProcedure
@@ -3041,6 +3070,87 @@ Return JSON: { "books": [ ... ] }`;
           .set({ conflictItems: [...(session.conflictItems as ConflictItem[]), conflict] })
           .where(eq(shelfAuditSessions.id, input.sessionId));
         return { outcome: 'conflict' as const, fromLocation: item.locationCode };
+      }),
+
+    applyPhotoReconciliation: libraryProcedure
+      .input(z.object({
+        sessionId: z.string().uuid(),
+        moves: z.array(z.string().uuid()),
+        clearLocations: z.array(z.string().uuid()),
+      }).refine(
+        ({ moves, clearLocations }) => {
+          const moveSet = new Set(moves);
+          return !clearLocations.some(u => moveSet.has(u));
+        },
+        { message: 'moves and clearLocations must not overlap' },
+      ))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+
+        const [session] = await db
+          .select()
+          .from(shelfAuditSessions)
+          .where(and(
+            eq(shelfAuditSessions.id, input.sessionId),
+            eq(shelfAuditSessions.libraryId, ctx.library.id),
+            eq(shelfAuditSessions.status, 'ACTIVE'),
+          ))
+          .limit(1);
+        if (!session) throw new TRPCError({ code: 'NOT_FOUND', message: 'Sesión no encontrada' });
+
+        const now = new Date();
+        const loc = session.locationCode;
+        const newConfirmed = [...(session.confirmedItemUuids as string[])];
+
+        // Process moves: set locationCode = session.locationCode
+        if (input.moves.length > 0) {
+          await db.update(inventoryItems)
+            .set({ locationCode: loc })
+            .where(and(
+              inArray(inventoryItems.uuid, input.moves),
+              eq(inventoryItems.libraryId, ctx.library.id),
+            ));
+          await db.insert(locationLog).values(
+            input.moves.map(uuid => ({
+              itemUuid: uuid,
+              libraryId: ctx.library.id,
+              changedBy: ctx.user.id,
+              reason: `Shelf photo reconciliation — moved to ${loc}`,
+              changedAt: now,
+            })),
+          );
+          newConfirmed.push(...input.moves);
+        }
+
+        // Process clearLocations: set locationCode = null (status unchanged)
+        if (input.clearLocations.length > 0) {
+          await db.update(inventoryItems)
+            .set({ locationCode: null })
+            .where(and(
+              inArray(inventoryItems.uuid, input.clearLocations),
+              eq(inventoryItems.libraryId, ctx.library.id),
+            ));
+          await db.insert(locationLog).values(
+            input.clearLocations.map(uuid => ({
+              itemUuid: uuid,
+              libraryId: ctx.library.id,
+              changedBy: ctx.user.id,
+              reason: `Shelf photo reconciliation — location cleared (not found at ${loc})`,
+              changedAt: now,
+            })),
+          );
+        }
+
+        // Mark session as reconciled and update confirmedItemUuids
+        await db.update(shelfAuditSessions)
+          .set({
+            confirmedItemUuids: newConfirmed,
+            photoReconciled: true,
+          })
+          .where(eq(shelfAuditSessions.id, input.sessionId));
+
+        return { moved: input.moves.length, cleared: input.clearLocations.length };
       }),
 
     completeShelfAudit: libraryProcedure
