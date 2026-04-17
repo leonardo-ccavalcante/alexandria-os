@@ -4,6 +4,14 @@ import type { TrpcContext } from "./_core/context";
 import * as externalBookApi from "./_core/externalBookApi";
 import * as db from "./db";
 
+// enrichMetadata now uses libraryAdminProcedure which calls getActiveLibraryForUser.
+// Mock libraryDb so the middleware resolves without hitting the real DB's innerJoin.
+vi.mock("./libraryDb", () => ({
+  getActiveLibraryForUser: vi.fn(),
+  updateMemberLastActivity: vi.fn(() => Promise.resolve(undefined)),
+}));
+import * as libraryDb from "./libraryDb";
+
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
 function createAuthContext(): { ctx: TrpcContext } {
@@ -34,6 +42,10 @@ function createAuthContext(): { ctx: TrpcContext } {
 describe("catalog.enrichMetadata", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Provide a valid library so libraryAdminProcedure middleware passes
+    vi.mocked(libraryDb.getActiveLibraryForUser).mockResolvedValue({
+      id: 1, name: "Test Library", slug: "test-library", memberRole: "owner",
+    } as any);
   });
 
   it("should enrich book with missing publisher and pages", async () => {

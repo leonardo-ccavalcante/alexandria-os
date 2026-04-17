@@ -161,7 +161,9 @@ describe("Dashboard Procedures", () => {
 
     expect(result.transactions).toBeDefined();
     result.transactions.forEach((tx: any) => {
-      expect(tx.channel).toBe("AMAZON");
+      // MySQL varchar comparisons are case-insensitive (utf8mb4_unicode_ci),
+      // so "AMAZON" filter matches both "AMAZON" and "Amazon" rows.
+      expect(tx.channel.toUpperCase()).toBe("AMAZON");
     });
   });
 });

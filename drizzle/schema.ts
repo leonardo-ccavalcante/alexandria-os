@@ -127,7 +127,10 @@ export const locationLog = mysqlTable("location_log", {
   changedBy: int("changedBy"),
   reason: varchar("reason", { length: 50 }).default("import"),
   changedAt: timestamp("changedAt").defaultNow().notNull(),
-});
+}, (table) => ({
+  /** H5: Index for tenant-scoped DELETE in cleanupDatabase (was a full table scan). */
+  libraryIdx: index("idx_location_log_library").on(table.libraryId),
+}));
 export type LocationLog = typeof locationLog.$inferSelect;
 
 export const salesTransactions = mysqlTable("sales_transactions", {

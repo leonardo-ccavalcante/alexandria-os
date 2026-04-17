@@ -7,6 +7,9 @@ import { eq } from "drizzle-orm";
 
 type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
+/** Test user id=1 is the owner of library id=1 in the live DB. */
+const TEST_LIBRARY_ID = 1;
+
 function createAuthContext(): { ctx: TrpcContext } {
   const user: AuthenticatedUser = {
     id: 1,
@@ -61,9 +64,10 @@ describe("Sales Recording System", () => {
         publisher: "Test Publisher",
       });
 
-      // Create available inventory item
+      // Create available inventory item — libraryId must match ctx.library.id (1)
       await db.insert(inventoryItems).values({
         isbn13: "9781234567890",
+        libraryId: TEST_LIBRARY_ID,
         status: "AVAILABLE",
         conditionGrade: "BUENO",
         listingPrice: "10.00",
@@ -110,6 +114,7 @@ describe("Sales Recording System", () => {
 
       await db.insert(inventoryItems).values({
         isbn13: "9781234567891",
+        libraryId: TEST_LIBRARY_ID,
         status: "AVAILABLE",
         conditionGrade: "BUENO",
         listingPrice: "15.00",
@@ -136,9 +141,10 @@ describe("Sales Recording System", () => {
         author: "Test Author",
       });
 
-      // Create item but mark as SOLD
+      // Create item but mark as SOLD (no AVAILABLE items)
       await db.insert(inventoryItems).values({
         isbn13: "9781234567892",
+        libraryId: TEST_LIBRARY_ID,
         status: "SOLD",
         conditionGrade: "BUENO",
       });
@@ -165,6 +171,7 @@ describe("Sales Recording System", () => {
 
       await db.insert(inventoryItems).values({
         isbn13: "9781234567893",
+        libraryId: TEST_LIBRARY_ID,
         status: "AVAILABLE",
         conditionGrade: "BUENO",
         createdAt: thirtyDaysAgo,
@@ -192,20 +199,23 @@ describe("Sales Recording System", () => {
         author: "Test Author",
       });
 
-      // Create 3 available items
+      // Create 3 available items — all scoped to the test library
       await db.insert(inventoryItems).values([
         {
           isbn13: "9781234567894",
+          libraryId: TEST_LIBRARY_ID,
           status: "AVAILABLE",
           conditionGrade: "BUENO",
         },
         {
           isbn13: "9781234567894",
+          libraryId: TEST_LIBRARY_ID,
           status: "AVAILABLE",
           conditionGrade: "BUENO",
         },
         {
           isbn13: "9781234567894",
+          libraryId: TEST_LIBRARY_ID,
           status: "AVAILABLE",
           conditionGrade: "BUENO",
         },
@@ -289,12 +299,14 @@ describe("Sales Recording System", () => {
       await db.insert(inventoryItems).values([
         {
           isbn13: "9781234567895",
+          libraryId: TEST_LIBRARY_ID,
           status: "AVAILABLE",
           conditionGrade: "BUENO",
           listingPrice: "15.00",
         },
         {
           isbn13: "9781234567895",
+          libraryId: TEST_LIBRARY_ID,
           status: "AVAILABLE",
           conditionGrade: "BUENO",
           listingPrice: "15.00",

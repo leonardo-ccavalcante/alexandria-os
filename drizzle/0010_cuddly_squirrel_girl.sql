@@ -1,0 +1,1 @@
+CREATE INDEX `idx_location_log_library` ON `location_log` (`libraryId`);

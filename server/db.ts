@@ -350,13 +350,17 @@ export async function searchInventory(filters: {
   return { items: filteredItems, total };
 }
 
-export async function batchUpdateInventoryItems(updates: Array<{
-  uuid: string;
-  locationCode?: string;
-  listingPrice?: string;
-  status?: string;
-  conditionNotes?: string;
-}>): Promise<{ updated: number; errors: Array<{ uuid: string; error: string }> }> {
+export async function batchUpdateInventoryItems(
+  updates: Array<{
+    uuid: string;
+    locationCode?: string;
+    listingPrice?: string;
+    status?: string;
+    conditionNotes?: string;
+  }>,
+  /** Tenant isolation: only update items belonging to this library. */
+  libraryId: number
+): Promise<{ updated: number; errors: Array<{ uuid: string; error: string }> }> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
@@ -380,8 +384,19 @@ export async function batchUpdateInventoryItems(updates: Array<{
         data.conditionNotes = update.conditionNotes || null;
       }
       
-      await updateInventoryItem(update.uuid, data);
-      updated++;
+      // Enforce tenant isolation: only update items that belong to this library
+      const result = await db
+        .update(inventoryItems)
+        .set({ ...data, updatedAt: new Date() })
+        .where(and(eq(inventoryItems.uuid, update.uuid), eq(inventoryItems.libraryId, libraryId)));
+      
+      // Check if any row was actually updated (affectedRows = 0 means wrong library)
+      const affected = (result as any)[0]?.affectedRows ?? 1;
+      if (affected === 0) {
+        errors.push({ uuid: update.uuid, error: 'Item not found or does not belong to your library' });
+      } else {
+        updated++;
+      }
     } catch (error: any) {
       errors.push({ uuid: update.uuid, error: error.message });
     }

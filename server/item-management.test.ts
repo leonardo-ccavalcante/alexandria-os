@@ -241,6 +241,7 @@ describe("Item Detail and Status Management", () => {
         await db.insert(inventoryItems).values({
           uuid,
           isbn13: testIsbn,
+          libraryId: 1, // matches the library of test user id=1 (owner of library 1)
           status: "AVAILABLE",
           conditionGrade: "BUENO",
           locationCode: "01A",

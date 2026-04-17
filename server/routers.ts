@@ -9,6 +9,7 @@ import { catalogMasters, inventoryItems, salesTransactions, locationLog, exportH
 import { extractIsbnFromImage } from "./aiIsbnExtractor";
 import { fetchExternalBookMetadata } from "./_core/externalBookApi";
 import { logExport, logDatabaseActivity } from "./auditLog";
+import { parseCSV, normalizeIsbn } from "./utils/csv";
 import { libraryRouter } from "./routers/libraryRouter";
 import {
   getCatalogMasterByIsbn,
@@ -240,7 +241,7 @@ export const appRouter = router({
     // Extract IS    // Extract ISBN from book cover image using AI vision
     extractIsbnFromImage: protectedProcedure
       .input(z.object({
-        imageBase64: z.string(),
+        imageBase64: z.string().max(5_000_000),
         mimeType: z.string().default('image/jpeg'),
       }))
       .mutation(async ({ input }) => {
@@ -256,7 +257,7 @@ export const appRouter = router({
     // Extract Depósito Legal from copyright page image using AI vision
     extractDepositoLegal: protectedProcedure
       .input(z.object({
-        imageBase64: z.string(),
+        imageBase64: z.string().max(5_000_000),
       }))
       .mutation(async ({ input }) => {
         const { invokeLLM } = await import('./_core/llm');
@@ -306,7 +307,7 @@ export const appRouter = router({
     // Extract book metadata from cover or colophon image using AI vision
     extractBookMetadata: protectedProcedure
       .input(z.object({
-        imageBase64: z.string(),
+        imageBase64: z.string().max(5_000_000),
       }))
       .mutation(async ({ input }) => {
         const { invokeLLM } = await import('./_core/llm');
@@ -522,7 +523,7 @@ export const appRouter = router({
       }),
     
     // Enrich catalog master with missing metadata from external APIs
-    enrichMetadata: protectedProcedure
+    enrichMetadata: libraryAdminProcedure
       .input(z.object({ isbn13: z.string() }))
       .mutation(async ({ input }) => {
         const db = await getDb();
@@ -602,7 +603,7 @@ export const appRouter = router({
       }),
     
     // Bulk enrich all books with missing metadata
-    bulkEnrichMetadata: protectedProcedure
+    bulkEnrichMetadata: libraryAdminProcedure
       .input(z.object({
         enrichFields: z.array(z.enum(['author', 'publisher', 'pages', 'edition', 'language', 'synopsis', 'coverImageUrl'])).min(1).optional(),
       }).optional())
@@ -925,7 +926,7 @@ export const appRouter = router({
       }),
     
     // Get unique publishers (book metadata)
-    updateBook: protectedProcedure
+    updateBook: libraryAdminProcedure
       .input(z.object({
         isbn13: z.string(),
         title: z.string().optional(),
@@ -1058,8 +1059,8 @@ export const appRouter = router({
         includeZeroInventory: z.boolean().default(false),
         hideWithoutLocation: z.boolean().default(false),
         hideWithoutQuantity: z.boolean().default(false),
-        limit: z.number().default(50),
-        offset: z.number().default(0),
+        limit: z.number().min(1).max(500).default(50),
+        offset: z.number().min(0).default(0),
         // NEW: Sort Parameters
         sortField: z.enum(['title', 'author', 'publisher', 'isbn13', 'publicationYear', 'total', 'available', 'location', 'price']).default('title'),
         sortDirection: z.enum(['asc', 'desc']).default('asc'),
@@ -1176,6 +1177,9 @@ export const appRouter = router({
         const pool = await getPool();
         if (!pool) throw new Error('Database pool not available');
         const allParams = [...joinParams, ...whereParams];
+        // H8: Raise group_concat_max_len so GROUP_CONCAT(uuid) doesn’t silently truncate
+        // when a book has many available items (default 1024 bytes ≈ 28 UUIDs)
+        await pool.execute('SET SESSION group_concat_max_len = 65536');
         const [[rawRows], [countRows]] = await Promise.all([
           pool.execute(dataQuery, allParams),
           pool.execute(countQuerySql, allParams)
@@ -1386,32 +1390,41 @@ export const appRouter = router({
           (Date.now() - item.createdAt.getTime()) / (1000 * 60 * 60 * 24)
         );
         
-        // Create sales transaction
-        await createSalesTransaction({
-          itemUuid: input.uuid,
-          isbn13: item.isbn13,
-          channel: input.channel,
-          saleDate: new Date(),
-          listingPrice: item.listingPrice || '0',
-          finalSalePrice: input.finalSalePrice,
-          platformCommissionPct: fees > 0 ? ((fees / finalPrice) * 100).toFixed(2) : '0',
-          platformFees: input.platformFees,
-          shippingCost: input.shippingCost || '0.00',
-          grossProfit: grossProfit.toFixed(2),
-          netProfit: netProfit.toFixed(2),
-          daysInInventory,
-          transactionNotes: input.notes || null,
-          createdBy: ctx.user.id,
-        });
-        
-        // Update inventory item
-        await updateInventoryItem(input.uuid, {
-          status: 'SOLD',
-          soldAt: new Date(),
-          soldChannel: input.channel,
-          finalSalePrice: input.finalSalePrice,
-          platformFees: input.platformFees,
-          netProfit: netProfit.toFixed(2),
+        // Wrap both writes in a transaction to prevent phantom sales on partial failure
+        const db = await getDb();
+        if (!db) throw new Error('Database not available');
+        const transactionId = crypto.randomUUID();
+        await db.transaction(async (tx) => {
+          await tx.insert(salesTransactions).values({
+            transactionId,
+            itemUuid: input.uuid,
+            isbn13: item.isbn13,
+            channel: input.channel,
+            libraryId: ctx.library.id,
+            saleDate: new Date(),
+            listingPrice: item.listingPrice || '0',
+            finalSalePrice: input.finalSalePrice,
+            platformCommissionPct: fees > 0 ? ((fees / finalPrice) * 100).toFixed(2) : '0',
+            platformFees: input.platformFees,
+            shippingCost: input.shippingCost || '0.00',
+            grossProfit: grossProfit.toFixed(2),
+            netProfit: netProfit.toFixed(2),
+            daysInInventory,
+            transactionNotes: input.notes || null,
+            createdBy: ctx.user.id,
+          });
+          await tx
+            .update(inventoryItems)
+            .set({
+              status: 'SOLD',
+              soldAt: new Date(),
+              soldChannel: input.channel,
+              finalSalePrice: input.finalSalePrice,
+              platformFees: input.platformFees,
+              netProfit: netProfit.toFixed(2),
+              updatedAt: new Date(),
+            })
+            .where(eq(inventoryItems.uuid, input.uuid));
         });
         
         return { success: true };
@@ -1460,8 +1473,8 @@ export const appRouter = router({
           conditionNotes: z.string().optional(),
         })),
       }))
-      .mutation(async ({ input }) => {
-        const result = await batchUpdateInventoryItems(input.updates);
+      .mutation(async ({ input, ctx }) => {
+        const result = await batchUpdateInventoryItems(input.updates, ctx.library.id);
         return {
           success: result.errors.length === 0,
           stats: {
@@ -1517,60 +1530,7 @@ export const appRouter = router({
         csvData: z.string(),
       }))
       .mutation(async ({ input, ctx }) => {
-        // Proper CSV parser that handles multi-line quoted fields
-        const parseCSV = (csvText: string): string[][] => {
-          const rows: string[][] = [];
-          let currentRow: string[] = [];
-          let currentField = '';
-          let inQuotes = false;
-          
-          for (let i = 0; i < csvText.length; i++) {
-            const char = csvText[i];
-            const nextChar = csvText[i + 1];
-            
-            if (char === '"') {
-              if (inQuotes && nextChar === '"') {
-                // Escaped quote ("")
-                currentField += '"';
-                i++; // Skip next quote
-              } else {
-                // Toggle quote state
-                inQuotes = !inQuotes;
-              }
-            } else if (char === ',' && !inQuotes) {
-              // End of field
-              currentRow.push(currentField.trim());
-              currentField = '';
-            } else if ((char === '\n' || char === '\r') && !inQuotes) {
-              // End of row
-              if (currentField || currentRow.length > 0) {
-                currentRow.push(currentField.trim());
-                if (currentRow.some(f => f.length > 0)) {
-                  rows.push(currentRow);
-                }
-                currentRow = [];
-                currentField = '';
-              }
-              // Skip \r\n pairs
-              if (char === '\r' && nextChar === '\n') {
-                i++;
-              }
-            } else {
-              currentField += char;
-            }
-          }
-          
-          // Push last field and row
-          if (currentField || currentRow.length > 0) {
-            currentRow.push(currentField.trim());
-            if (currentRow.some(f => f.length > 0)) {
-              rows.push(currentRow);
-            }
-          }
-          
-          return rows;
-        };
-        
+        // Use shared RFC-4180-compliant CSV parser (handles multi-line quoted fields)
         const allRows = parseCSV(input.csvData);
         if (allRows.length < 2) {
           throw new Error('CSV file is empty or invalid');
@@ -1590,8 +1550,8 @@ export const appRouter = router({
         const allIsbns: string[] = [];
         if (isbnColIdx !== -1) {
           for (const r of rows) {
-            const rawIsbn = (r[isbnColIdx] || '').replace(/^['"`]+/, '').replace(/['"`]+$/, '').trim();
-            if (rawIsbn && rawIsbn.length <= 13) allIsbns.push(rawIsbn);
+            const rawIsbn = (r[isbnColIdx] || '').replace(/^['"` ]+/, '').replace(/['"` ]+$/, '').trim().replace(/[-\s]/g, '');
+            if (rawIsbn && (rawIsbn.length === 13 || rawIsbn.length === 10)) allIsbns.push(rawIsbn);
           }
         }
         const existingItemsMap = await getActiveItemsByIsbnsBatch(
@@ -1625,12 +1585,13 @@ export const appRouter = router({
               continue;
             }
             
-            // Strip leading quotes/apostrophes that Excel adds
-            isbn = isbn.replace(/^['"`]+/, '').replace(/['"`]+$/, '').trim();
+            // Strip leading quotes/apostrophes that Excel adds, then normalise hyphens/spaces
+            isbn = isbn.replace(/^['"` ]+/, '').replace(/['"` ]+$/, '').trim();
+            isbn = isbn.replace(/[-\s]/g, ''); // H7: strip hyphens and spaces (e.g. 978-84-204-3283-0 → 9788420432830)
             
-            // Validate ISBN length (should be 13 characters)
-            if (isbn.length > 13) {
-              results.errors.push(`Fila ${i + 2}: ISBN demasiado largo (${isbn.length} chars): ${isbn}`);
+            // Validate ISBN length (must be exactly 10 or 13 digits after normalisation)
+            if (isbn.length !== 13 && isbn.length !== 10) {
+              results.errors.push(`Fila ${i + 2}: ISBN inválido (${isbn.length} chars): ${isbn}`);
               results.skipped++;
               continue;
             }
@@ -1778,18 +1739,19 @@ export const appRouter = router({
       .query(async ({ input, ctx }) => getStaleItems({ libraryId: ctx.library.id, ...input })),
 
     // Import sales channels from CSV
-    importSalesChannelsFromCsv: protectedProcedure
+    importSalesChannelsFromCsv: libraryProcedure
       .input(z.object({
         csvData: z.string(),
       }))
-      .mutation(async ({ input }) => {
-        const lines = input.csvData.split('\n').filter(line => line.trim());
-        if (lines.length < 2) {
+      .mutation(async ({ input, ctx }) => {
+        // Use shared RFC-4180-compliant parser to handle quoted fields with commas
+        const allRows = parseCSV(input.csvData);
+        if (allRows.length < 2) {
           throw new Error('CSV file is empty or invalid');
         }
         
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-        const rows = lines.slice(1);
+        const headers = allRows[0]!;
+        const rows = allRows.slice(1);
         
         const results = {
           updated: 0,
@@ -1802,7 +1764,7 @@ export const appRouter = router({
         
         for (let i = 0; i < rows.length; i++) {
           try {
-            const values = rows[i].split(',').map(v => v.trim().replace(/"/g, ''));
+            const values = rows[i]!;
             const row: Record<string, string> = {};
             headers.forEach((header, idx) => {
               row[header] = values[idx] || '';
@@ -1815,18 +1777,18 @@ export const appRouter = router({
               continue;
             }
             
-            // Parse sales channels (comma-separated)
+            // Parse sales channels (semicolon-separated to avoid CSV ambiguity)
             const channelsStr = row['Canales'] || row['Channels'] || '';
             const channels = channelsStr
               .split(';')
               .map(c => c.trim())
               .filter(c => c.length > 0);
             
-            // Update inventory item
+            // Update inventory item — scoped to this library for tenant isolation
             await db
               .update(inventoryItems)
               .set({ salesChannels: JSON.stringify(channels) })
-              .where(eq(inventoryItems.uuid, row['UUID']));
+              .where(and(eq(inventoryItems.uuid, row['UUID']), eq(inventoryItems.libraryId, ctx.library.id)));
             
             results.updated++;
           } catch (error: any) {
@@ -2721,20 +2683,20 @@ export const appRouter = router({
   // SYSTEM SETTINGS
   // ============================================================================
   settings: router({
-    // Get all settings
-    getAll: protectedProcedure.query(async () => {
+    // Get all settings — library admin only to prevent key leakage
+    getAll: libraryAdminProcedure.query(async () => {
       return await getAllSystemSettings();
     }),
     
-    // Get single setting
-    get: protectedProcedure
+    // Get single setting — library admin only
+    get: libraryAdminProcedure
       .input(z.object({ key: z.string() }))
       .query(async ({ input }) => {
         return await getSystemSetting(input.key);
       }),
     
-    // Update setting
-    update: protectedProcedure
+    // Update setting — library admin only to prevent cross-library corruption
+    update: libraryAdminProcedure
       .input(z.object({
         key: z.string(),
         value: z.string(),
@@ -2744,8 +2706,8 @@ export const appRouter = router({
         return { success: true };
       }),
     
-    // Validate ISBNDB API key
-    validateIsbndbKey: protectedProcedure
+    // Validate ISBNDB API key — library admin only
+    validateIsbndbKey: libraryAdminProcedure
       .input(z.object({ apiKey: z.string() }))
       .mutation(async ({ input }) => {
         const { validateISBNDBApiKey } = await import('./isbndbIntegration');
@@ -2758,8 +2720,8 @@ export const appRouter = router({
   // SALES
   // ============================================================================
   sales: router({
-    // Record a sale
-    recordSale: protectedProcedure
+    // Record a sale (isbn13-based quick-sell flow)
+    recordSale: libraryProcedure
       .input(z.object({
         isbn13: z.string(),
         channel: z.string(),
@@ -2768,19 +2730,18 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         const db = await getDb();
         if (!db) throw new Error('Database not available');
-
-        // Find an available item for this ISBN
+        // Find an available item for this ISBN scoped to the user's library
         const availableItems = await db
           .select()
           .from(inventoryItems)
           .where(
             and(
               eq(inventoryItems.isbn13, input.isbn13),
-              eq(inventoryItems.status, 'AVAILABLE')
+              eq(inventoryItems.status, 'AVAILABLE'),
+              eq(inventoryItems.libraryId, ctx.library.id)
             )
           )
           .limit(1);
-
         if (availableItems.length === 0) {
           throw new Error('No available items found for this ISBN');
         }
@@ -2800,36 +2761,36 @@ export const appRouter = router({
         const grossProfit = input.salePrice - costOfGoods;
         const netProfit = grossProfit - platformFees - shippingCost;
 
-        // Create sales transaction
-        await db.insert(salesTransactions).values({
-          itemUuid: item.uuid,
-          isbn13: input.isbn13,
-          channel: input.channel,
-          saleDate: new Date(),
-          listingPrice: listingPrice.toString(),
-          finalSalePrice: input.salePrice.toString(),
-          platformCommissionPct: '10.00',
-          platformFees: platformFees.toFixed(2),
-          shippingCost: shippingCost.toFixed(2),
-          grossProfit: grossProfit.toFixed(2),
-          netProfit: netProfit.toFixed(2),
-          daysInInventory,
-          createdBy: ctx.user?.id,
-        });
-
-        // Update inventory item status to SOLD
-        await db
-          .update(inventoryItems)
-          .set({
-            status: 'SOLD',
-            soldAt: new Date(),
-            soldChannel: input.channel,
+          // Wrap both writes in a transaction to prevent partial updates
+        await db.transaction(async (tx) => {
+          await tx.insert(salesTransactions).values({
+            itemUuid: item.uuid,
+            isbn13: input.isbn13,
+            channel: input.channel,
+            libraryId: ctx.library.id,
+            saleDate: new Date(),
+            listingPrice: listingPrice.toString(),
             finalSalePrice: input.salePrice.toString(),
+            platformCommissionPct: '10.00',
             platformFees: platformFees.toFixed(2),
+            shippingCost: shippingCost.toFixed(2),
+            grossProfit: grossProfit.toFixed(2),
             netProfit: netProfit.toFixed(2),
-          })
-          .where(eq(inventoryItems.uuid, item.uuid));
-
+            daysInInventory,
+            createdBy: ctx.user.id,
+          });
+          await tx
+            .update(inventoryItems)
+            .set({
+              status: 'SOLD',
+              soldAt: new Date(),
+              soldChannel: input.channel,
+              finalSalePrice: input.salePrice.toString(),
+              platformFees: platformFees.toFixed(2),
+              netProfit: netProfit.toFixed(2),
+            })
+            .where(eq(inventoryItems.uuid, item.uuid));
+        });
         return {
           success: true,
           transaction: {
