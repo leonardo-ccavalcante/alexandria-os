@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, index } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, index, json } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 export const users = mysqlTable("users", {
@@ -125,7 +125,7 @@ export const locationLog = mysqlTable("location_log", {
   fromLocation: varchar("fromLocation", { length: 3 }),
   toLocation: varchar("toLocation", { length: 3 }),
   changedBy: int("changedBy"),
-  reason: varchar("reason", { length: 50 }).default("import"),
+  reason: varchar("reason", { length: 100 }).default("import"),
   changedAt: timestamp("changedAt").defaultNow().notNull(),
 }, (table) => ({
   /** H5: Index for tenant-scoped DELETE in cleanupDatabase (was a full table scan). */
@@ -296,3 +296,22 @@ export const databaseActivityLog = mysqlTable("database_activity_log", {
 
 export type DatabaseActivityLog = typeof databaseActivityLog.$inferSelect;
 export type InsertDatabaseActivityLog = typeof databaseActivityLog.$inferInsert;
+
+// Shelf Audit Sessions
+export const shelfAuditSessions = mysqlTable('shelfAuditSessions', {
+  id: varchar('id', { length: 36 }).primaryKey().$defaultFn(() => crypto.randomUUID()),
+  libraryId: int('libraryId').notNull(),
+  locationCode: varchar('locationCode', { length: 10 }).notNull(),
+  status: mysqlEnum('status', ['ACTIVE', 'COMPLETED', 'ABANDONED']).notNull().default('ACTIVE'),
+  startedBy: int('startedBy').notNull(),
+  startedAt: timestamp('startedAt').notNull().defaultNow(),
+  completedAt: timestamp('completedAt'),
+  expectedItemUuids: json('expectedItemUuids').$type<string[]>().notNull(),
+  confirmedItemUuids: json('confirmedItemUuids').$type<string[]>().notNull(),
+  conflictItems: json('conflictItems').$type<import('../shared/auditTypes').ConflictItem[]>().notNull(),
+  photoAnalysisResult: json('photoAnalysisResult').$type<import('../shared/auditTypes').ShelfPhotoResult[] | null>(),
+}, (table) => ({
+  libraryStatusIdx: index('idx_audit_library_status').on(table.libraryId, table.status),
+}));
+export type ShelfAuditSession = typeof shelfAuditSessions.$inferSelect;
+export type InsertShelfAuditSession = typeof shelfAuditSessions.$inferInsert;

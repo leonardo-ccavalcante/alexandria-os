@@ -4,8 +4,9 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, libraryProcedure, libraryAdminProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, sql, or, isNull } from "drizzle-orm";
-import { catalogMasters, inventoryItems, salesTransactions, locationLog, exportHistory, InsertCatalogMaster } from "../drizzle/schema";
+import { eq, and, sql, or, isNull, inArray } from "drizzle-orm";
+import { catalogMasters, inventoryItems, salesTransactions, locationLog, exportHistory, InsertCatalogMaster, shelfAuditSessions } from "../drizzle/schema";
+import type { ShelfPhotoResult, ConflictItem } from '../shared/auditTypes';
 import { extractIsbnFromImage } from "./aiIsbnExtractor";
 import { fetchExternalBookMetadata } from "./_core/externalBookApi";
 import { logExport, logDatabaseActivity } from "./auditLog";
@@ -2815,7 +2816,276 @@ export const appRouter = router({
           return [];
         }
       }),
+   }),
+
+  // ─── Shelf Audit ────────────────────────────────────────────────────────────
+  shelfAudit: router({
+    getActiveAuditSession: libraryProcedure
+      .query(async ({ ctx }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const [session] = await db
+          .select()
+          .from(shelfAuditSessions)
+          .where(and(
+            eq(shelfAuditSessions.libraryId, ctx.library.id),
+            eq(shelfAuditSessions.status, 'ACTIVE'),
+          ))
+          .limit(1);
+        return session ?? null;
+      }),
+
+    initiateShelfAudit: libraryProcedure
+      .input(z.object({
+        locationCode: z.string().regex(/^[0-9]{2}[A-Z]$/, 'Formato inválido. Debe ser: 01A'),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        // Abandon any existing ACTIVE session for this library
+        await db.update(shelfAuditSessions)
+          .set({ status: 'ABANDONED' })
+          .where(and(
+            eq(shelfAuditSessions.libraryId, ctx.library.id),
+            eq(shelfAuditSessions.status, 'ACTIVE'),
+          ));
+        // Snapshot items at this location
+        const items = await db
+          .select({ uuid: inventoryItems.uuid })
+          .from(inventoryItems)
+          .where(and(
+            eq(inventoryItems.libraryId, ctx.library.id),
+            eq(inventoryItems.locationCode, input.locationCode),
+          ));
+        const id = crypto.randomUUID();
+        await db.insert(shelfAuditSessions).values({
+          id,
+          libraryId: ctx.library.id,
+          locationCode: input.locationCode,
+          startedBy: ctx.user.id,
+          expectedItemUuids: items.map(i => i.uuid),
+          confirmedItemUuids: [],
+          conflictItems: [],
+        });
+        const [session] = await db
+          .select()
+          .from(shelfAuditSessions)
+          .where(eq(shelfAuditSessions.id, id))
+          .limit(1);
+        return session;
+      }),
+
+    analyzeShelfPhoto: libraryProcedure
+      .input(z.object({
+        sessionId: z.string().uuid(),
+        imageBase64: z.string().max(5_000_000),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        // Upload to S3
+        const { storagePut } = await import('./storage');
+        const suffix = Math.random().toString(36).slice(7);
+        const { url: imageUrl } = await storagePut(
+          `audit-photos/${input.sessionId}/${Date.now()}-${suffix}.jpg`,
+          Buffer.from(input.imageBase64, 'base64'),
+          'image/jpeg',
+        );
+        // Call Gemini Vision
+        const SHELF_ANALYSIS_PROMPT = `This is a photo of a library bookshelf.
+Identify every visible book from its spine.
+For each book return: { "title": string, "author": string, "isbn": string | null, "confidence": number }
+where confidence is 0.0–1.0 (your certainty of correct identification).
+Include EVERY book spine visible, even partially visible ones.
+Return JSON: { "books": [ ... ] }`;
+        const { invokeLLM } = await import('./_core/llm');
+        const response = await invokeLLM({
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image_url', image_url: { url: imageUrl, detail: 'high' } },
+              { type: 'text', text: SHELF_ANALYSIS_PROMPT },
+            ],
+          }],
+          response_format: { type: 'json_object' },
+        });
+        const raw = response.choices[0].message.content as string;
+        const { books } = JSON.parse(raw) as {
+          books: Array<{ title: string; author: string; isbn: string | null; confidence: number }>;
+        };
+        // Fetch all items with catalog data for fuzzy match
+        const allItems = await db
+          .select({
+            uuid: inventoryItems.uuid,
+            isbn13: inventoryItems.isbn13,
+            title: catalogMasters.title,
+            author: catalogMasters.author,
+          })
+          .from(inventoryItems)
+          .innerJoin(catalogMasters, eq(inventoryItems.isbn13, catalogMasters.isbn13))
+          .where(eq(inventoryItems.libraryId, ctx.library.id));
+        const normalize = (s: string) =>
+          s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
+        const matched: ShelfPhotoResult[] = books.map(book => {
+          if (book.confidence < 0.5) return { ...book, matchedItemUuid: null, matchedIsbn: null };
+          const normTitle = normalize(book.title);
+          const normAuthor = normalize(book.author);
+          const hit = allItems.find(item => {
+            const t = normalize(item.title ?? '');
+            const a = normalize(item.author ?? '');
+            return (t.includes(normTitle) || normTitle.includes(t)) &&
+                   (a.includes(normAuthor) || normAuthor.includes(a));
+          });
+          return { ...book, matchedItemUuid: hit?.uuid ?? null, matchedIsbn: hit?.isbn13 ?? null };
+        });
+        // Append to existing photoAnalysisResult
+        const [session] = await db
+          .select()
+          .from(shelfAuditSessions)
+          .where(eq(shelfAuditSessions.id, input.sessionId))
+          .limit(1);
+        const existing: ShelfPhotoResult[] = (session?.photoAnalysisResult as ShelfPhotoResult[] | null) ?? [];
+        await db.update(shelfAuditSessions)
+          .set({ photoAnalysisResult: [...existing, ...matched] })
+          .where(eq(shelfAuditSessions.id, input.sessionId));
+        return matched;
+      }),
+
+    resolveLocationConflict: libraryProcedure
+      .input(z.object({
+        sessionId: z.string().uuid(),
+        itemUuid: z.string().uuid(),
+        resolution: z.enum(['moved', 'kept', 'skipped']),
+        targetLocation: z.string().regex(/^[0-9]{2}[A-Z]$/).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        if (input.resolution === 'moved' && input.targetLocation) {
+          await db.update(inventoryItems)
+            .set({ locationCode: input.targetLocation })
+            .where(and(
+              eq(inventoryItems.uuid, input.itemUuid),
+              eq(inventoryItems.libraryId, ctx.library.id),
+            ));
+          await db.insert(locationLog).values({
+            itemUuid: input.itemUuid,
+            libraryId: ctx.library.id,
+            toLocation: input.targetLocation,
+            changedBy: ctx.user.id,
+            reason: `Shelf audit — moved to ${input.targetLocation}`,
+            changedAt: new Date(),
+          });
+        }
+        const [session] = await db
+          .select()
+          .from(shelfAuditSessions)
+          .where(eq(shelfAuditSessions.id, input.sessionId))
+          .limit(1);
+        if (!session) throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
+        const updatedConflicts: ConflictItem[] = (session.conflictItems as ConflictItem[]).map(c =>
+          c.uuid === input.itemUuid ? { ...c, resolution: input.resolution } : c,
+        );
+        await db.update(shelfAuditSessions)
+          .set({ conflictItems: updatedConflicts })
+          .where(eq(shelfAuditSessions.id, input.sessionId));
+      }),
+
+    addManualScanResult: libraryProcedure
+      .input(z.object({
+        sessionId: z.string().uuid(),
+        isbn: z.string(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const [session] = await db
+          .select()
+          .from(shelfAuditSessions)
+          .where(eq(shelfAuditSessions.id, input.sessionId))
+          .limit(1);
+        if (!session) throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
+        const [item] = await db
+          .select()
+          .from(inventoryItems)
+          .where(and(
+            eq(inventoryItems.isbn13, input.isbn),
+            eq(inventoryItems.libraryId, ctx.library.id),
+          ))
+          .limit(1);
+        if (!item) {
+          const [inCatalog] = await db
+            .select({ isbn13: catalogMasters.isbn13 })
+            .from(catalogMasters)
+            .where(eq(catalogMasters.isbn13, input.isbn))
+            .limit(1);
+          return { outcome: inCatalog ? 'catalog_only' : 'not_found' } as const;
+        }
+        if (item.locationCode === session.locationCode) {
+          await db.update(shelfAuditSessions)
+            .set({ confirmedItemUuids: [...(session.confirmedItemUuids as string[]), item.uuid] })
+            .where(eq(shelfAuditSessions.id, input.sessionId));
+          return {
+            outcome: 'confirmed' as const,
+            statusWarning: item.status !== 'AVAILABLE' ? item.status : null,
+          };
+        }
+        // Different location → add to conflictItems
+        const conflict: ConflictItem = {
+          uuid: item.uuid,
+          fromLocation: item.locationCode ?? '',
+          resolution: null,
+        };
+        await db.update(shelfAuditSessions)
+          .set({ conflictItems: [...(session.conflictItems as ConflictItem[]), conflict] })
+          .where(eq(shelfAuditSessions.id, input.sessionId));
+        return { outcome: 'conflict' as const, fromLocation: item.locationCode };
+      }),
+
+    completeShelfAudit: libraryProcedure
+      .input(z.object({ sessionId: z.string().uuid() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const [session] = await db
+          .select()
+          .from(shelfAuditSessions)
+          .where(eq(shelfAuditSessions.id, input.sessionId))
+          .limit(1);
+        if (!session) throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
+        const expected = session.expectedItemUuids as string[];
+        const confirmed = session.confirmedItemUuids as string[];
+        const conflicts = session.conflictItems as ConflictItem[];
+        const notFoundUuids = expected.filter(uuid => !confirmed.includes(uuid));
+        const today = new Date().toISOString().split('T')[0];
+        const reason = `Shelf audit completed — not found at ${session.locationCode} on ${today}`;
+        if (notFoundUuids.length > 0) {
+          await db.update(inventoryItems)
+            .set({ status: 'MISSING' })
+            .where(and(
+              inArray(inventoryItems.uuid, notFoundUuids),
+              eq(inventoryItems.libraryId, ctx.library.id),
+            ));
+          await db.insert(locationLog).values(
+            notFoundUuids.map(uuid => ({
+              itemUuid: uuid,
+              libraryId: ctx.library.id,
+              changedBy: ctx.user.id,
+              reason,
+              changedAt: new Date(),
+            })),
+          );
+        }
+        await db.update(shelfAuditSessions)
+          .set({ status: 'COMPLETED', completedAt: new Date() })
+          .where(eq(shelfAuditSessions.id, input.sessionId));
+        return {
+          confirmed: confirmed.length,
+          missing: notFoundUuids.length,
+          relocated: conflicts.filter(c => c.resolution === 'moved').length,
+          skipped: conflicts.filter(c => c.resolution === 'skipped').length,
+        };
+      }),
   }),
 });
-
 export type AppRouter = typeof appRouter;

@@ -2,7 +2,8 @@ import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Package, DollarSign, ShoppingCart, AlertTriangle, CheckCircle2, Clock, MapPin } from 'lucide-react';
+import { Loader2, Package, DollarSign, ShoppingCart, AlertTriangle, CheckCircle2, Clock, MapPin, ClipboardList } from 'lucide-react';
+import { Link } from 'wouter';
 import { useState, useMemo } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
@@ -216,6 +217,26 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
+        {/* Shelf Audit CTA */}
+        <Card className="border-blue-200 bg-blue-50 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-blue-800 text-base font-medium">
+              <ClipboardList className="h-5 w-5" />
+              Auditoría de Estante
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <p className="text-sm text-blue-700 mb-3">
+              Verifica físicamente los libros en una ubicación y detecta ítems faltantes o mal ubicados.
+            </p>
+            <Link href="/auditoria">
+              <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors">
+                <ClipboardList className="h-4 w-4" />
+                Iniciar auditoría
+              </button>
+            </Link>
+          </CardContent>
+        </Card>
         {/* Stale Books Alert */}
         {(staleCount ?? 0) > 0 && (
           <Card className="border-amber-200 bg-amber-50 shadow-sm">

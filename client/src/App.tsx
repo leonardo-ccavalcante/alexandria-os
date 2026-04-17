@@ -17,10 +17,11 @@ import ExportarDatos from "./pages/ExportarDatos";
 import Configuracion from "./pages/Configuracion";
 import LibraryManagement from "./pages/LibraryManagement";
 import JoinLibrary from "./pages/JoinLibrary";
+import ShelfAudit from "./pages/ShelfAudit";
 import NoLibraryAccess from "./pages/NoLibraryAccess";
 import { useLibrary } from "./hooks/useLibrary";
 import { useAuth } from "./_core/hooks/useAuth";
-import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon, Menu, X, Building2, Crown, Shield, User as UserIcon } from "lucide-react";
+import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon, Menu, X, Building2, Crown, Shield, User as UserIcon, ClipboardList } from "lucide-react";
 import { useState } from "react";
 
 // ─── Library indicator badge shown in the nav header ─────────────────────────
@@ -77,6 +78,7 @@ function Router() {
     { href: "/batch", icon: Upload, label: "Lotes" },
     { href: "/settings", icon: SettingsIcon, label: "Config" },
     { href: "/biblioteca", icon: Building2, label: "Biblioteca" },
+    { href: "/auditoria", icon: ClipboardList, label: "Auditoría" },
   ];
 
   return (
@@ -164,6 +166,7 @@ function Router() {
         <Route path="/exportar" component={ExportarDatos} />
         <Route path="/configuracion" component={Configuracion} />
         <Route path="/biblioteca" component={LibraryManagement} />
+        <Route path="/auditoria" component={ShelfAudit} />
         <Route path="/join" component={JoinLibrary} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
