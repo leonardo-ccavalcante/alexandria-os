@@ -1343,3 +1343,15 @@
 - [x] Register /auditoria route in App.tsx
 - [x] Add nav link in DashboardLayout
 - [x] Code review: remove unused BookOpen import, remove unused utils variable, fix useCallback stable-ref pattern, fix duplicate conflict list, add eslint-disable comment for fire-once useEffect
+
+## Shelf Audit Reconcile Step (2026-04-17)
+
+- [x] Add photoReconciled boolean column to shelfAuditSessions schema
+- [x] Add ExpectedItemDetail type to shared/auditTypes.ts
+- [x] Add matchedLocationCode to ShelfPhotoResult type
+- [x] Enrich getActiveAuditSession with expectedItemDetails
+- [x] Add applyPhotoReconciliation tRPC procedure
+- [x] Build ReconcileStep component (3 sections: move/new/clear)
+- [x] Update wizard to 5 steps (Iniciar → Fotografiar → Reconciliar → Escanear → Completar)
+- [x] Triage page reads ?locationCode query param to pre-fill location
+- [x] 6 new Vitest tests (20 total in shelfAudit.test.ts)
