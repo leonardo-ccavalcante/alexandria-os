@@ -2949,6 +2949,7 @@ Return JSON: { "books": [ ... ] }`;
             isbn13: inventoryItems.isbn13,
             title: catalogMasters.title,
             author: catalogMasters.author,
+            locationCode: inventoryItems.locationCode,
           })
           .from(inventoryItems)
           .innerJoin(catalogMasters, eq(inventoryItems.isbn13, catalogMasters.isbn13))
@@ -2956,7 +2957,7 @@ Return JSON: { "books": [ ... ] }`;
         const normalize = (s: string) =>
           s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
         const matched: ShelfPhotoResult[] = books.map(book => {
-          if (book.confidence < 0.5) return { ...book, matchedItemUuid: null, matchedIsbn: null };
+          if (book.confidence < 0.5) return { ...book, matchedItemUuid: null, matchedIsbn: null, matchedLocationCode: null };
           const normTitle = normalize(book.title);
           const normAuthor = normalize(book.author);
           const hit = allItems.find(item => {
@@ -2965,7 +2966,7 @@ Return JSON: { "books": [ ... ] }`;
             return (t.includes(normTitle) || normTitle.includes(t)) &&
                    (a.includes(normAuthor) || normAuthor.includes(a));
           });
-          return { ...book, matchedItemUuid: hit?.uuid ?? null, matchedIsbn: hit?.isbn13 ?? null };
+          return { ...book, matchedItemUuid: hit?.uuid ?? null, matchedIsbn: hit?.isbn13 ?? null, matchedLocationCode: hit?.locationCode ?? null };
         });
         // Append to existing photoAnalysisResult
         const [session] = await db

@@ -22,6 +22,11 @@ type TriageResult =
   | { kind: 'pre1970'; isbn: string; title: string; author?: string; publisher?: string; publishedYear?: string; reason: string };
 
 export default function Triage() {
+  // Read ?locationCode=07A from URL (set by ShelfAudit ReconcileStep for new books)
+  const prefilledLocationCode = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('locationCode') ?? undefined
+    : undefined;
+
   const [isbn, setIsbn] = useState('');
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState<TriageResult | null>(null);
@@ -494,7 +499,7 @@ export default function Triage() {
           }
           suggestedPrice={result?.kind === 'found' ? result.data.marketPrice : undefined}
           isDuplicate={result?.kind === 'found' && result.data.inventorySummary && result.data.inventorySummary.totalCount > 0}
-          suggestedAllocation={result?.kind === 'found' ? result.data.inventorySummary?.mostCommonAllocation : undefined}
+          suggestedAllocation={prefilledLocationCode ?? (result?.kind === 'found' ? result.data.inventorySummary?.mostCommonAllocation : undefined)}
           existingCount={result?.kind === 'found' ? result.data.inventorySummary?.totalCount : undefined}
         />
       )}

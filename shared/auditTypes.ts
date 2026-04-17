@@ -10,6 +10,7 @@ export interface ShelfPhotoResult {
   confidence: number;             // 0.0–1.0 from Gemini
   matchedItemUuid: string | null; // populated after fuzzy match; null if no match
   matchedIsbn: string | null;
+  matchedLocationCode: string | null; // current locationCode of the matched item
 }
 
 export interface ConflictItem {

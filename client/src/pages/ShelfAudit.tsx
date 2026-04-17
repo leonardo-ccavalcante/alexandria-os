@@ -32,10 +32,17 @@ import {
   ImagePlus,
   SkipForward,
   HelpCircle,
+  ListChecks,
+  BookPlus,
+  MoveRight,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
-import type { ShelfPhotoResult } from '../../../shared/auditTypes';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { useLocation } from 'wouter';
+import type { ShelfPhotoResult, ExpectedItemDetail } from '../../../shared/auditTypes';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,6 +70,8 @@ type AuditSession = {
   confirmedItemUuids: string[];
   conflictItems: ConflictItem[];
   photoAnalysisResult: ShelfPhotoResult[] | null;
+  photoReconciled: boolean;
+  expectedItemDetails: ExpectedItemDetail[];
 };
 
 // ─── Step 2: Photo ────────────────────────────────────────────────────────────
@@ -785,15 +794,327 @@ function CompleteStep({
   );
 }
 
+// ─── Main page ────────────────────────────────────────────────────────────// ─── Step 3: Reconcile ───────────────────────────────────────────────────────
+
+function ReconcileStep({
+  session,
+  onReconciled,
+  onSkip,
+}: {
+  session: AuditSession;
+  onReconciled: () => void;
+  onSkip: () => void;
+}) {
+  const [, navigate] = useLocation();
+  const photoResults: ShelfPhotoResult[] = Array.isArray(session.photoAnalysisResult)
+    ? (session.photoAnalysisResult as ShelfPhotoResult[])
+    : [];
+  const confirmedSet = new Set(session.confirmedItemUuids);
+
+  // Section 1: photo-detected books matched to an item at a DIFFERENT location
+  const moveItems = photoResults.filter(
+    r => r.matchedItemUuid !== null &&
+         r.matchedLocationCode !== session.locationCode &&
+         r.confidence >= 0.5,
+  );
+  // Section 2: photo-detected books with NO inventory match
+  const newBooks = photoResults.filter(
+    r => r.matchedItemUuid === null && r.confidence >= 0.5,
+  );
+  // Section 3: expected items not yet confirmed
+  const clearItems = (session.expectedItemDetails ?? []).filter(
+    d => !confirmedSet.has(d.uuid),
+  );
+
+  // Checkbox state
+  const [moveChecked, setMoveChecked] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(moveItems.map(r => [r.matchedItemUuid!, true])),
+  );
+  const [newChecked, setNewChecked] = useState<Record<number, boolean>>(() =>
+    Object.fromEntries(newBooks.map((_, i) => [i, true])),
+  );
+  const [clearChecked, setClearChecked] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(clearItems.map(d => [d.uuid, true])),
+  );
+
+  // Expanded rows
+  const [expandedMove, setExpandedMove] = useState<Record<string, boolean>>({});
+  const [expandedNew, setExpandedNew] = useState<Record<number, boolean>>({});
+  const [expandedClear, setExpandedClear] = useState<Record<string, boolean>>({});
+
+  const applyMutation = trpc.shelfAudit.applyPhotoReconciliation.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Reconciliación aplicada: ${result.moved} movidos, ${result.cleared} ubicaciones limpiadas.`);
+      onReconciled();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const totalChanges =
+    Object.values(moveChecked).filter(Boolean).length +
+    Object.values(newChecked).filter(Boolean).length +
+    Object.values(clearChecked).filter(Boolean).length;
+
+  const handleConfirm = () => {
+    const moves = moveItems
+      .filter(r => moveChecked[r.matchedItemUuid!])
+      .map(r => r.matchedItemUuid!);
+    const clears = clearItems
+      .filter(d => clearChecked[d.uuid])
+      .map(d => d.uuid);
+    const hasNewBooks = newBooks.some((_, i) => newChecked[i]);
+
+    applyMutation.mutate(
+      { sessionId: session.id, moves, clearLocations: clears },
+      {
+        onSuccess: () => {
+          if (hasNewBooks) {
+            navigate(`/triage?locationCode=${encodeURIComponent(session.locationCode)}`);
+          }
+        },
+      },
+    );
+  };
+
+  const isEmpty = moveItems.length === 0 && newBooks.length === 0 && clearItems.length === 0;
+
+  if (session.photoReconciled) {
+    return (
+      <div className="max-w-lg mx-auto space-y-6 text-center">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-violet-50 mb-2">
+          <CheckCircle2 className="h-7 w-7 text-violet-600" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900">Estante ya reconciliado</h2>
+        <p className="text-gray-500 text-sm">Esta sesión ya fue reconciliada anteriormente.</p>
+        <Button onClick={onSkip} className="w-full">Continuar al escaneo</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-lg mx-auto space-y-6">
+      <div className="text-center space-y-2">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-violet-50 mb-2">
+          <ListChecks className="h-7 w-7 text-violet-600" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900">Reconciliar estante</h2>
+        <p className="text-gray-500 text-sm">
+          Revisa los cambios detectados para el estante{' '}
+          <strong>{session.locationCode}</strong>. Desmarca los que no quieras aplicar.
+        </p>
+      </div>
+
+      {isEmpty ? (
+        <div className="flex flex-col items-center gap-3 py-10 text-gray-400">
+          <CheckCircle2 className="h-10 w-10 text-green-400" />
+          <p className="text-sm font-medium text-green-700">No hay cambios pendientes</p>
+          <p className="text-xs text-gray-400">Todos los libros detectados ya están en esta ubicación.</p>
+          <Button onClick={onSkip} className="mt-2">Continuar al escaneo</Button>
+        </div>
+      ) : (
+        <>
+          <ScrollArea className="max-h-[60vh]">
+            <div className="space-y-5 pr-1">
+
+              {/* Section 1: Move existing items to this location */}
+              {moveItems.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-blue-700">
+                      <MoveRight className="h-4 w-4" />
+                      Mover a esta ubicación ({moveItems.length})
+                    </div>
+                    <button
+                      className="text-xs text-gray-400 hover:text-gray-600"
+                      onClick={() => {
+                        const allChecked = moveItems.every(r => moveChecked[r.matchedItemUuid!]);
+                        setMoveChecked(Object.fromEntries(moveItems.map(r => [r.matchedItemUuid!, !allChecked])));
+                      }}
+                    >
+                      {moveItems.every(r => moveChecked[r.matchedItemUuid!]) ? 'Desmarcar todos' : 'Marcar todos'}
+                    </button>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {moveItems.map((r) => (
+                      <li key={r.matchedItemUuid} className="bg-blue-50 rounded-lg px-3 py-2">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id={`move-${r.matchedItemUuid}`}
+                            checked={!!moveChecked[r.matchedItemUuid!]}
+                            onCheckedChange={(v) => setMoveChecked(prev => ({ ...prev, [r.matchedItemUuid!]: !!v }))}
+                            className="mt-0.5"
+                          />
+                          <div
+                            className="flex-1 cursor-pointer"
+                            onClick={() => setExpandedMove(prev => ({ ...prev, [r.matchedItemUuid!]: !prev[r.matchedItemUuid!] }))}
+                          >
+                            <div className="text-sm font-medium text-blue-900">{r.title}</div>
+                            <div className="text-xs text-blue-700">{r.author}</div>
+                            {expandedMove[r.matchedItemUuid!] && (
+                              <div className="mt-1.5 space-y-0.5 text-xs text-blue-600">
+                                <div>Confianza: {Math.round(r.confidence * 100)}%</div>
+                                {r.isbn && <div>ISBN: {r.isbn}</div>}
+                                <div className="flex items-center gap-1">
+                                  Ubicación actual:
+                                  <Badge variant="outline" className="text-xs">{r.matchedLocationCode ?? '—'}</Badge>
+                                  <ArrowRight className="h-3 w-3" />
+                                  <Badge className="text-xs bg-blue-600">{session.locationCode}</Badge>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <Badge variant="outline" className="text-xs shrink-0">{r.matchedLocationCode ?? '—'}</Badge>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Section 2: New books (not in inventory) */}
+              {newBooks.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+                      <BookPlus className="h-4 w-4" />
+                      Nuevo libro ({newBooks.length})
+                    </div>
+                    <button
+                      className="text-xs text-gray-400 hover:text-gray-600"
+                      onClick={() => {
+                        const allChecked = newBooks.every((_, i) => newChecked[i]);
+                        setNewChecked(Object.fromEntries(newBooks.map((_, i) => [i, !allChecked])));
+                      }}
+                    >
+                      {newBooks.every((_, i) => newChecked[i]) ? 'Desmarcar todos' : 'Marcar todos'}
+                    </button>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {newBooks.map((r, i) => (
+                      <li key={i} className="bg-emerald-50 rounded-lg px-3 py-2">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id={`new-${i}`}
+                            checked={!!newChecked[i]}
+                            onCheckedChange={(v) => setNewChecked(prev => ({ ...prev, [i]: !!v }))}
+                            className="mt-0.5"
+                          />
+                          <div
+                            className="flex-1 cursor-pointer"
+                            onClick={() => setExpandedNew(prev => ({ ...prev, [i]: !prev[i] }))}
+                          >
+                            <div className="text-sm font-medium text-emerald-900">{r.title}</div>
+                            <div className="text-xs text-emerald-700">{r.author}</div>
+                            {expandedNew[i] && (
+                              <div className="mt-1.5 space-y-0.5 text-xs text-emerald-600">
+                                <div>Confianza: {Math.round(r.confidence * 100)}%</div>
+                                {r.isbn && <div>ISBN: {r.isbn}</div>}
+                                <div className="text-emerald-500">Se abrirá el flujo de triage con ubicación pre-rellenada.</div>
+                              </div>
+                            )}
+                          </div>
+                          <Badge className="text-xs bg-emerald-600 shrink-0">NUEVO</Badge>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Section 3: Clear location for unconfirmed expected items */}
+              {clearItems.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-red-700">
+                      <Trash2 className="h-4 w-4" />
+                      Limpiar ubicación ({clearItems.length})
+                    </div>
+                    <button
+                      className="text-xs text-gray-400 hover:text-gray-600"
+                      onClick={() => {
+                        const allChecked = clearItems.every(d => clearChecked[d.uuid]);
+                        setClearChecked(Object.fromEntries(clearItems.map(d => [d.uuid, !allChecked])));
+                      }}
+                    >
+                      {clearItems.every(d => clearChecked[d.uuid]) ? 'Desmarcar todos' : 'Marcar todos'}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Estos libros estaban registrados en este estante pero no aparecen en la foto.
+                    Su ubicación se limpiará (el estado DISPONIBLE no cambia).
+                  </p>
+                  <ul className="space-y-1.5">
+                    {clearItems.map((d) => (
+                      <li key={d.uuid} className="bg-red-50 rounded-lg px-3 py-2">
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            id={`clear-${d.uuid}`}
+                            checked={!!clearChecked[d.uuid]}
+                            onCheckedChange={(v) => setClearChecked(prev => ({ ...prev, [d.uuid]: !!v }))}
+                            className="mt-0.5"
+                          />
+                          <div
+                            className="flex-1 cursor-pointer"
+                            onClick={() => setExpandedClear(prev => ({ ...prev, [d.uuid]: !prev[d.uuid] }))}
+                          >
+                            <div className="text-sm font-medium text-red-900">{d.title ?? 'Título desconocido'}</div>
+                            <div className="text-xs text-red-700">{d.author ?? ''}</div>
+                            {expandedClear[d.uuid] && (
+                              <div className="mt-1.5 space-y-0.5 text-xs text-red-600">
+                                <div>ISBN: {d.isbn13}</div>
+                                <div>UUID: <code className="font-mono">{d.uuid.slice(0, 8)}…</code></div>
+                              </div>
+                            )}
+                          </div>
+                          <Badge variant="destructive" className="text-xs shrink-0">LIMPIAR</Badge>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+            </div>
+          </ScrollArea>
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={onSkip}
+              disabled={applyMutation.isPending}
+            >
+              <SkipForward className="h-4 w-4 mr-2" />
+              Saltar
+            </Button>
+            <Button
+              className="flex-1 bg-violet-600 hover:bg-violet-700"
+              onClick={handleConfirm}
+              disabled={applyMutation.isPending || totalChanges === 0}
+            >
+              {applyMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+              )}
+              Confirmar ({totalChanges} cambios)
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type Step = 'initiate' | 'photo' | 'scan' | 'complete';
-
+type Step = 'initiate' | 'photo' | 'reconcile' | 'scan' | 'complete';
 const STEP_META: { id: Step; label: string; Icon: React.FC<{ className?: string }> }[] = [
-  { id: 'initiate', label: 'Iniciar',      Icon: ClipboardList },
-  { id: 'photo',    label: 'Fotografiar',  Icon: ImagePlus },
-  { id: 'scan',     label: 'Escanear',     Icon: ScanLine },
-  { id: 'complete', label: 'Completar',    Icon: ClipboardCheck },
+  { id: 'initiate',   label: 'Iniciar',      Icon: ClipboardList },
+  { id: 'photo',      label: 'Fotografiar',  Icon: ImagePlus },
+  { id: 'reconcile',  label: 'Reconciliar',  Icon: ListChecks },
+  { id: 'scan',       label: 'Escanear',     Icon: ScanLine },
+  { id: 'complete',   label: 'Completar',    Icon: ClipboardCheck },
 ];
 
 export default function ShelfAudit() {
@@ -816,10 +1137,13 @@ export default function ShelfAudit() {
 
   const handlePhotoAnalyzed = (results: ShelfPhotoResult[]) => {
     setSession(prev => prev ? { ...prev, photoAnalysisResult: results } : prev);
-    setStep('scan');
+    setStep('reconcile');
   };
 
-  const handleSkipPhoto = () => setStep('scan');
+  const handleSkipPhoto = () => setStep('reconcile');
+
+  const handleReconciled = () => setStep('scan');
+  const handleSkipReconcile = () => setStep('scan');
 
   const handleComplete = () => {
     setStep('complete');
@@ -866,6 +1190,14 @@ export default function ShelfAudit() {
           session={currentSession}
           onAnalyzed={handlePhotoAnalyzed}
           onSkip={handleSkipPhoto}
+        />
+      )}
+
+      {step === 'reconcile' && currentSession && (
+        <ReconcileStep
+          session={currentSession}
+          onReconciled={handleReconciled}
+          onSkip={handleSkipReconcile}
         />
       )}
 
