@@ -40,7 +40,6 @@ import {
 import { toast } from 'sonner';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useLocation } from 'wouter';
 import type { ShelfPhotoResult, ExpectedItemDetail } from '../../../shared/auditTypes';
 
@@ -892,8 +891,8 @@ function ReconcileStep({
   }
 
   return (
-    <div className="max-w-lg mx-auto space-y-6">
-      <div className="text-center space-y-2">
+    <div className="max-w-lg mx-auto flex flex-col" style={{ minHeight: 'calc(100dvh - 11rem)' }}>
+      <div className="text-center space-y-2 mb-5">
         <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-violet-50 mb-2">
           <ListChecks className="h-7 w-7 text-violet-600" />
         </div>
@@ -913,7 +912,8 @@ function ReconcileStep({
         </div>
       ) : (
         <>
-          <ScrollArea className="max-h-[60vh]">
+          {/* Scrollable list — flex-1 min-h-0 required for flex children to shrink and scroll */}
+          <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 pb-2">
             <div className="space-y-5 pr-1">
 
               {/* Section 1: Move existing items to this location */}
@@ -1075,9 +1075,14 @@ function ReconcileStep({
               )}
 
             </div>
-          </ScrollArea>
+          </div>{/* end scrollable list */}
 
-          <div className="flex gap-3 pt-2">
+          {/* Footer — safe-area-inset-bottom clears Android Chrome bottom bar */}
+          <div
+            className="bg-white pt-3 border-t border-gray-100 mt-2"
+            style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          >
+          <div className="flex gap-3">
             <Button
               variant="outline"
               className="flex-1"
@@ -1100,6 +1105,7 @@ function ReconcileStep({
               Confirmar ({totalChanges} cambios)
             </Button>
           </div>
+          </div>{/* end sticky footer */}
         </>
       )}
     </div>
