@@ -17,3 +17,11 @@ export interface ConflictItem {
   fromLocation: string;           // DB-registered location (e.g. "03C")
   resolution: 'moved' | 'kept' | 'skipped' | null; // null = pending
 }
+
+export interface ExpectedItemDetail {
+  uuid: string;
+  isbn13: string;
+  title: string | null;
+  author: string | null;
+  locationCode: string | null;  // current registered location (may differ from session.locationCode)
+}
