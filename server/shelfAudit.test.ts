@@ -176,7 +176,7 @@ describe("shelfAudit.getActiveAuditSession", () => {
   });
 
   it("returns the ACTIVE session when one exists", async () => {
-    const session = makeSession();
+    const session = makeSession({ expectedItemUuids: [] });
     const mockDb = makeMockDb();
     (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
       from: vi.fn(() => ({
@@ -589,5 +589,170 @@ describe("shelfAudit.analyzeShelfPhoto", () => {
         imageBase64: Buffer.from("fake").toString("base64"),
       })
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+// ─── getActiveAuditSession enrichment ────────────────────────────────────────
+describe("shelfAudit.getActiveAuditSession — expectedItemDetails", () => {
+  beforeEach(() => {
+    vi.mocked(libraryDb.getActiveLibraryForUser).mockResolvedValue(makeLibrary());
+    vi.mocked(libraryDb.updateMemberLastActivity).mockResolvedValue(undefined);
+  });
+
+  it("returns expectedItemDetails joined from catalog", async () => {
+    const session = { ...makeSession({ expectedItemUuids: ["uuid-A"] }), photoReconciled: false };
+    const mockDb = makeMockDb();
+    let selectCallCount = 0;
+    (mockDb.select as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      selectCallCount++;
+      if (selectCallCount === 1) {
+        return {
+          from: vi.fn(() => ({
+            where: vi.fn(() => ({
+              limit: vi.fn(() => Promise.resolve([session])),
+            })),
+          })),
+        };
+      }
+      return {
+        from: vi.fn(() => ({
+          innerJoin: vi.fn(() => ({
+            where: vi.fn(() => Promise.resolve([
+              { uuid: "uuid-A", isbn13: "9780000000001", title: "Test Book", author: "Test Author", locationCode: "02B" },
+            ])),
+          })),
+        })),
+      };
+    });
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.shelfAudit.getActiveAuditSession();
+    expect(result).not.toBeNull();
+    const details = (result as Record<string, unknown>).expectedItemDetails as unknown[];
+    expect(details).toHaveLength(1);
+    expect(details[0]).toMatchObject({ uuid: "uuid-A", title: "Test Book", author: "Test Author", locationCode: "02B" });
+  });
+
+  it("returns empty expectedItemDetails when no expected items", async () => {
+    const session = { ...makeSession({ expectedItemUuids: [] }), photoReconciled: false };
+    const mockDb = makeMockDb();
+    (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => Promise.resolve([session])),
+        })),
+      })),
+    });
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.shelfAudit.getActiveAuditSession();
+    expect((result as Record<string, unknown>).expectedItemDetails).toEqual([]);
+  });
+});
+
+// ─── applyPhotoReconciliation ─────────────────────────────────────────────────
+describe("shelfAudit.applyPhotoReconciliation", () => {
+  beforeEach(() => {
+    vi.mocked(libraryDb.getActiveLibraryForUser).mockResolvedValue(makeLibrary());
+    vi.mocked(libraryDb.updateMemberLastActivity).mockResolvedValue(undefined);
+  });
+
+  it("moves items and marks session photoReconciled", async () => {
+    const session = { ...makeSession({ confirmedItemUuids: [] }), photoReconciled: false };
+    const mockDb = makeMockDb();
+    const updatedSets: unknown[] = [];
+    (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => Promise.resolve([session])),
+        })),
+      })),
+    });
+    (mockDb.update as ReturnType<typeof vi.fn>).mockReturnValue({
+      set: vi.fn((vals: unknown) => {
+        updatedSets.push(vals);
+        return { where: vi.fn(() => Promise.resolve()) };
+      }),
+    });
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.shelfAudit.applyPhotoReconciliation({
+      sessionId: SESSION_ID,
+      moves: ["a0000000-0000-4000-8000-000000000010"],
+      clearLocations: [],
+    });
+    expect(result).toEqual({ moved: 1, cleared: 0 });
+    const lastUpdate = updatedSets[updatedSets.length - 1] as Record<string, unknown>;
+    expect(lastUpdate.photoReconciled).toBe(true);
+    expect((lastUpdate.confirmedItemUuids as string[])).toContain("a0000000-0000-4000-8000-000000000010");
+  });
+
+  it("clears locations and marks session photoReconciled", async () => {
+    const session = { ...makeSession({ confirmedItemUuids: [] }), photoReconciled: false };
+    const mockDb = makeMockDb();
+    const updatedSets: unknown[] = [];
+    (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => Promise.resolve([session])),
+        })),
+      })),
+    });
+    (mockDb.update as ReturnType<typeof vi.fn>).mockReturnValue({
+      set: vi.fn((vals: unknown) => {
+        updatedSets.push(vals);
+        return { where: vi.fn(() => Promise.resolve()) };
+      }),
+    });
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.shelfAudit.applyPhotoReconciliation({
+      sessionId: SESSION_ID,
+      moves: [],
+      clearLocations: ["a0000000-0000-4000-8000-000000000020"],
+    });
+    expect(result).toEqual({ moved: 0, cleared: 1 });
+    const lastUpdate = updatedSets[updatedSets.length - 1] as Record<string, unknown>;
+    expect(lastUpdate.photoReconciled).toBe(true);
+  });
+
+  it("rejects overlapping moves and clearLocations", async () => {
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(
+      caller.shelfAudit.applyPhotoReconciliation({
+        sessionId: SESSION_ID,
+        moves: ["a0000000-0000-4000-8000-000000000010"],
+        clearLocations: ["a0000000-0000-4000-8000-000000000010"],
+      }),
+    ).rejects.toMatchObject({ message: expect.stringContaining("overlap") });
+  });
+
+  it("accepts empty arrays and marks photoReconciled", async () => {
+    const session = { ...makeSession({ confirmedItemUuids: [] }), photoReconciled: false };
+    const mockDb = makeMockDb();
+    const updatedSets: unknown[] = [];
+    (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => Promise.resolve([session])),
+        })),
+      })),
+    });
+    (mockDb.update as ReturnType<typeof vi.fn>).mockReturnValue({
+      set: vi.fn((vals: unknown) => {
+        updatedSets.push(vals);
+        return { where: vi.fn(() => Promise.resolve()) };
+      }),
+    });
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.shelfAudit.applyPhotoReconciliation({
+      sessionId: SESSION_ID,
+      moves: [],
+      clearLocations: [],
+    });
+    expect(result).toEqual({ moved: 0, cleared: 0 });
+    const lastUpdate = updatedSets[updatedSets.length - 1] as Record<string, unknown>;
+    expect(lastUpdate.photoReconciled).toBe(true);
   });
 });
