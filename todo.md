@@ -1327,3 +1327,19 @@
 
 ## Bug — CSV upload does not import all rows
 - [x] Fixed: chunked upload 200 rows/batch with progress toasts
+
+## Shelf Audit Feature (Photo + AI Batch Recognition)
+- [x] Add shelfAuditSessions table to drizzle/schema.ts
+- [x] Expand locationLog.reason to varchar(100)
+- [x] Create shared/auditTypes.ts with ShelfPhotoResult and ConflictItem types
+- [x] Add 6 tRPC procedures: initiateShelfAudit, analyzeShelfPhoto, addManualScanResult, resolveLocationConflict, completeShelfAudit, getActiveAuditSession
+- [x] Write 14 Vitest tests for all 6 procedures (all passing)
+- [x] Build 4-step ShelfAudit.tsx wizard (Initiate → Photo → Scan → Complete)
+- [x] PhotoStep: file input with camera capture, 5 MB guard, FileReader → base64, calls analyzeShelfPhoto, auto-advances on success
+- [x] ReconcileTab: 4-tab view (✅ Confirmados / ⚠️ Conflictos / ❓ No reconocidos / ❌ No encontrados)
+- [x] ScanStep: manual ISBN input + BarcodeScanner, live progress bar, last-outcome banner, ReconcileTab integration
+- [x] CompleteStep: fires completeShelfAudit on mount, shows confirmed/missing/relocated summary
+- [x] Add Dashboard CTA card for shelf audit
+- [x] Register /auditoria route in App.tsx
+- [x] Add nav link in DashboardLayout
+- [x] Code review: remove unused BookOpen import, remove unused utils variable, fix useCallback stable-ref pattern, fix duplicate conflict list, add eslint-disable comment for fire-once useEffect

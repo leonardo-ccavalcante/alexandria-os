@@ -468,3 +468,126 @@ describe("shelfAudit.completeShelfAudit", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
+
+describe("shelfAudit.analyzeShelfPhoto", () => {
+  beforeEach(() => {
+    vi.mocked(libraryDb.getActiveLibraryForUser).mockResolvedValue(makeLibrary());
+    vi.mocked(libraryDb.updateMemberLastActivity).mockResolvedValue(undefined);
+    vi.resetModules(); // clear dynamic import caches between tests
+  });
+
+  it("fuzzy-matches high-confidence books and returns results with matchedItemUuid", async () => {
+    const mockDb = makeMockDb();
+    const allItems = [
+      {
+        uuid: "a0000000-0000-4000-8000-000000000002",
+        isbn13: "9780000000001",
+        title: "El Quijote",
+        author: "Miguel de Cervantes",
+      },
+    ];
+
+    // Call 1: innerJoin query for allItems
+    // Call 2: session fetch
+    let fromCallCount = 0;
+    (mockDb.select as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      from: vi.fn(() => {
+        fromCallCount++;
+        if (fromCallCount === 1) {
+          // allItems query uses innerJoin
+          return {
+            innerJoin: vi.fn(() => ({
+              where: vi.fn(() => Promise.resolve(allItems)),
+            })),
+          };
+        }
+        // session fetch uses .where().limit()
+        return {
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([makeSession({ photoAnalysisResult: null })])),
+          })),
+        };
+      }),
+    }));
+
+    const updateSpy = vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
+    }));
+    (mockDb.update as ReturnType<typeof vi.fn>).mockImplementation(updateSpy);
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+
+    // Dynamic imports are mocked via vi.doMock — must call before createCaller
+    vi.doMock("./storage", () => ({
+      storagePut: vi.fn().mockResolvedValue({ url: "https://s3.example.com/photo.jpg", key: "k" }),
+    }));
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: vi.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              books: [
+                { title: "El Quijote", author: "Cervantes", isbn: null, confidence: 0.9 },
+                { title: "Unknown Book", author: "Nobody", isbn: null, confidence: 0.3 },
+              ],
+            }),
+          },
+        }],
+      }),
+    }));
+
+    const caller = appRouter.createCaller(makeCtx());
+    const result = await caller.shelfAudit.analyzeShelfPhoto({
+      sessionId: SESSION_ID,
+      imageBase64: Buffer.from("fake-image").toString("base64"),
+    });
+
+    expect(result).toHaveLength(2);
+    const matched = result.find(r => r.title === "El Quijote");
+    expect(matched?.matchedItemUuid).toBe("a0000000-0000-4000-8000-000000000002");
+    const unmatched = result.find(r => r.title === "Unknown Book");
+    expect(unmatched?.matchedItemUuid).toBeNull();
+    expect(updateSpy).toHaveBeenCalled();
+  });
+
+  it("throws NOT_FOUND when session does not exist", async () => {
+    const mockDb = makeMockDb();
+
+    let fromCallCount = 0;
+    (mockDb.select as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      from: vi.fn(() => {
+        fromCallCount++;
+        if (fromCallCount === 1) {
+          return {
+            innerJoin: vi.fn(() => ({
+              where: vi.fn(() => Promise.resolve([])),
+            })),
+          };
+        }
+        return {
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([])), // no session
+          })),
+        };
+      }),
+    }));
+
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+
+    vi.doMock("./storage", () => ({
+      storagePut: vi.fn().mockResolvedValue({ url: "https://s3.example.com/p.jpg", key: "k" }),
+    }));
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: vi.fn().mockResolvedValue({
+        choices: [{ message: { content: JSON.stringify({ books: [] }) } }],
+      }),
+    }));
+
+    const caller = appRouter.createCaller(makeCtx());
+    await expect(
+      caller.shelfAudit.analyzeShelfPhoto({
+        sessionId: SESSION_ID,
+        imageBase64: Buffer.from("fake").toString("base64"),
+      })
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});

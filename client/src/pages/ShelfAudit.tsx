@@ -1,20 +1,21 @@
 /**
  * ShelfAudit.tsx
  *
- * Shelf Audit wizard — three-step flow:
- *   1. Initiate: enter a location code to start (or resume) an audit session.
- *   2. Scan: scan ISBNs via camera or manual entry; resolve location conflicts inline.
- *   3. Complete: review the summary and finish the session.
+ * Shelf Audit wizard — four-step flow:
+ *   1. Initiate:    enter a location code to start (or resume) an audit session.
+ *   2. Photo:       photograph the shelf; AI batch-recognises books and auto-advances.
+ *   3. Scan:        scan ISBNs via camera or manual entry; resolve location conflicts inline.
+ *   4. Complete:    review the summary and finish the session.
  *
  * All tRPC calls go through the shelfAudit sub-router.
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ClipboardList,
   ClipboardCheck,
@@ -24,14 +25,17 @@ import {
   XCircle,
   Loader2,
   MapPin,
-  BookOpen,
   ArrowRight,
   RotateCcw,
   Camera,
   Keyboard,
+  ImagePlus,
+  SkipForward,
+  HelpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
+import type { ShelfPhotoResult } from '../../../shared/auditTypes';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -58,8 +62,246 @@ type AuditSession = {
   expectedItemUuids: string[];
   confirmedItemUuids: string[];
   conflictItems: ConflictItem[];
-  photoAnalysisResult: unknown;
+  photoAnalysisResult: ShelfPhotoResult[] | null;
 };
+
+// ─── Step 2: Photo ────────────────────────────────────────────────────────────
+
+function PhotoStep({
+  session,
+  onAnalyzed,
+  onSkip,
+}: {
+  session: AuditSession;
+  onAnalyzed: (results: ShelfPhotoResult[]) => void;
+  onSkip: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const analyzeMutation = trpc.shelfAudit.analyzeShelfPhoto.useMutation({
+    onSuccess: (results) => {
+      const matched = results.filter(r => r.matchedItemUuid !== null).length;
+      toast.success(`Análisis completo: ${matched} de ${results.length} libros reconocidos.`);
+      onAnalyzed(results);
+    },
+    onError: (err) => {
+      toast.error(err.message);
+      setAnalyzing(false);
+    },
+  });
+
+  // analyzeMutation is a new object each render; use a ref to keep the callback stable
+  const analyzeMutationRef = useRef(analyzeMutation);
+  analyzeMutationRef.current = analyzeMutation;
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5_000_000) {
+      toast.error('La imagen supera el límite de 5 MB. Elige una foto más pequeña.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      const base64 = dataUrl.split(',')[1];
+      if (!base64) return;
+      setPreview(dataUrl);
+      setAnalyzing(true);
+      analyzeMutationRef.current.mutate({ sessionId: session.id, imageBase64: base64 });
+    };
+    reader.readAsDataURL(file);
+  // session.id is stable for the lifetime of this step; analyzeMutation via ref
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.id]);
+
+  return (
+    <div className="max-w-lg mx-auto space-y-6">
+      <div className="text-center space-y-2">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-indigo-50 mb-2">
+          <ImagePlus className="h-7 w-7 text-indigo-600" />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900">Fotografiar el estante</h2>
+        <p className="text-gray-500 text-sm">
+          Toma una foto del estante <strong>{session.locationCode}</strong>. La IA identificará los
+          lomos de los libros y los comparará con el inventario registrado.
+        </p>
+      </div>
+
+      {/* Photo upload area */}
+      <Card
+        className={`border-2 border-dashed cursor-pointer transition-colors ${
+          analyzing ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/30'
+        }`}
+        onClick={() => !analyzing && fileInputRef.current?.click()}
+      >
+        <CardContent className="flex flex-col items-center justify-center py-10 gap-3">
+          {analyzing ? (
+            <>
+              <Loader2 className="h-10 w-10 animate-spin text-indigo-500" />
+              <p className="text-sm text-indigo-700 font-medium">Analizando estantería…</p>
+              <p className="text-xs text-indigo-500">Esto puede tardar 10–20 segundos.</p>
+            </>
+          ) : preview ? (
+            <>
+              <img src={preview} alt="Vista previa del estante" className="max-h-48 rounded-lg object-contain shadow" />
+              <p className="text-xs text-gray-400">Haz clic para cambiar la foto</p>
+            </>
+          ) : (
+            <>
+              <Camera className="h-10 w-10 text-gray-300" />
+              <p className="text-sm text-gray-600 font-medium">Haz clic para seleccionar una foto</p>
+              <p className="text-xs text-gray-400">JPG, PNG o WEBP · máx. 5 MB</p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileChange}
+        disabled={analyzing}
+      />
+
+      <div className="text-center">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-gray-400 hover:text-gray-600 text-xs"
+          onClick={onSkip}
+          disabled={analyzing}
+        >
+          <SkipForward className="h-3.5 w-3.5 mr-1" />
+          Saltar foto y escanear manualmente
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Reconciliation tabs ──────────────────────────────────────────────────────
+
+function ReconcileTab({
+  session,
+  photoResults,
+  onRefresh,
+}: {
+  session: AuditSession;
+  photoResults: ShelfPhotoResult[];
+  onRefresh: () => void;
+}) {
+  const confirmed = session.confirmedItemUuids;
+  const pendingConflicts = (session.conflictItems as ConflictItem[]).filter(c => c.resolution === null);
+  const expected = session.expectedItemUuids;
+  const unrecognized = photoResults.filter(r => r.matchedItemUuid === null && r.confidence >= 0.5);
+  const conflictUuids = new Set((session.conflictItems as ConflictItem[]).map(c => c.uuid));
+  const notFound = expected.filter(uuid => !confirmed.includes(uuid) && !conflictUuids.has(uuid));
+
+  return (
+    <Tabs defaultValue="confirmed" className="w-full">
+      <TabsList className="grid w-full grid-cols-4 text-xs h-auto">
+        <TabsTrigger value="confirmed" className="text-xs py-1.5">
+          ✅ {confirmed.length}
+        </TabsTrigger>
+        <TabsTrigger value="conflicts" className="text-xs py-1.5">
+          ⚠️ {pendingConflicts.length}
+        </TabsTrigger>
+        <TabsTrigger value="unrecognized" className="text-xs py-1.5">
+          ❓ {unrecognized.length}
+        </TabsTrigger>
+        <TabsTrigger value="notfound" className="text-xs py-1.5">
+          ❌ {notFound.length}
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="confirmed">
+        {confirmed.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-gray-400">
+            <HelpCircle className="h-5 w-5" />
+            <p className="text-xs">Ningún ítem confirmado aún.</p>
+          </div>
+        ) : (
+          <ul className="space-y-1 mt-2">
+            {confirmed.map(uuid => (
+              <li key={uuid} className="flex items-center gap-2 text-xs text-green-800 bg-green-50 rounded px-3 py-1.5">
+                <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
+                <code className="font-mono">{uuid.slice(0, 8)}…</code>
+              </li>
+            ))}
+          </ul>
+        )}
+      </TabsContent>
+
+      <TabsContent value="conflicts">
+        {pendingConflicts.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-gray-400">
+            <HelpCircle className="h-5 w-5" />
+            <p className="text-xs">Sin conflictos pendientes.</p>
+          </div>
+        ) : (
+          <div className="space-y-2 mt-2">
+            {pendingConflicts.map(c => (
+              <ConflictCard
+                key={c.uuid}
+                conflict={c}
+                sessionId={session.id}
+                sessionLocation={session.locationCode}
+                onResolved={onRefresh}
+              />
+            ))}
+          </div>
+        )}
+      </TabsContent>
+
+      <TabsContent value="unrecognized">
+        {unrecognized.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-gray-400">
+            <HelpCircle className="h-5 w-5" />
+            <p className="text-xs">Todos los libros detectados fueron reconocidos.</p>
+          </div>
+        ) : (
+          <ul className="space-y-2 mt-2">
+            {unrecognized.map((r, i) => (
+              <li key={i} className="bg-amber-50 rounded-lg px-3 py-2 text-sm">
+                <div className="font-medium text-amber-900">{r.title}</div>
+                <div className="text-xs text-amber-700">{r.author}</div>
+                <div className="text-xs text-amber-500 mt-0.5">
+                  Confianza: {Math.round(r.confidence * 100)}%
+                  {r.isbn && <span className="ml-2">ISBN: {r.isbn}</span>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </TabsContent>
+
+      <TabsContent value="notfound">
+        {notFound.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-gray-400">
+            <HelpCircle className="h-5 w-5" />
+            <p className="text-xs">Todos los ítems esperados han sido confirmados o están en conflicto.</p>
+          </div>
+        ) : (
+          <ul className="space-y-1 mt-2">
+            {notFound.map(uuid => (
+              <li key={uuid} className="flex items-center gap-2 text-xs text-red-800 bg-red-50 rounded px-3 py-1.5">
+                <XCircle className="h-3 w-3 flex-shrink-0" />
+                <code className="font-mono">{uuid.slice(0, 8)}…</code>
+                <Badge variant="destructive" className="text-xs ml-auto">MISSING</Badge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </TabsContent>
+    </Tabs>
+  );
+}
 
 // ─── Step 1: Initiate ─────────────────────────────────────────────────────────
 
@@ -282,7 +524,10 @@ function ScanStep({
   const [lastOutcome, setLastOutcome] = useState<ScanOutcome | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const utils = trpc.useUtils();
+  const photoResults: ShelfPhotoResult[] = Array.isArray(session.photoAnalysisResult)
+    ? (session.photoAnalysisResult as ShelfPhotoResult[])
+    : [];
+
   const scanMutation = trpc.shelfAudit.addManualScanResult.useMutation({
     onSuccess: (result) => {
       setLastOutcome(result as ScanOutcome);
@@ -443,42 +688,16 @@ function ScanStep({
         </CardContent>
       </Card>
 
-      {/* Pending conflicts */}
-      {conflicts.length > 0 && (
+       {/* Reconciliation tabs (photo flow) or plain conflict list (manual-only flow) */}
+      {photoResults.length > 0 || session.conflictItems.length > 0 ? (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-amber-800 flex items-center gap-1">
-            <AlertTriangle className="h-4 w-4" />
-            Conflictos pendientes ({conflicts.length})
-          </h3>
-          {conflicts.map((c) => (
-            <ConflictCard
-              key={c.uuid}
-              conflict={c}
-              sessionId={session.id}
-              sessionLocation={session.locationCode}
-              onResolved={onRefresh}
-            />
-          ))}
+          <h3 className="text-sm font-medium text-gray-700">Resumen de reconciliación</h3>
+          <ReconcileTab session={session} photoResults={photoResults} onRefresh={onRefresh} />
         </div>
-      )}
+      ) : null}
 
-      {/* Resolved conflicts */}
-      {(session.conflictItems as ConflictItem[]).filter(c => c.resolution !== null).length > 0 && (
-        <div className="space-y-1">
-          <h3 className="text-xs font-medium text-gray-500">Conflictos resueltos</h3>
-          {(session.conflictItems as ConflictItem[])
-            .filter(c => c.resolution !== null)
-            .map(c => (
-              <ConflictCard
-                key={c.uuid}
-                conflict={c}
-                sessionId={session.id}
-                sessionLocation={session.locationCode}
-                onResolved={onRefresh}
-              />
-            ))}
-        </div>
-      )}
+      {/* Note: when photoResults is empty but conflicts exist, ReconcileTab above
+           already shows the conflicts tab — no duplicate list needed. */}
     </div>
   );
 }
@@ -507,6 +726,8 @@ function CompleteStep({
     if (!summary) {
       completeMutation.mutate({ sessionId: session.id });
     }
+    // Intentionally fire once on mount; completeMutation and session.id are stable here
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (completeMutation.isPending || !summary) {
@@ -566,7 +787,14 @@ function CompleteStep({
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type Step = 'initiate' | 'scan' | 'complete';
+type Step = 'initiate' | 'photo' | 'scan' | 'complete';
+
+const STEP_META: { id: Step; label: string; Icon: React.FC<{ className?: string }> }[] = [
+  { id: 'initiate', label: 'Iniciar',      Icon: ClipboardList },
+  { id: 'photo',    label: 'Fotografiar',  Icon: ImagePlus },
+  { id: 'scan',     label: 'Escanear',     Icon: ScanLine },
+  { id: 'complete', label: 'Completar',    Icon: ClipboardCheck },
+];
 
 export default function ShelfAudit() {
   const [step, setStep] = useState<Step>('initiate');
@@ -583,8 +811,15 @@ export default function ShelfAudit() {
 
   const handleStarted = (s: AuditSession) => {
     setSession(s);
+    setStep('photo');
+  };
+
+  const handlePhotoAnalyzed = (results: ShelfPhotoResult[]) => {
+    setSession(prev => prev ? { ...prev, photoAnalysisResult: results } : prev);
     setStep('scan');
   };
+
+  const handleSkipPhoto = () => setStep('scan');
 
   const handleComplete = () => {
     setStep('complete');
@@ -602,25 +837,21 @@ export default function ShelfAudit() {
   return (
     <div className="container py-6 md:py-10">
       {/* Step indicator */}
-      <div className="flex items-center justify-center gap-2 mb-8 text-xs text-gray-400">
-        {(['initiate', 'scan', 'complete'] as Step[]).map((s, i) => {
-          const labels = ['Iniciar', 'Escanear', 'Completar'];
-          const icons = [ClipboardList, ScanLine, ClipboardCheck];
-          const Icon = icons[i];
-          const isActive = step === s;
-          const isDone = (
-            (s === 'initiate' && (step === 'scan' || step === 'complete')) ||
-            (s === 'scan' && step === 'complete')
-          );
+      <div className="flex items-center justify-center gap-1 mb-8 text-xs text-gray-400">
+        {STEP_META.map(({ id, label, Icon }, i) => {
+          const stepIndex = STEP_META.findIndex(s => s.id === step);
+          const isActive = step === id;
+          const isDone = i < stepIndex;
           return (
-            <div key={s} className="flex items-center gap-2">
-              {i > 0 && <div className="w-8 h-px bg-gray-200" />}
+            <div key={id} className="flex items-center gap-1">
+              {i > 0 && <div className="w-6 h-px bg-gray-200" />}
               <div className={`flex items-center gap-1.5 px-2 py-1 rounded-full transition-colors ${
                 isActive ? 'bg-blue-100 text-blue-700' :
-                isDone ? 'text-green-600' : 'text-gray-400'
+                isDone   ? 'text-green-600' :
+                           'text-gray-400'
               }`}>
                 {isDone ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Icon className="h-3.5 w-3.5" />}
-                <span className="hidden sm:inline">{labels[i]}</span>
+                <span className="hidden sm:inline">{label}</span>
               </div>
             </div>
           );
@@ -629,6 +860,15 @@ export default function ShelfAudit() {
 
       {/* Step content */}
       {step === 'initiate' && <InitiateStep onStarted={handleStarted} />}
+
+      {step === 'photo' && currentSession && (
+        <PhotoStep
+          session={currentSession}
+          onAnalyzed={handlePhotoAnalyzed}
+          onSkip={handleSkipPhoto}
+        />
+      )}
+
       {step === 'scan' && currentSession && (
         <ScanStep
           session={currentSession}
@@ -636,6 +876,7 @@ export default function ShelfAudit() {
           onRefresh={handleRefresh}
         />
       )}
+
       {step === 'complete' && currentSession && (
         <CompleteStep session={currentSession} onNewAudit={handleNewAudit} />
       )}

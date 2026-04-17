@@ -2944,6 +2944,7 @@ Return JSON: { "books": [ ... ] }`;
           .from(shelfAuditSessions)
           .where(eq(shelfAuditSessions.id, input.sessionId))
           .limit(1);
+        if (!session) throw new TRPCError({ code: 'NOT_FOUND', message: 'Sesión no encontrada' });
         const existing: ShelfPhotoResult[] = (session?.photoAnalysisResult as ShelfPhotoResult[] | null) ?? [];
         await db.update(shelfAuditSessions)
           .set({ photoAnalysisResult: [...existing, ...matched] })
