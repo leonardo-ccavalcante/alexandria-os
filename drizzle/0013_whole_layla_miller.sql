@@ -1,0 +1,1 @@
+ALTER TABLE `shelfAuditSessions` ADD `photoReconciled` boolean DEFAULT false NOT NULL;

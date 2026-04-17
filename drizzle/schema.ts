@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, index, json } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, index, json, boolean } from "drizzle-orm/mysql-core";
 import { sql } from "drizzle-orm";
 
 export const users = mysqlTable("users", {
@@ -310,6 +310,7 @@ export const shelfAuditSessions = mysqlTable('shelfAuditSessions', {
   confirmedItemUuids: json('confirmedItemUuids').$type<string[]>().notNull(),
   conflictItems: json('conflictItems').$type<import('../shared/auditTypes').ConflictItem[]>().notNull(),
   photoAnalysisResult: json('photoAnalysisResult').$type<import('../shared/auditTypes').ShelfPhotoResult[] | null>(),
+  photoReconciled: boolean('photoReconciled').notNull().default(false),
 }, (table) => ({
   libraryStatusIdx: index('idx_audit_library_status').on(table.libraryId, table.status),
 }));
