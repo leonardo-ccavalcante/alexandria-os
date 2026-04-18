@@ -756,3 +756,79 @@ describe("shelfAudit.applyPhotoReconciliation", () => {
     expect(lastUpdate.photoReconciled).toBe(true);
   });
 });
+
+// ─── TDD: Location Clearing Scenario ──────────────────────────────────────────
+
+describe("shelfAudit.applyPhotoReconciliation — location clearing scenario", () => {
+  beforeEach(() => {
+    vi.mocked(libraryDb.getActiveLibraryForUser).mockResolvedValue(makeLibrary());
+    vi.mocked(libraryDb.updateMemberLastActivity).mockResolvedValue(undefined);
+  });
+
+  it("clears locationCode of expected-but-unconfirmed items when user confirms photo", async () => {
+    // Scenario: Shelf 07A expected items A, B, C. Photo detects X, Y, Z at different location.
+    // User confirms: move X, Y, Z to 07A, clear location of A, B, C.
+    // Verify: A, B, C have locationCode = NULL after mutation.
+
+    const session = makeSession({
+      locationCode: "07A",
+      expectedItemUuids: ["a0000000-0000-4000-8000-000000000001", "a0000000-0000-4000-8000-000000000002", "a0000000-0000-4000-8000-000000000003"],
+      confirmedItemUuids: [],
+      photoReconciled: false,
+    });
+
+    const mockDb = makeMockDb();
+    const updateCalls: Array<{ set: Record<string, unknown>, where: unknown }> = [];
+
+    // Mock select for session fetch
+    (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => Promise.resolve([session])),
+        })),
+      })),
+    });
+
+    // Mock update to capture all set() calls
+    (mockDb.update as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      set: vi.fn((vals: unknown) => {
+        updateCalls.push({ set: vals as Record<string, unknown>, where: null });
+        return {
+          where: vi.fn(() => Promise.resolve()),
+        };
+      }),
+    }));
+
+    // Mock insert for locationLog
+    (mockDb.insert as ReturnType<typeof vi.fn>).mockReturnValue({
+      values: vi.fn(() => Promise.resolve()),
+    });
+
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+    const caller = appRouter.createCaller(makeCtx());
+
+    // User confirms: move X, Y, Z to 07A; clear location of A, B, C
+    const result = await caller.shelfAudit.applyPhotoReconciliation({
+      sessionId: SESSION_ID,
+      moves: ["a0000000-0000-4000-8000-000000000010", "a0000000-0000-4000-8000-000000000011", "a0000000-0000-4000-8000-000000000012"],
+      clearLocations: ["a0000000-0000-4000-8000-000000000001", "a0000000-0000-4000-8000-000000000002", "a0000000-0000-4000-8000-000000000003"],
+    });
+
+    // Verify: mutation returned correct counts
+    expect(result).toEqual({ moved: 3, cleared: 3 });
+
+    // Verify: update was called with locationCode = null for clear operation
+    const clearUpdate = updateCalls.find(call => call.set.locationCode === null);
+    expect(clearUpdate).toBeDefined();
+    expect(clearUpdate?.set.locationCode).toBeNull();
+
+    // Verify: update was called with locationCode = "07A" for move operation
+    const moveUpdate = updateCalls.find(call => call.set.locationCode === "07A");
+    expect(moveUpdate).toBeDefined();
+    expect(moveUpdate?.set.locationCode).toBe("07A");
+
+    // Verify: photoReconciled was set to true
+    const finalUpdate = updateCalls[updateCalls.length - 1];
+    expect(finalUpdate?.set.photoReconciled).toBe(true);
+  });
+});
