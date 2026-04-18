@@ -12,6 +12,7 @@
  * installed and the bug is purely CSS class composition.
  */
 
+// Deployment trigger: 2026-04-18
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { describe, it, expect } from 'vitest';
