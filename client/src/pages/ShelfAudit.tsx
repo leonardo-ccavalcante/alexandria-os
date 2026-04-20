@@ -114,11 +114,13 @@ function PhotoStep({
     const reader = new FileReader();
     reader.onload = (ev) => {
       const dataUrl = ev.target?.result as string;
-      const base64 = dataUrl.split(',')[1];
-      if (!base64) return;
+      // Send the full data URL (data:<mime>;base64,<payload>) so the server can
+      // detect the correct MIME type for S3 upload. iOS can produce WebP or HEIC
+      // images — hardcoding 'image/jpeg' causes wrong Content-Type on S3.
+      if (!dataUrl) return;
       setPreview(dataUrl);
       setAnalyzing(true);
-      analyzeMutationRef.current.mutate({ sessionId: session.id, imageBase64: base64 });
+      analyzeMutationRef.current.mutate({ sessionId: session.id, imageBase64: dataUrl });
     };
     reader.readAsDataURL(file);
   // session.id is stable for the lifetime of this step; analyzeMutation via ref
@@ -167,11 +169,13 @@ function PhotoStep({
         </CardContent>
       </Card>
 
+      {/* No capture attribute: allows iOS users to choose between camera and photo
+          library. capture="environment" forces camera-only on iOS Safari and also
+          prevents HEIC→JPEG conversion, breaking the AI analysis pipeline. */}
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={handleFileChange}
         disabled={analyzing}

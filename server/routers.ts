@@ -2907,18 +2907,41 @@ export const appRouter = router({
     analyzeShelfPhoto: libraryProcedure
       .input(z.object({
         sessionId: z.string().uuid(),
-        imageBase64: z.string().max(5_000_000),
+        // 5 MB file → ~6.67 MB base64 + data URL prefix (data:image/jpeg;base64,)
+        // Allow 7 MB to cover all formats including HEIC/WebP with data URL prefix
+        imageBase64: z.string().max(7_000_000),
       }))
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
         // Upload to S3
+        // Detect MIME type from data URL prefix (data:<mime>;base64,<payload>).
+        // iOS Safari can produce WebP, HEIC, or PNG images — hardcoding 'image/jpeg'
+        // causes wrong Content-Type on S3, which breaks the LLM vision API.
         const { storagePut } = await import('./storage');
         const suffix = Math.random().toString(36).slice(7);
+        let mimeType = 'image/jpeg'; // default for plain base64 (backward compat)
+        let rawBase64 = input.imageBase64;
+        const dataUrlMatch = input.imageBase64.match(/^data:([a-zA-Z0-9][a-zA-Z0-9!#$&\-^_]+\/[a-zA-Z0-9][a-zA-Z0-9!#$&\-^_]+);base64,(.+)$/);
+        if (dataUrlMatch) {
+          mimeType = dataUrlMatch[1];
+          rawBase64 = dataUrlMatch[2];
+        }
+        // Map MIME type to file extension for the S3 key
+        const extMap: Record<string, string> = {
+          'image/jpeg': 'jpg',
+          'image/jpg': 'jpg',
+          'image/png': 'png',
+          'image/webp': 'webp',
+          'image/heic': 'heic',
+          'image/heif': 'heif',
+          'image/gif': 'gif',
+        };
+        const ext = extMap[mimeType] ?? 'jpg';
         const { url: imageUrl } = await storagePut(
-          `audit-photos/${input.sessionId}/${Date.now()}-${suffix}.jpg`,
-          Buffer.from(input.imageBase64, 'base64'),
-          'image/jpeg',
+          `audit-photos/${input.sessionId}/${Date.now()}-${suffix}.${ext}`,
+          Buffer.from(rawBase64, 'base64'),
+          mimeType,
         );
         // Call Gemini Vision
         const SHELF_ANALYSIS_PROMPT = `This is a photo of a library bookshelf.

@@ -1363,3 +1363,14 @@
 - [x] Fix addManualScanResult: normalize ISBN (strip hyphens/spaces, convert ISBN-10 → ISBN-13) before DB queries
 - [x] Update existing addManualScanResult tests to use valid ISBNs with correct checksums (9780000000002, 9780306406157)
 - [x] All 29 shelfAudit tests pass (23 shelfAudit.test.ts + 6 layout); 0 TypeScript errors
+
+## iOS/Android Photo Upload Bug Fix — PhotoStep (2026-04-20)
+
+- [x] Root cause 1: capture="environment" on file input blocked iOS gallery access (forced camera-only)
+- [x] Root cause 2: MIME type discarded from data URL — server always used image/jpeg for S3 upload
+- [x] Fix frontend: remove capture="environment", send full data URL (data:<mime>;base64,...) to server
+- [x] Fix backend: detect MIME type from data URL prefix regex, use correct Content-Type for storagePut
+- [x] Fix backend: add extMap for S3 key extension (jpg/png/webp/heic/heif/gif)
+- [x] Fix backend: update Zod max from 5_000_000 to 7_000_000 (5MB file → ~6.67MB base64 data URL)
+- [x] Code review: verified Express body parser already at 50MB, storagePut dynamic import is mockable
+- [x] 8 new TDD tests: 3 server (MIME type detection) + 5 layout (input attributes); 37/37 pass; 0 TS errors
