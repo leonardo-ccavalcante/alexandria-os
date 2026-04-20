@@ -2977,10 +2977,16 @@ Return JSON: { "books": [ ... ] }`;
           .from(inventoryItems)
           .innerJoin(catalogMasters, eq(inventoryItems.isbn13, catalogMasters.isbn13))
           .where(eq(inventoryItems.libraryId, ctx.library.id));
-        const normalize = (s: string) =>
-          s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
+        // Guard against null/undefined: the LLM may return null for title or author
+        // when it cannot read a book spine. Calling .toLowerCase() on null causes
+        // "Cannot read properties of null (reading 'toLowerCase')" — the crash seen
+        // on Android/iOS when photographing a shelf.
+        const normalize = (s: string | null | undefined): string =>
+          (s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, '').trim();
         const matched: ShelfPhotoResult[] = books.map(book => {
           if (book.confidence < 0.5) return { ...book, matchedItemUuid: null, matchedIsbn: null, matchedLocationCode: null };
+          // If both title and author are null/empty, we cannot match — treat as low confidence
+          if (!book.title && !book.author) return { ...book, matchedItemUuid: null, matchedIsbn: null, matchedLocationCode: null };
           const normTitle = normalize(book.title);
           const normAuthor = normalize(book.author);
           const hit = allItems.find(item => {

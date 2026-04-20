@@ -330,3 +330,182 @@ describe("shelfAudit.analyzeShelfPhoto — iOS/Android MIME type handling", () =
     expect(contentType).toBe("image/jpeg");
   });
 });
+
+describe("shelfAudit.analyzeShelfPhoto — null title/author crash (Android/iOS)", () => {
+  // Root cause: when the LLM cannot read a book spine, it may return
+  // { title: null, author: null } in the JSON response.
+  // The normalize() function calls s.toLowerCase() which crashes on null.
+  // Error: "Cannot read properties of null (reading 'toLowerCase')"
+  //
+  // This test reproduces the exact crash seen in production on Android.
+
+  beforeEach(() => {
+    vi.mocked(libraryDb.getActiveLibraryForUser).mockResolvedValue(makeLibrary());
+    vi.mocked(libraryDb.updateMemberLastActivity).mockResolvedValue(undefined);
+    vi.resetModules();
+  });
+
+  it("does not crash when LLM returns null title", async () => {
+    const mockDb = makeMockDb();
+
+    let fromCallCount = 0;
+    (mockDb.select as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      from: vi.fn(() => {
+        fromCallCount++;
+        if (fromCallCount === 1) {
+          // allItems query (innerJoin)
+          return {
+            innerJoin: vi.fn(() => ({
+              where: vi.fn(() => Promise.resolve([])),
+            })),
+          };
+        }
+        // session fetch
+        return {
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([makeSession()])),
+          })),
+        };
+      }),
+    }));
+    (mockDb.update as ReturnType<typeof vi.fn>).mockReturnValue({
+      set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
+    });
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+
+    vi.doMock("./storage", () => ({
+      storagePut: vi.fn().mockResolvedValue({ url: "https://s3.example.com/photo.jpg", key: "k" }),
+    }));
+
+    // LLM returns a book with null title (happens when spine is unreadable)
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: vi.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              books: [
+                { title: null, author: "Camilla Läckberg", isbn: null, confidence: 0.8 },
+              ],
+            }),
+          },
+        }],
+      }),
+    }));
+
+    const caller = appRouter.createCaller(makeCtx());
+    const rawBase64 = Buffer.from("fake-jpeg").toString("base64");
+
+    // Must NOT throw "Cannot read properties of null (reading 'toLowerCase')"
+    await expect(
+      caller.shelfAudit.analyzeShelfPhoto({ sessionId: SESSION_ID, imageBase64: rawBase64 })
+    ).resolves.toBeDefined();
+  });
+
+  it("does not crash when LLM returns null author", async () => {
+    const mockDb = makeMockDb();
+
+    let fromCallCount = 0;
+    (mockDb.select as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      from: vi.fn(() => {
+        fromCallCount++;
+        if (fromCallCount === 1) {
+          return {
+            innerJoin: vi.fn(() => ({
+              where: vi.fn(() => Promise.resolve([])),
+            })),
+          };
+        }
+        return {
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([makeSession()])),
+          })),
+        };
+      }),
+    }));
+    (mockDb.update as ReturnType<typeof vi.fn>).mockReturnValue({
+      set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
+    });
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+
+    vi.doMock("./storage", () => ({
+      storagePut: vi.fn().mockResolvedValue({ url: "https://s3.example.com/photo.jpg", key: "k" }),
+    }));
+
+    // LLM returns a book with null author
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: vi.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              books: [
+                { title: "La última legión", author: null, isbn: null, confidence: 0.9 },
+              ],
+            }),
+          },
+        }],
+      }),
+    }));
+
+    const caller = appRouter.createCaller(makeCtx());
+    const rawBase64 = Buffer.from("fake-jpeg").toString("base64");
+
+    await expect(
+      caller.shelfAudit.analyzeShelfPhoto({ sessionId: SESSION_ID, imageBase64: rawBase64 })
+    ).resolves.toBeDefined();
+  });
+
+  it("does not crash when LLM returns both title and author as null", async () => {
+    const mockDb = makeMockDb();
+
+    let fromCallCount = 0;
+    (mockDb.select as ReturnType<typeof vi.fn>).mockImplementation(() => ({
+      from: vi.fn(() => {
+        fromCallCount++;
+        if (fromCallCount === 1) {
+          return {
+            innerJoin: vi.fn(() => ({
+              where: vi.fn(() => Promise.resolve([])),
+            })),
+          };
+        }
+        return {
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([makeSession()])),
+          })),
+        };
+      }),
+    }));
+    (mockDb.update as ReturnType<typeof vi.fn>).mockReturnValue({
+      set: vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) })),
+    });
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+
+    vi.doMock("./storage", () => ({
+      storagePut: vi.fn().mockResolvedValue({ url: "https://s3.example.com/photo.jpg", key: "k" }),
+    }));
+
+    // LLM returns multiple books, some with null fields
+    vi.doMock("./_core/llm", () => ({
+      invokeLLM: vi.fn().mockResolvedValue({
+        choices: [{
+          message: {
+            content: JSON.stringify({
+              books: [
+                { title: null, author: null, isbn: null, confidence: 0.6 },
+                { title: "Poder de seis", author: null, isbn: null, confidence: 0.85 },
+                { title: null, author: "Néstor Luján", isbn: null, confidence: 0.7 },
+              ],
+            }),
+          },
+        }],
+      }),
+    }));
+
+    const caller = appRouter.createCaller(makeCtx());
+    const rawBase64 = Buffer.from("fake-jpeg").toString("base64");
+
+    await expect(
+      caller.shelfAudit.analyzeShelfPhoto({ sessionId: SESSION_ID, imageBase64: rawBase64 })
+    ).resolves.toBeDefined();
+  });
+});

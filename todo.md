@@ -1374,3 +1374,11 @@
 - [x] Fix backend: update Zod max from 5_000_000 to 7_000_000 (5MB file → ~6.67MB base64 data URL)
 - [x] Code review: verified Express body parser already at 50MB, storagePut dynamic import is mockable
 - [x] 8 new TDD tests: 3 server (MIME type detection) + 5 layout (input attributes); 37/37 pass; 0 TS errors
+
+## Auditoria PhotoStep null.toLowerCase() Crash Fix (2026-04-20)
+
+- [x] Root cause: LLM returns null for title/author when spine is unreadable; normalize(null) crashes
+- [x] Write 3 failing TDD tests (RED): null title, null author, both null — all reproduce exact crash
+- [x] Fix: guard normalize() to accept string | null | undefined, coerce null to empty string via (s ?? '')
+- [x] Fix: skip match attempt when both title and author are null (treat as unreadable book)
+- [x] 40/40 shelfAudit tests pass; 0 TypeScript errors
