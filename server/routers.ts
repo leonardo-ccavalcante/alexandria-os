@@ -3036,11 +3036,15 @@ Return JSON: { "books": [ ... ] }`;
           .where(eq(shelfAuditSessions.id, input.sessionId))
           .limit(1);
         if (!session) throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
+        // Normalize ISBN: strip hyphens/spaces and convert ISBN-10 → ISBN-13
+        const { normalizeISBN } = await import('../shared/isbn-utils');
+        const cleanedIsbn = input.isbn.replace(/[-\s]/g, '');
+        const isbn13 = normalizeISBN(cleanedIsbn);
         const [item] = await db
           .select()
           .from(inventoryItems)
           .where(and(
-            eq(inventoryItems.isbn13, input.isbn),
+            eq(inventoryItems.isbn13, isbn13),
             eq(inventoryItems.libraryId, ctx.library.id),
           ))
           .limit(1);
@@ -3048,7 +3052,7 @@ Return JSON: { "books": [ ... ] }`;
           const [inCatalog] = await db
             .select({ isbn13: catalogMasters.isbn13 })
             .from(catalogMasters)
-            .where(eq(catalogMasters.isbn13, input.isbn))
+            .where(eq(catalogMasters.isbn13, isbn13))
             .limit(1);
           return { outcome: inCatalog ? 'catalog_only' : 'not_found' } as const;
         }

@@ -1355,3 +1355,11 @@
 - [x] Update wizard to 5 steps (Iniciar → Fotografiar → Reconciliar → Escanear → Completar)
 - [x] Triage page reads ?locationCode query param to pre-fill location
 - [x] 6 new Vitest tests (20 total in shelfAudit.test.ts)
+
+## Shelf Audit ISBN Normalization Bug Fix (2026-04-20)
+
+- [x] Identify root cause: addManualScanResult used raw input.isbn without normalization
+- [x] Write failing TDD tests (RED): normalizes ISBN-10 to ISBN-13 before querying DB; strips hyphens from ISBN-13
+- [x] Fix addManualScanResult: normalize ISBN (strip hyphens/spaces, convert ISBN-10 → ISBN-13) before DB queries
+- [x] Update existing addManualScanResult tests to use valid ISBNs with correct checksums (9780000000002, 9780306406157)
+- [x] All 29 shelfAudit tests pass (23 shelfAudit.test.ts + 6 layout); 0 TypeScript errors

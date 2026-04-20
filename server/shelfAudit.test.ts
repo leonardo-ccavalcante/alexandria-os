@@ -266,7 +266,7 @@ describe("shelfAudit.addManualScanResult", () => {
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.shelfAudit.addManualScanResult({
       sessionId: SESSION_ID,
-      isbn: "9999999999999",
+      isbn: "9780306406157", // valid ISBN-13 with correct checksum
     });
     expect(result.outcome).toBe("not_found");
   });
@@ -275,7 +275,7 @@ describe("shelfAudit.addManualScanResult", () => {
     const session = makeSession({ locationCode: "01A" });
     const item = {
       uuid: "a0000000-0000-4000-8000-000000000002",
-      isbn13: "9780000000001",
+      isbn13: "9780000000002", // valid ISBN-13 with correct checksum
       locationCode: "01A",
       status: "AVAILABLE",
       libraryId: LIBRARY_ID,
@@ -300,16 +300,103 @@ describe("shelfAudit.addManualScanResult", () => {
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.shelfAudit.addManualScanResult({
       sessionId: SESSION_ID,
-      isbn: "9780000000001",
+      isbn: "9780000000002", // valid ISBN-13 with correct checksum
     });
     expect(result.outcome).toBe("confirmed");
+  });
+
+  it("normalizes ISBN-10 to ISBN-13 before querying the DB", async () => {
+    // Bug: addManualScanResult used raw input.isbn without normalizing ISBN-10 → ISBN-13.
+    // ISBN-10 "8401352835" normalizes to ISBN-13 "9788401352836".
+    // This test captures the SQL WHERE expression and asserts the Param value is the
+    // normalized ISBN-13, not the raw ISBN-10 input.
+    const session = makeSession({ locationCode: "01A" });
+    const mockDb = makeMockDb();
+    const capturedWhereArgs: unknown[] = [];
+    let callCount = 0;
+    (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn((expr: unknown) => {
+          capturedWhereArgs.push(expr);
+          return {
+            limit: vi.fn(() => {
+              callCount++;
+              if (callCount === 1) return Promise.resolve([session]); // session fetch
+              return Promise.resolve([]); // item not found (simulates no match)
+            }),
+          };
+        }),
+      })),
+    });
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+    const caller = appRouter.createCaller(makeCtx());
+    await caller.shelfAudit.addManualScanResult({
+      sessionId: SESSION_ID,
+      isbn: "8401352835", // ISBN-10 input
+    });
+    // Extract all Param values from the captured WHERE expression (2nd call = inventoryItems query)
+    function findParamValues(obj: unknown): unknown[] {
+      if (!obj || typeof obj !== 'object') return [];
+      const o = obj as Record<string, unknown>;
+      if (o.constructor?.name === 'Param') return [o.value];
+      if (Array.isArray(o)) return o.flatMap(findParamValues);
+      if ('queryChunks' in o) return findParamValues(o.queryChunks);
+      return [];
+    }
+    const secondWhereArg = capturedWhereArgs[1]; // 2nd where() call = inventoryItems query
+    const paramValues = findParamValues(secondWhereArg);
+    // The ISBN param passed to the query MUST be the normalized ISBN-13, not the raw ISBN-10
+    expect(paramValues).toContain("9788401352836");
+    expect(paramValues).not.toContain("8401352835");
+  });
+
+  it("strips hyphens from ISBN-13 before querying the DB", async () => {
+    // Bug: addManualScanResult used raw input.isbn without stripping hyphens.
+    // Hyphenated "978-84-01-35283-6" should be stored/queried as "9788401352836".
+    const session = makeSession({ locationCode: "01A" });
+    const mockDb = makeMockDb();
+    const capturedWhereArgs: unknown[] = [];
+    let callCount = 0;
+    (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
+      from: vi.fn(() => ({
+        where: vi.fn((expr: unknown) => {
+          capturedWhereArgs.push(expr);
+          return {
+            limit: vi.fn(() => {
+              callCount++;
+              if (callCount === 1) return Promise.resolve([session]); // session fetch
+              return Promise.resolve([]); // item not found (simulates no match)
+            }),
+          };
+        }),
+      })),
+    });
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+    const caller = appRouter.createCaller(makeCtx());
+    await caller.shelfAudit.addManualScanResult({
+      sessionId: SESSION_ID,
+      isbn: "978-84-01-35283-6", // hyphenated ISBN-13 input
+    });
+    function findParamValues(obj: unknown): unknown[] {
+      if (!obj || typeof obj !== 'object') return [];
+      const o = obj as Record<string, unknown>;
+      if (o.constructor?.name === 'Param') return [o.value];
+      if (Array.isArray(o)) return o.flatMap(findParamValues);
+      if ('queryChunks' in o) return findParamValues(o.queryChunks);
+      return [];
+    }
+    const secondWhereArg = capturedWhereArgs[1]; // 2nd where() call = inventoryItems query
+    const paramValues = findParamValues(secondWhereArg);
+    // The ISBN param passed to the query MUST be the normalized ISBN-13 without hyphens
+    expect(paramValues).toContain("9788401352836");
+    expect(paramValues).not.toContain("978-84-01-35283-6");
   });
 
   it("returns 'conflict' when item is at a different location", async () => {
     const session = makeSession({ locationCode: "01A" });
     const item = {
       uuid: "a0000000-0000-4000-8000-000000000002",
-      isbn13: "9780000000001",
+      isbn13: "9780000000002", // valid ISBN-13 with correct checksum
       locationCode: "02B",
       status: "AVAILABLE",
       libraryId: LIBRARY_ID,
@@ -334,7 +421,7 @@ describe("shelfAudit.addManualScanResult", () => {
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.shelfAudit.addManualScanResult({
       sessionId: SESSION_ID,
-      isbn: "9780000000001",
+      isbn: "9780000000002", // valid ISBN-13 with correct checksum
     });
     expect(result.outcome).toBe("conflict");
     expect((result as { outcome: string; fromLocation: string | null }).fromLocation).toBe("02B");
