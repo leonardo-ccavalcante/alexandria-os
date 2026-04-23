@@ -396,3 +396,66 @@ function extractParamValues(expr: unknown): unknown[] {
   visit(expr);
   return result;
 }
+
+// ─── getActiveSessionsForLocation ────────────────────────────────────────────
+
+describe("getActiveSessionsForLocation", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.mocked(libraryDb.getActiveLibraryForUser).mockResolvedValue(makeLibrary());
+    vi.mocked(libraryDb.updateMemberLastActivity).mockResolvedValue(undefined);
+  });
+
+  it("returns other active sessions for the given location with operator name and confirmedCount", async () => {
+    const sessionB = {
+      sessionId: "session-b",
+      startedBy: 99,
+      confirmedCount: ["uuid1", "uuid2"],
+    };
+
+    const mockDb = makeMockDb();
+    (mockDb.select as ReturnType<typeof vi.fn>)
+      .mockImplementationOnce(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => Promise.resolve([sessionB])),
+        })),
+      }))
+      .mockImplementationOnce(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve([{ name: "María" }])),
+          })),
+        })),
+      }));
+
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+
+    const { appRouter: freshRouter } = await import("./routers");
+    const caller = freshRouter.createCaller(makeCtx(1));
+    const result = await caller.shelfAudit.getActiveSessionsForLocation({ locationCode: "01A" });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      sessionId: "session-b",
+      userName: "María",
+      confirmedCount: 2,
+    });
+  });
+
+  it("returns empty array when no other users are auditing the location", async () => {
+    const mockDb = makeMockDb();
+    (mockDb.select as ReturnType<typeof vi.fn>).mockImplementationOnce(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => Promise.resolve([])),
+      })),
+    }));
+
+    vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
+
+    const { appRouter: freshRouter } = await import("./routers");
+    const caller = freshRouter.createCaller(makeCtx(1));
+    const result = await caller.shelfAudit.getActiveSessionsForLocation({ locationCode: "01A" });
+
+    expect(result).toEqual([]);
+  });
+});

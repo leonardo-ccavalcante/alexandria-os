@@ -313,6 +313,7 @@ export const shelfAuditSessions = mysqlTable('shelfAuditSessions', {
   photoReconciled: boolean('photoReconciled').notNull().default(false),
 }, (table) => ({
   libraryStatusIdx: index('idx_audit_library_status').on(table.libraryId, table.status),
+  libraryStatusLocationIdx: index('idx_audit_library_status_location').on(table.libraryId, table.status, table.locationCode),
 }));
 export type ShelfAuditSession = typeof shelfAuditSessions.$inferSelect;
 export type InsertShelfAuditSession = typeof shelfAuditSessions.$inferInsert;

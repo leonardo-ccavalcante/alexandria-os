@@ -41,7 +41,7 @@ import {
 import { toast } from 'sonner';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useLocation } from 'wouter';
+import { useLocation, Link } from 'wouter';
 import type { ShelfPhotoResult, ExpectedItemDetail } from '../../../shared/auditTypes';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -321,8 +321,14 @@ function ReconcileTab({
 
 function InitiateStep({ onStarted }: { onStarted: (session: AuditSession) => void }) {
   const [locationCode, setLocationCode] = useState('');
+  const [pendingCode, setPendingCode] = useState<string | null>(null);
+  const [showBusyWarning, setShowBusyWarning] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: existing, isLoading: loadingExisting } = trpc.shelfAudit.getActiveAuditSession.useQuery();
+  const { data: busySessions, isFetching: checkingBusy } = trpc.shelfAudit.getActiveSessionsForLocation.useQuery(
+    { locationCode: pendingCode ?? '' },
+    { enabled: !!pendingCode && !showBusyWarning }
+  );
   const initiateMutation = trpc.shelfAudit.initiateShelfAudit.useMutation({
     onSuccess: (session) => {
       toast.success(`Auditoría iniciada para ubicación ${session.locationCode}`);
@@ -335,6 +341,26 @@ function InitiateStep({ onStarted }: { onStarted: (session: AuditSession) => voi
     inputRef.current?.focus();
   }, []);
 
+  // When busy-check resolves, either show warning or proceed directly
+  useEffect(() => {
+    if (!pendingCode || busySessions === undefined || showBusyWarning) return;
+    if (busySessions.length > 0) {
+      setShowBusyWarning(true);
+    } else {
+      initiateMutation.mutate({ locationCode: pendingCode });
+      setPendingCode(null);
+    }
+  }, [busySessions, pendingCode, showBusyWarning]);
+
+  // When the user edits the location code after a busy warning, reset the warning
+  const handleLocationChange = (v: string) => {
+    setLocationCode(v);
+    if (showBusyWarning) {
+      setShowBusyWarning(false);
+      setPendingCode(null);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const code = locationCode.toUpperCase().trim();
@@ -342,7 +368,19 @@ function InitiateStep({ onStarted }: { onStarted: (session: AuditSession) => voi
       toast.error('Formato inválido. Usa el formato 01A (dos dígitos + una letra).');
       return;
     }
-    initiateMutation.mutate({ locationCode: code });
+    setPendingCode(code);
+  };
+
+  const handleConfirmBusy = () => {
+    if (!pendingCode) return;
+    initiateMutation.mutate({ locationCode: pendingCode });
+    setPendingCode(null);
+    setShowBusyWarning(false);
+  };
+
+  const handleCancelBusy = () => {
+    setPendingCode(null);
+    setShowBusyWarning(false);
   };
 
   const handleResume = () => {
@@ -386,6 +424,40 @@ function InitiateStep({ onStarted }: { onStarted: (session: AuditSession) => voi
         </Card>
       ) : null}
 
+      {/* Location busy warning — shown before confirming initiation */}
+      {showBusyWarning && busySessions && busySessions.length > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-orange-800 text-base flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Ubicación en uso
+            </CardTitle>
+            <CardDescription className="text-orange-700">
+              {busySessions.map((s) => (
+                <span key={s.sessionId}>
+                  <strong>{s.userName}</strong> ya está auditando <strong>{pendingCode}</strong>
+                  {s.confirmedCount > 0 && ` (${s.confirmedCount} libro${s.confirmedCount !== 1 ? 's' : ''} confirmado${s.confirmedCount !== 1 ? 's' : ''})`}.
+                </span>
+              ))}
+              {' '}¿Deseas iniciar de todas formas?
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0 flex gap-2">
+            <Button
+              size="sm"
+              onClick={handleConfirmBusy}
+              disabled={initiateMutation.isPending}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {initiateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Iniciar de todas formas'}
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleCancelBusy}>
+              Cancelar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Start new session */}
       <Card>
         <CardHeader>
@@ -400,14 +472,14 @@ function InitiateStep({ onStarted }: { onStarted: (session: AuditSession) => voi
             <Input
               ref={inputRef}
               value={locationCode}
-              onChange={(e) => setLocationCode(e.target.value.toUpperCase())}
+              onChange={(e) => handleLocationChange(e.target.value.toUpperCase())}
               placeholder="01A"
               maxLength={3}
               className="font-mono text-lg tracking-widest w-28 text-center"
-              disabled={initiateMutation.isPending}
+              disabled={initiateMutation.isPending || !!pendingCode}
             />
-            <Button type="submit" disabled={initiateMutation.isPending || !locationCode}>
-              {initiateMutation.isPending ? (
+            <Button type="submit" disabled={initiateMutation.isPending || !locationCode || !!pendingCode}>
+              {initiateMutation.isPending || checkingBusy ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
@@ -1150,7 +1222,9 @@ export default function ShelfAudit() {
   // Keep session data fresh while scanning
   const { data: liveSession, refetch } = trpc.shelfAudit.getActiveAuditSession.useQuery(undefined, {
     enabled: step === 'scan',
-    refetchInterval: false,
+    // Auto-poll every 5s during scan so the co-auditor banner updates automatically
+    refetchInterval: step === 'scan' ? 5000 : false,
+    refetchIntervalInBackground: false,
   });
 
   // Merge live session data into local state
@@ -1186,6 +1260,17 @@ export default function ShelfAudit() {
 
   return (
     <div className="container py-6 md:py-10">
+      {/* History link — only visible on initiate step */}
+      {step === 'initiate' && (
+        <div className="flex justify-end mb-2">
+          <Link href="/auditoria/historial">
+            <Button variant="ghost" size="sm" className="text-gray-500 gap-1 text-xs">
+              <ClipboardList className="h-3.5 w-3.5" />
+              Ver historial
+            </Button>
+          </Link>
+        </div>
+      )}
       {/* Step indicator */}
       <div className="flex items-center justify-center gap-1 mb-8 text-xs text-gray-400">
         {STEP_META.map(({ id, label, Icon }, i) => {

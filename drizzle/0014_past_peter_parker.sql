@@ -1,0 +1,1 @@
+CREATE INDEX `idx_audit_library_status_location` ON `shelfAuditSessions` (`libraryId`,`status`,`locationCode`);

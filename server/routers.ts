@@ -3267,6 +3267,98 @@ Return JSON: { "books": [ ... ] }`;
           skipped: conflicts.filter(c => c.resolution === 'skipped').length,
         };
       }),
+
+    /**
+     * Returns paginated audit history (COMPLETED + ABANDONED sessions)
+     * for the current library, enriched with operator names.
+     * Used by the Audit History view for supervisors.
+     */
+    getAuditHistory: libraryProcedure
+      .input(z.object({
+        page: z.number().int().min(0).default(0),
+        pageSize: z.number().int().min(1).max(100).default(20),
+      }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const { desc } = await import('drizzle-orm');
+        const sessions = await db
+          .select()
+          .from(shelfAuditSessions)
+          .where(and(
+            eq(shelfAuditSessions.libraryId, ctx.library.id),
+            or(
+              eq(shelfAuditSessions.status, 'COMPLETED'),
+              eq(shelfAuditSessions.status, 'ABANDONED'),
+            ),
+          ))
+          .orderBy(desc(shelfAuditSessions.startedAt))
+          .limit(input.pageSize)
+          .offset(input.page * input.pageSize);
+        if (sessions.length === 0) return [];
+        // Enrich with operator names
+        const enriched = await Promise.all(sessions.map(async (s) => {
+          const [user] = await db
+            .select({ name: users.name })
+            .from(users)
+            .where(eq(users.id, s.startedBy))
+            .limit(1);
+          const expected = s.expectedItemUuids as string[];
+          const confirmed = s.confirmedItemUuids as string[];
+          return {
+            id: s.id,
+            locationCode: s.locationCode,
+            status: s.status,
+            operatorName: user?.name ?? 'Operador',
+            startedAt: s.startedAt,
+            completedAt: s.completedAt,
+            expectedCount: expected.length,
+            confirmedCount: confirmed.length,
+            missingCount: expected.filter(u => !confirmed.includes(u)).length,
+          };
+        }));
+        return enriched;
+      }),
+
+    /**
+     * Returns other users' ACTIVE sessions for a given location.
+     * Used by InitiateStep to warn the operator before starting an audit
+     * on a location that another user is already auditing.
+     */
+    getActiveSessionsForLocation: libraryProcedure
+      .input(z.object({ locationCode: z.string().min(1).max(10).transform(v => v.trim().toUpperCase()) }))
+      .query(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        const sessions = await db
+          .select({
+            sessionId: shelfAuditSessions.id,
+            startedBy: shelfAuditSessions.startedBy,
+            confirmedCount: shelfAuditSessions.confirmedItemUuids,
+          })
+          .from(shelfAuditSessions)
+          .where(and(
+            eq(shelfAuditSessions.libraryId, ctx.library.id),
+            eq(shelfAuditSessions.locationCode, input.locationCode),
+            eq(shelfAuditSessions.status, 'ACTIVE'),
+            ne(shelfAuditSessions.startedBy, ctx.user.id),
+          ));
+        if (sessions.length === 0) return [];
+        // Enrich with operator names
+        const enriched = await Promise.all(sessions.map(async (s) => {
+          const [user] = await db
+            .select({ name: users.name })
+            .from(users)
+            .where(eq(users.id, s.startedBy))
+            .limit(1);
+          return {
+            sessionId: s.sessionId,
+            userName: user?.name ?? 'Operador',
+            confirmedCount: (s.confirmedCount as string[]).length,
+          };
+        }));
+        return enriched;
+      }),
   }),
 });
 export type AppRouter = typeof appRouter;

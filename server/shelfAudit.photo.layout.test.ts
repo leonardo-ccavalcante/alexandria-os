@@ -65,3 +65,16 @@ describe('PhotoStep iOS/Android photo input', () => {
     expect(photoStep).toContain('readAsDataURL');
   });
 });
+
+describe('ScanStep auto-polling', () => {
+  it('enables refetchInterval: 5000 on getActiveAuditSession query in ScanStep', () => {
+    // The liveSession query must poll every 5 seconds when step === 'scan'
+    // so the co-auditor banner updates automatically without manual refresh.
+    // We look for the query block that has enabled: step === 'scan'
+    const scanQueryBlock = source.match(
+      /const \{ data: liveSession[\s\S]*?enabled: step === ['"]scan['"][\s\S]*?\}\)/
+    )?.[0] ?? '';
+    expect(scanQueryBlock).toContain('refetchInterval');
+    expect(scanQueryBlock).toContain('5000');
+  });
+});

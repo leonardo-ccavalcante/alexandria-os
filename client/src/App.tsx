@@ -18,6 +18,7 @@ import Configuracion from "./pages/Configuracion";
 import LibraryManagement from "./pages/LibraryManagement";
 import JoinLibrary from "./pages/JoinLibrary";
 import ShelfAudit from "./pages/ShelfAudit";
+import AuditHistory from "./pages/AuditHistory";
 import NoLibraryAccess from "./pages/NoLibraryAccess";
 import { useLibrary } from "./hooks/useLibrary";
 import { useAuth } from "./_core/hooks/useAuth";
@@ -167,6 +168,7 @@ function Router() {
         <Route path="/configuracion" component={Configuracion} />
         <Route path="/biblioteca" component={LibraryManagement} />
         <Route path="/auditoria" component={ShelfAudit} />
+        <Route path="/auditoria/historial" component={AuditHistory} />
         <Route path="/join" component={JoinLibrary} />
         <Route path="/404" component={NotFound} />
         <Route component={NotFound} />
