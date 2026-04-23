@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { generateSyntheticIsbn } from '@/../../shared/deposito-legal-utils';
+import { trackEvent } from '@/lib/posthog';
 
 // Discriminated union for the three possible result states
 type TriageResult =
@@ -60,6 +61,11 @@ export default function Triage() {
         // Book already in catalog — show it immediately
         setResult({ kind: 'found', data: checkResult });
         playSound(checkResult.decision ?? 'ACCEPT');
+        trackEvent('triage_decision', {
+          isbn: targetIsbn,
+          decision: checkResult.decision ?? 'ACCEPT',
+          source: 'catalog_hit',
+        });
         return;
       }
 
@@ -78,15 +84,22 @@ export default function Triage() {
         if (recheckResult.found) {
           setResult({ kind: 'found', data: recheckResult });
           playSound(recheckResult.decision ?? 'ACCEPT');
+          trackEvent('triage_decision', {
+            isbn: targetIsbn,
+            decision: recheckResult.decision ?? 'ACCEPT',
+            source: 'external_fetch',
+          });
         } else {
           // Extremely unlikely: fetch succeeded but re-check still says not found
           setResult({ kind: 'not_found', isbn: targetIsbn });
           playSound('RECYCLE');
+          trackEvent('triage_not_found', { isbn: targetIsbn });
         }
       } else {
         // External lookup also failed — book genuinely not found anywhere
         setResult({ kind: 'not_found', isbn: targetIsbn });
         playSound('RECYCLE');
+        trackEvent('triage_not_found', { isbn: targetIsbn });
       }
     } catch (error: any) {
       toast.error(error.message || 'Error al verificar ISBN');

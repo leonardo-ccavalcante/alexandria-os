@@ -1,12 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Settings, Save, Key } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Settings, Save, Key, BarChart2 } from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc";
+import { setOptOut } from "@/lib/posthog";
 
 export default function Configuracion() {
+  const { data: analyticsData } = trpc.settings.getAnalyticsOptOut.useQuery();
+  const updateAnalyticsOptOut = trpc.settings.updateAnalyticsOptOut.useMutation({
+    onSuccess: (_, variables) => {
+      setOptOut(variables.optOut);
+      toast.success(variables.optOut ? "Analítica desactivada" : "Analítica activada");
+    },
+    onError: () => toast.error("Error al guardar preferencia de analítica"),
+  });
+
+  const handleAnalyticsToggle = (checked: boolean) => {
+    // checked = sharing enabled → optOut = false
+    updateAnalyticsOptOut.mutate({ optOut: !checked });
+  };
+
   const [config, setConfig] = useState({
     minProfitThreshold: "3.00",
     shippingCost: "4.50",
@@ -206,7 +223,7 @@ export default function Configuracion() {
                   🔒 Las API keys se almacenan de forma segura y están disponibles automáticamente en el servidor.
                 </p>
               </div>
-              
+
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <h4 className="font-semibold text-green-900 mb-2">✅ Scraping de Precios Automático</h4>
                 <p className="text-sm text-green-800">
@@ -224,6 +241,38 @@ export default function Configuracion() {
                 <p className="text-sm text-green-700 mt-2">
                   Los precios se actualizan automáticamente cada 24 horas.
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Analytics Privacy */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart2 className="h-5 w-5" />
+                Privacidad y Analítica
+              </CardTitle>
+              <CardDescription>
+                Controla si Alexandria puede recopilar datos de uso anónimos para mejorar la aplicación.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1 flex-1 mr-4">
+                  <Label htmlFor="analytics-toggle" className="text-base font-medium cursor-pointer">
+                    Compartir datos de uso
+                  </Label>
+                  <p className="text-sm text-gray-500">
+                    Ayuda a mejorar Alexandria compartiendo datos anónimos sobre cómo usas la aplicación.
+                    No incluye información personal ni contenido de libros.
+                  </p>
+                </div>
+                <Switch
+                  id="analytics-toggle"
+                  checked={!(analyticsData?.optOut ?? false)}
+                  onCheckedChange={handleAnalyticsToggle}
+                  disabled={updateAnalyticsOptOut.isPending}
+                />
               </div>
             </CardContent>
           </Card>

@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `analyticsOptOut` boolean DEFAULT false NOT NULL;

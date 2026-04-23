@@ -44,6 +44,7 @@ import {
   getAnalyticsByLocation,
   getInventorySummaryByIsbn,
 } from "./db";
+import { serverTrack } from "./_core/posthog";
 
 export const appRouter = router({
   system: systemRouter,
@@ -461,6 +462,11 @@ export const appRouter = router({
           libraryId: libraryId,
         });
         console.log(`[catalog.createItem] OK uuid=${item.uuid} isbn=${item.isbn13} libraryId=${item.libraryId} status=${item.status}`);
+        void serverTrack(ctx.user.openId, 'book_cataloged', {
+          isbn: input.isbn13,
+          condition: input.conditionGrade,
+          libraryId,
+        }, ctx.user.analyticsOptOut ?? false);
         return { success: true, item };
       }),
     
@@ -1945,6 +1951,12 @@ export const appRouter = router({
           userName: ctx.user?.name || undefined,
         });
         
+        void serverTrack(ctx.user.openId, 'export_generated', {
+          format: 'csv',
+          platform: 'general',
+          itemCount: groupedByIsbn.size,
+          libraryId: ctx.library?.id,
+        }, ctx.user.analyticsOptOut ?? false);
         return { csv: csvContent };
       }),
 
@@ -2715,6 +2727,21 @@ export const appRouter = router({
         const isValid = await validateISBNDBApiKey(input.apiKey);
         return { valid: isValid };
       }),
+
+    // Analytics opt-out — per-user preference
+    getAnalyticsOptOut: protectedProcedure.query(({ ctx }) => {
+      return { optOut: ctx.user.analyticsOptOut ?? false };
+    }),
+
+    updateAnalyticsOptOut: protectedProcedure
+      .input(z.object({ optOut: z.boolean() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        if (db) {
+          await db.update(users).set({ analyticsOptOut: input.optOut }).where(eq(users.openId, ctx.user.openId));
+        }
+        return { success: true };
+      }),
   }),
 
   // ============================================================================
@@ -2792,6 +2819,13 @@ export const appRouter = router({
             })
             .where(eq(inventoryItems.uuid, item.uuid));
         });
+        void serverTrack(ctx.user.openId, 'sale_recorded', {
+          isbn: input.isbn13,
+          channel: input.channel,
+          salePrice: input.salePrice,
+          netProfit,
+          libraryId: ctx.library.id,
+        }, ctx.user.analyticsOptOut ?? false);
         return {
           success: true,
           transaction: {
@@ -3260,12 +3294,19 @@ Return JSON: { "books": [ ... ] }`;
         await db.update(shelfAuditSessions)
           .set({ status: 'COMPLETED', completedAt: new Date() })
           .where(eq(shelfAuditSessions.id, input.sessionId));
-        return {
+        const auditResult = {
           confirmed: confirmed.length,
           missing: notFoundUuids.length,
           relocated: conflicts.filter(c => c.resolution === 'moved').length,
           skipped: conflicts.filter(c => c.resolution === 'skipped').length,
         };
+        void serverTrack(ctx.user.openId, 'audit_completed', {
+          sessionId: input.sessionId,
+          locationCode: session.locationCode,
+          libraryId: ctx.library.id,
+          ...auditResult,
+        }, ctx.user.analyticsOptOut ?? false);
+        return auditResult;
       }),
 
     /**

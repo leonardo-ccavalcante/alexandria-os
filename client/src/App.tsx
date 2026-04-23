@@ -23,7 +23,9 @@ import NoLibraryAccess from "./pages/NoLibraryAccess";
 import { useLibrary } from "./hooks/useLibrary";
 import { useAuth } from "./_core/hooks/useAuth";
 import { BookOpen, Package, BarChart3, Upload, Settings as SettingsIcon, Menu, X, Building2, Crown, Shield, User as UserIcon, ClipboardList } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
+import { initPostHog, trackEvent } from "@/lib/posthog";
 
 // ─── Library indicator badge shown in the nav header ─────────────────────────
 function LibraryIndicator() {
@@ -64,6 +66,19 @@ function Router() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, loading: authLoading, isAuthenticated } = useAuth();
   const { hasLibrary, isLoading: libraryLoading } = useLibrary();
+  const [location] = useLocation();
+
+  // Identify user in PostHog once auth resolves
+  useEffect(() => {
+    if (!authLoading) {
+      initPostHog(user ?? null);
+    }
+  }, [user, authLoading]);
+
+  // Track page views on route change
+  useEffect(() => {
+    trackEvent("page_view", { path: location });
+  }, [location]);
 
   // Show NoLibraryAccess for authenticated users who have no library
   // (but not on the /join route which handles the invitation flow)
