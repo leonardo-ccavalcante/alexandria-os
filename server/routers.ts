@@ -4,8 +4,8 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, libraryProcedure, libraryAdminProcedure, router } from "./_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { eq, and, sql, or, isNull, inArray } from "drizzle-orm";
-import { catalogMasters, inventoryItems, salesTransactions, locationLog, exportHistory, InsertCatalogMaster, shelfAuditSessions } from "../drizzle/schema";
+import { eq, and, ne, sql, or, isNull, inArray } from "drizzle-orm";
+import { catalogMasters, inventoryItems, salesTransactions, locationLog, exportHistory, InsertCatalogMaster, shelfAuditSessions, users } from "../drizzle/schema";
 import type { ShelfPhotoResult, ConflictItem } from '../shared/auditTypes';
 import { extractIsbnFromImage } from "./aiIsbnExtractor";
 import { fetchExternalBookMetadata } from "./_core/externalBookApi";
@@ -2824,12 +2824,14 @@ export const appRouter = router({
       .query(async ({ ctx }) => {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
+        // Find only the current user's own active session (not other users')
         const [session] = await db
           .select()
           .from(shelfAuditSessions)
           .where(and(
             eq(shelfAuditSessions.libraryId, ctx.library.id),
             eq(shelfAuditSessions.status, 'ACTIVE'),
+            eq(shelfAuditSessions.startedBy, ctx.user.id),
           ))
           .limit(1);
         if (!session) return null;
@@ -2861,7 +2863,39 @@ export const appRouter = router({
           }));
         }
 
-        return { ...session, expectedItemDetails };
+        // Edge case: find other users' active sessions at the same location
+        // (co-audit scenario — rare but supported with a banner)
+        const otherSessions = await db
+          .select({
+            id: shelfAuditSessions.id,
+            startedBy: shelfAuditSessions.startedBy,
+            confirmedItemUuids: shelfAuditSessions.confirmedItemUuids,
+          })
+          .from(shelfAuditSessions)
+          .where(and(
+            eq(shelfAuditSessions.libraryId, ctx.library.id),
+            eq(shelfAuditSessions.status, 'ACTIVE'),
+            eq(shelfAuditSessions.locationCode, session.locationCode),
+            ne(shelfAuditSessions.startedBy, ctx.user.id),
+          ));
+
+        // Enrich co-sessions with user names
+        const coSessions = await Promise.all(
+          otherSessions.map(async (s) => {
+            const [u] = await db
+              .select({ name: users.name })
+              .from(users)
+              .where(eq(users.id, s.startedBy))
+              .limit(1);
+            return {
+              sessionId: s.id,
+              userName: u?.name ?? `Usuario ${s.startedBy}`,
+              confirmedCount: (s.confirmedItemUuids as string[]).length,
+            };
+          }),
+        );
+
+        return { ...session, expectedItemDetails, coSessions };
       }),
 
     initiateShelfAudit: libraryProcedure
@@ -2871,12 +2905,14 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'DB unavailable' });
-        // Abandon any existing ACTIVE session for this library
+        // Abandon only the current user's own previous ACTIVE session
+        // (never abandon other users' sessions — they are independent)
         await db.update(shelfAuditSessions)
           .set({ status: 'ABANDONED' })
           .where(and(
             eq(shelfAuditSessions.libraryId, ctx.library.id),
             eq(shelfAuditSessions.status, 'ACTIVE'),
+            eq(shelfAuditSessions.startedBy, ctx.user.id),
           ));
         // Snapshot items at this location
         const items = await db

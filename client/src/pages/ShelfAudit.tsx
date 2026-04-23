@@ -36,6 +36,7 @@ import {
   BookPlus,
   MoveRight,
   Trash2,
+  Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
@@ -71,6 +72,7 @@ type AuditSession = {
   photoAnalysisResult: ShelfPhotoResult[] | null;
   photoReconciled: boolean;
   expectedItemDetails: ExpectedItemDetail[];
+  coSessions?: Array<{ sessionId: string; userName: string; confirmedCount: number }>;
 };
 
 // ─── Step 2: Photo ────────────────────────────────────────────────────────────
@@ -603,6 +605,20 @@ function ScanStep({
           style={{ width: `${progress}%` }}
         />
       </div>
+
+      {/* Co-auditor banner — only shown when another user is auditing the same location */}
+      {session.coSessions && session.coSessions.length > 0 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 flex items-start gap-2 text-sm text-blue-800">
+          <Users className="h-4 w-4 mt-0.5 shrink-0 text-blue-600" />
+          <div>
+            {session.coSessions.map(cs => (
+              <span key={cs.sessionId}>
+                <strong>{cs.userName}</strong> también está auditando esta ubicación — {cs.confirmedCount} libro{cs.confirmedCount !== 1 ? 's' : ''} confirmado{cs.confirmedCount !== 1 ? 's' : ''}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-3 text-center">

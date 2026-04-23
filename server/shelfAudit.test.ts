@@ -178,11 +178,16 @@ describe("shelfAudit.getActiveAuditSession", () => {
   it("returns the ACTIVE session when one exists", async () => {
     const session = makeSession({ expectedItemUuids: [] });
     const mockDb = makeMockDb();
-    (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([session])) })),
-      })),
-    });
+    // Call 1: own session query; Call 2: otherSessions (returns [])
+    (mockDb.select as ReturnType<typeof vi.fn>)
+      .mockImplementationOnce(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([session])) })),
+        })),
+      }))
+      .mockImplementationOnce(() => ({
+        from: vi.fn(() => ({ where: vi.fn(() => Promise.resolve([])) })),
+      }));
     vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.shelfAudit.getActiveAuditSession();
@@ -689,19 +694,14 @@ describe("shelfAudit.getActiveAuditSession — expectedItemDetails", () => {
   it("returns expectedItemDetails joined from catalog", async () => {
     const session = { ...makeSession({ expectedItemUuids: ["uuid-A"] }), photoReconciled: false };
     const mockDb = makeMockDb();
-    let selectCallCount = 0;
-    (mockDb.select as ReturnType<typeof vi.fn>).mockImplementation(() => {
-      selectCallCount++;
-      if (selectCallCount === 1) {
-        return {
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(() => Promise.resolve([session])),
-            })),
-          })),
-        };
-      }
-      return {
+    // Call 1: own session; Call 2: expectedItemDetails (innerJoin); Call 3: otherSessions ([])
+    (mockDb.select as ReturnType<typeof vi.fn>)
+      .mockImplementationOnce(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([session])) })),
+        })),
+      }))
+      .mockImplementationOnce(() => ({
         from: vi.fn(() => ({
           innerJoin: vi.fn(() => ({
             where: vi.fn(() => Promise.resolve([
@@ -709,8 +709,10 @@ describe("shelfAudit.getActiveAuditSession — expectedItemDetails", () => {
             ])),
           })),
         })),
-      };
-    });
+      }))
+      .mockImplementationOnce(() => ({
+        from: vi.fn(() => ({ where: vi.fn(() => Promise.resolve([])) })),
+      }));
     vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.shelfAudit.getActiveAuditSession();
@@ -723,13 +725,16 @@ describe("shelfAudit.getActiveAuditSession — expectedItemDetails", () => {
   it("returns empty expectedItemDetails when no expected items", async () => {
     const session = { ...makeSession({ expectedItemUuids: [] }), photoReconciled: false };
     const mockDb = makeMockDb();
-    (mockDb.select as ReturnType<typeof vi.fn>).mockReturnValue({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(() => Promise.resolve([session])),
+    // Call 1: own session; Call 2: otherSessions (no expectedItems to fetch, goes straight to otherSessions)
+    (mockDb.select as ReturnType<typeof vi.fn>)
+      .mockImplementationOnce(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({ limit: vi.fn(() => Promise.resolve([session])) })),
         })),
-      })),
-    });
+      }))
+      .mockImplementationOnce(() => ({
+        from: vi.fn(() => ({ where: vi.fn(() => Promise.resolve([])) })),
+      }));
     vi.mocked(dbModule.getDb).mockResolvedValue(mockDb);
     const caller = appRouter.createCaller(makeCtx());
     const result = await caller.shelfAudit.getActiveAuditSession();

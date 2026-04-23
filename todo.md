@@ -1382,3 +1382,12 @@
 - [x] Fix: guard normalize() to accept string | null | undefined, coerce null to empty string via (s ?? '')
 - [x] Fix: skip match attempt when both title and author are null (treat as unreadable book)
 - [x] 40/40 shelfAudit tests pass; 0 TypeScript errors
+
+## Concurrent Audit Sessions Fix (2026-04-23)
+
+- [ ] Task 1: Write failing TDD tests for concurrency bug (5 tests RED)
+- [ ] Task 2: Fix initiateShelfAudit — only abandon current user's own session
+- [ ] Task 3: Fix getActiveAuditSession — filter by startedBy + add coSessions
+- [ ] Task 4: Frontend — co-session banner in InitiateStep and ScanStep + polling
+- [ ] Task 5: Fix misleading UI text in InitiateStep
+- [ ] Task 6: TypeScript check + full test run + code review + commit
